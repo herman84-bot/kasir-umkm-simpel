@@ -1,0 +1,17 @@
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Node dependencies
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# VS Code files
+.vscode/
+
+# Local storage dumps
+*.localstorage
