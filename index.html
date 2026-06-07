@@ -66,21 +66,31 @@
       box-shadow: 0 20px 25px rgba(15,23,42,0.2);
     }
     @media print {
-      body * {
-        visibility: hidden;
-      }
-      #receiptContent, #receiptContent * {
-        visibility: visible;
-      }
-      #receiptContent {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-      }
-      .no-print {
-        display: none !important;
-      }
+      body * { visibility: hidden; }
+      #receiptContent, #receiptContent * { visibility: visible; }
+      #receiptContent { position: absolute; left: 0; top: 0; width: 100%; }
+      .no-print { display: none !important; }
+    }
+  </style>
+  <!-- Thermal Receipt Print Style (dipakai di window baru) -->
+  <style id="thermalStyle" type="text/plain">
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Courier New', Courier, monospace; font-size: 12px; width: 58mm; padding: 4mm; color: #000; background: #fff; }
+    .center { text-align: center; }
+    .bold { font-weight: bold; }
+    .big { font-size: 15px; font-weight: bold; }
+    .separator { border-top: 1px dashed #000; margin: 4px 0; }
+    .separator-solid { border-top: 1px solid #000; margin: 4px 0; }
+    .row { display: flex; justify-content: space-between; margin: 2px 0; }
+    .row-item { display: flex; justify-content: space-between; margin: 3px 0; gap: 4px; }
+    .item-name { flex: 1; word-break: break-word; }
+    .item-total { text-align: right; white-space: nowrap; }
+    .item-detail { color: #444; font-size: 11px; margin-left: 2px; }
+    .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 13px; margin: 3px 0; }
+    .footer { text-align: center; margin-top: 8px; font-size: 11px; }
+    @media print {
+      body { width: 58mm; }
+      @page { size: 58mm auto; margin: 0; }
     }
   </style>
 </head>
@@ -149,6 +159,7 @@
         <button data-screen="pembelian" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">🛍 Pembelian</button>
         <button data-screen="riwayat" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📋 Riwayat</button>
         <button data-screen="kelolaKasir" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">👥 Kelola Kasir</button>
+        <button data-screen="pengaturan" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">⚙️ Pengaturan</button>
       </nav>
       <!-- User Info & Logout -->
       <div class="mt-6 border-t border-slate-700 pt-5">
@@ -413,6 +424,62 @@
         </div>
       </section>
 
+      <!-- Pengaturan Toko (Admin Only) -->
+      <section id="pengaturan" class="screen hidden">
+        <div class="mb-6">
+          <h3 class="text-2xl font-semibold">Pengaturan Toko</h3>
+          <p class="text-slate-500">Info toko akan tampil di struk cetak pelanggan.</p>
+        </div>
+        <div class="max-w-xl">
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-4">
+            <label class="block">
+              <span class="text-slate-700 font-medium text-sm">Nama Toko</span>
+              <input id="settingStoreName" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Warung Barokah" />
+            </label>
+            <label class="block">
+              <span class="text-slate-700 font-medium text-sm">Alamat</span>
+              <input id="settingStoreAddress" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Jl. Merdeka No. 10, Jakarta" />
+            </label>
+            <label class="block">
+              <span class="text-slate-700 font-medium text-sm">No. Telepon / WhatsApp</span>
+              <input id="settingStorePhone" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: 08123456789" />
+            </label>
+            <label class="block">
+              <span class="text-slate-700 font-medium text-sm">Pesan di struk (footer)</span>
+              <input id="settingStoreNote" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Terima kasih, selamat datang kembali!" />
+            </label>
+            <label class="block">
+              <span class="text-slate-700 font-medium text-sm">Ukuran Kertas Struk</span>
+              <select id="settingPaperSize" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
+                <option value="58">58mm (Standar printer thermal kecil)</option>
+                <option value="80">80mm (Printer thermal besar)</option>
+              </select>
+            </label>
+            <button id="saveSettingsBtn" class="w-full rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">💾 Simpan Pengaturan</button>
+            <div id="settingsSaved" class="hidden text-center text-green-600 text-sm font-medium">✅ Pengaturan berhasil disimpan!</div>
+          </div>
+
+          <!-- Preview struk -->
+          <div class="mt-6 rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
+            <p class="text-sm font-medium text-slate-500 mb-4">Preview Struk</p>
+            <div class="mx-auto bg-white border border-dashed border-slate-300 p-4 font-mono text-xs leading-relaxed" style="width:220px">
+              <p class="text-center font-bold text-sm" id="previewStoreName">NAMA TOKO</p>
+              <p class="text-center" id="previewStoreAddress">Alamat toko</p>
+              <p class="text-center" id="previewStorePhone">No. Telepon</p>
+              <div class="border-t border-dashed border-slate-400 my-2"></div>
+              <div class="flex justify-between"><span>Produk A</span><span>Rp10.000</span></div>
+              <div class="flex justify-between text-slate-500"><span class="ml-2">1 x 10.000</span></div>
+              <div class="border-t border-dashed border-slate-400 my-2"></div>
+              <div class="flex justify-between font-bold"><span>TOTAL</span><span>Rp10.000</span></div>
+              <div class="flex justify-between"><span>Tunai</span><span>Rp20.000</span></div>
+              <div class="flex justify-between"><span>Kembali</span><span>Rp10.000</span></div>
+              <div class="border-t border-dashed border-slate-400 my-2"></div>
+              <p class="text-center" id="previewStoreNote">Terima kasih!</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Kelola Kasir (Admin Only) -->
       <section id="kelolaKasir" class="screen hidden">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -586,45 +653,43 @@
     </div>
   </div>
 
-  <div id="receiptModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 py-6">
-    <div class="w-full max-w-2xl rounded-3xl bg-white shadow-2xl overflow-hidden">
-      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+  <div id="receiptModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5 no-print">
         <div>
-          <h3 class="text-xl font-semibold">Nota Belanja</h3>
-          <p class="text-slate-500">Cetak struk transaksi untuk pelanggan.</p>
+          <h3 class="text-xl font-semibold">🧾 Struk Transaksi</h3>
+          <p class="text-slate-500 text-sm">Preview sebelum cetak ke printer thermal.</p>
         </div>
-        <button id="closeReceipt" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200">×</button>
+        <button id="closeReceipt" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
       </div>
-      <div id="receiptContent" class="p-6">
-        <div class="mb-5">
-          <h2 class="text-2xl font-semibold">UMKM Simpel</h2>
-          <p class="text-slate-500">Struk Pembayaran</p>
-          <p id="receiptDate" class="text-slate-500 text-sm mt-1"></p>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-sm">
-            <thead class="border-b border-slate-200 text-slate-500">
-              <tr>
-                <th class="py-2">Produk</th>
-                <th class="py-2">Qty</th>
-                <th class="py-2">Total</th>
-              </tr>
-            </thead>
-            <tbody id="receiptItems"></tbody>
-          </table>
-        </div>
-        <div class="mt-6 space-y-2 text-sm text-slate-700">
-          <div class="flex justify-between"><span>Subtotal</span><span id="receiptSubtotal">Rp0</span></div>
-          <div class="flex justify-between"><span>Diskon</span><span id="receiptDiscount">Rp0</span></div>
-          <div class="flex justify-between"><span>Pajak 11%</span><span id="receiptTax">Rp0</span></div>
-          <div class="flex justify-between font-semibold"><span>Total Bayar</span><span id="receiptTotal">Rp0</span></div>
-          <div class="flex justify-between"><span>Dibayar</span><span id="receiptCash">Rp0</span></div>
-          <div class="flex justify-between"><span>Kembalian</span><span id="receiptChange">Rp0</span></div>
+      <!-- Preview struk thermal -->
+      <div class="p-6 overflow-y-auto max-h-[65vh]">
+        <div id="receiptContent" class="mx-auto font-mono text-xs leading-relaxed bg-white p-4 border border-dashed border-slate-300" style="width:220px">
+          <p class="text-center font-bold text-sm" id="receiptStoreName">KASIR UMKM</p>
+          <p class="text-center text-xs" id="receiptStoreAddress"></p>
+          <p class="text-center text-xs" id="receiptStorePhone"></p>
+          <div class="border-t border-dashed border-slate-400 my-2"></div>
+          <div class="flex justify-between text-xs"><span>No</span><span id="receiptId">-</span></div>
+          <div class="flex justify-between text-xs"><span>Tgl</span><span id="receiptDate">-</span></div>
+          <div class="flex justify-between text-xs"><span>Kasir</span><span id="receiptCashierName">-</span></div>
+          <div class="border-t border-dashed border-slate-400 my-2"></div>
+          <div id="receiptItems" class="space-y-1"></div>
+          <div class="border-t border-dashed border-slate-400 my-2"></div>
+          <div class="flex justify-between text-xs"><span>Subtotal</span><span id="receiptSubtotal">Rp0</span></div>
+          <div class="flex justify-between text-xs" id="receiptDiscountRow"><span>Diskon</span><span id="receiptDiscount">Rp0</span></div>
+          <div class="flex justify-between text-xs" id="receiptTaxRow"><span>Pajak 11%</span><span id="receiptTax">Rp0</span></div>
+          <div class="border-t border-slate-400 my-1"></div>
+          <div class="flex justify-between font-bold text-sm"><span>TOTAL</span><span id="receiptTotal">Rp0</span></div>
+          <div class="flex justify-between text-xs mt-1"><span>Tunai</span><span id="receiptCash">Rp0</span></div>
+          <div class="flex justify-between text-xs font-semibold"><span>Kembali</span><span id="receiptChange">Rp0</span></div>
+          <div class="border-t border-dashed border-slate-400 my-2"></div>
+          <p class="text-center text-xs" id="receiptStoreNote">Terima kasih!</p>
         </div>
       </div>
-      <div class="flex gap-3 border-t border-slate-200 p-5">
-        <button id="printReceipt" class="w-full rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition no-print">Cetak</button>
-        <button id="closeReceiptBottom" class="w-full rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition no-print">Tutup</button>
+      <div class="flex gap-3 border-t border-slate-200 p-4 no-print">
+        <button id="printThermalBtn" class="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-white font-semibold hover:bg-slate-800 transition text-sm">🖨 Cetak Thermal</button>
+        <button id="printReceipt" class="flex-1 rounded-2xl bg-white border border-slate-300 px-4 py-3 text-slate-700 hover:bg-slate-100 transition text-sm">🖨 Cetak Biasa</button>
+        <button id="closeReceiptBottom" class="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-700 hover:bg-slate-100 transition text-sm">Tutup</button>
       </div>
     </div>
   </div>

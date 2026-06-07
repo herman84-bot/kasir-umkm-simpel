@@ -4,7 +4,26 @@ const App = (() => {
     transactions: 'pos_transactions',
     cashiers: 'pos_cashiers',
     purchases: 'pos_purchases',
-    settings: 'pos_settings'
+    settings: 'pos_settings',
+    storeSettings: 'pos_store_settings'
+  };
+
+  const defaultStoreSettings = {
+    name: 'Kasir UMKM Simpel',
+    address: '',
+    phone: '',
+    note: 'Terima kasih, selamat datang kembali!',
+    paperSize: '58'
+  };
+
+  const getStoreSettings = () => {
+    try {
+      return { ...defaultStoreSettings, ...JSON.parse(localStorage.getItem(STORAGE.storeSettings) || '{}') };
+    } catch { return { ...defaultStoreSettings }; }
+  };
+
+  const saveStoreSettings = settings => {
+    localStorage.setItem(STORAGE.storeSettings, JSON.stringify(settings));
   };
 
   // ── Supabase ──────────────────────────────────────────────────────────────
@@ -312,13 +331,33 @@ const App = (() => {
     closeReceiptBottom: document.getElementById('closeReceiptBottom'),
     printReceipt: document.getElementById('printReceipt'),
     receiptDate: document.getElementById('receiptDate'),
+    receiptId: document.getElementById('receiptId'),
+    receiptCashierName: document.getElementById('receiptCashierName'),
+    receiptStoreName: document.getElementById('receiptStoreName'),
+    receiptStoreAddress: document.getElementById('receiptStoreAddress'),
+    receiptStorePhone: document.getElementById('receiptStorePhone'),
+    receiptStoreNote: document.getElementById('receiptStoreNote'),
+    receiptDiscountRow: document.getElementById('receiptDiscountRow'),
+    receiptTaxRow: document.getElementById('receiptTaxRow'),
     receiptItems: document.getElementById('receiptItems'),
     receiptSubtotal: document.getElementById('receiptSubtotal'),
     receiptDiscount: document.getElementById('receiptDiscount'),
     receiptTax: document.getElementById('receiptTax'),
     receiptTotal: document.getElementById('receiptTotal'),
     receiptCash: document.getElementById('receiptCash'),
-    receiptChange: document.getElementById('receiptChange')
+    receiptChange: document.getElementById('receiptChange'),
+    printThermalBtn: document.getElementById('printThermalBtn'),
+    settingStoreName: document.getElementById('settingStoreName'),
+    settingStoreAddress: document.getElementById('settingStoreAddress'),
+    settingStorePhone: document.getElementById('settingStorePhone'),
+    settingStoreNote: document.getElementById('settingStoreNote'),
+    settingPaperSize: document.getElementById('settingPaperSize'),
+    saveSettingsBtn: document.getElementById('saveSettingsBtn'),
+    settingsSaved: document.getElementById('settingsSaved'),
+    previewStoreName: document.getElementById('previewStoreName'),
+    previewStoreAddress: document.getElementById('previewStoreAddress'),
+    previewStorePhone: document.getElementById('previewStorePhone'),
+    previewStoreNote: document.getElementById('previewStoreNote')
   };
 
   let chartInstance = null;
@@ -1291,6 +1330,7 @@ const App = (() => {
       button.classList.toggle('text-white', button.dataset.screen === screenId);
     });
     if (screenId === 'kelolaKasir') renderCashierManagement();
+    if (screenId === 'pengaturan') renderSettings();
   };
 
   const showInventoryModal = (title = 'Tambah Produk') => {
@@ -1494,25 +1534,120 @@ const App = (() => {
       return;
     }
     populateReceipt(receiptData);
+    if (dom.printThermalBtn) dom.printThermalBtn._receiptData = receiptData;
     dom.receiptModal.classList.remove('hidden');
+    dom.receiptModal.style.display = 'flex';
   };
 
   const populateReceipt = (data) => {
-    dom.receiptDate.textContent = new Date(data.date).toLocaleString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const store = getStoreSettings();
+    const cashier = getSelectedCashier();
+
+    dom.receiptStoreName.textContent = store.name;
+    dom.receiptStoreAddress.textContent = store.address || '';
+    dom.receiptStorePhone.textContent = store.phone ? 'Telp: ' + store.phone : '';
+    dom.receiptStoreNote.textContent = store.note || 'Terima kasih!';
+    dom.receiptStoreAddress.style.display = store.address ? '' : 'none';
+    dom.receiptStorePhone.style.display = store.phone ? '' : 'none';
+
+    dom.receiptId.textContent = data.id || '-';
+    dom.receiptDate.textContent = new Date(data.date).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    dom.receiptCashierName.textContent = data.cashier || cashier.name;
+
     dom.receiptItems.innerHTML = data.items.map(item => `
-      <tr>
-        <td class="py-2">${item.name}</td>
-        <td class="py-2">${item.qty}</td>
-        <td class="py-2">${formatCurrency(item.price * item.qty)}</td>
-      </tr>
+      <div>
+        <div class="flex justify-between font-medium">${item.name}<span>${formatCurrency(item.price * item.qty)}</span></div>
+        <div class="text-slate-500 ml-1">${item.qty} x ${formatCurrency(item.price)}</div>
+      </div>
     `).join('');
+
     dom.receiptSubtotal.textContent = formatCurrency(data.subtotal);
-    dom.receiptDiscount.textContent = formatCurrency(data.discount);
-    dom.receiptTax.textContent = formatCurrency(data.tax);
+    dom.receiptDiscount.textContent = formatCurrency(data.discount || 0);
+    dom.receiptTax.textContent = formatCurrency(data.tax || 0);
     dom.receiptTotal.textContent = formatCurrency(data.total);
     dom.receiptCash.textContent = formatCurrency(data.cash);
     dom.receiptChange.textContent = formatCurrency(data.change);
+
+    dom.receiptDiscountRow.style.display = data.discount > 0 ? '' : 'none';
+    dom.receiptTaxRow.style.display = data.tax > 0 ? '' : 'none';
   };
+
+  const printThermal = data => {
+    const store = getStoreSettings();
+    const cashier = getSelectedCashier();
+    const thermalCSS = document.getElementById('thermalStyle').textContent;
+    const paperWidth = store.paperSize === '80' ? '80mm' : '58mm';
+
+    const itemsHtml = data.items.map(item => `
+      <div class="row-item">
+        <span class="item-name">${item.name}</span>
+        <span class="item-total">${formatCurrency(item.price * item.qty)}</span>
+      </div>
+      <div class="item-detail">${item.qty} x ${formatCurrency(item.price)}</div>
+    `).join('');
+
+    const discountHtml = data.discount > 0
+      ? `<div class="row"><span>Diskon</span><span>-${formatCurrency(data.discount)}</span></div>` : '';
+    const taxHtml = data.tax > 0
+      ? `<div class="row"><span>Pajak 11%</span><span>${formatCurrency(data.tax)}</span></div>` : '';
+
+    const html = `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<title>Struk</title>
+<style>
+${thermalCSS}
+body { width: ${paperWidth}; }
+@media print { @page { size: ${paperWidth} auto; margin: 0; } }
+</style>
+</head><body>
+<p class="center big">${store.name}</p>
+${store.address ? `<p class="center">${store.address}</p>` : ''}
+${store.phone ? `<p class="center">Telp: ${store.phone}</p>` : ''}
+<div class="separator"></div>
+<div class="row"><span>No</span><span>${data.id || '-'}</span></div>
+<div class="row"><span>Tgl</span><span>${new Date(data.date).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></div>
+<div class="row"><span>Kasir</span><span>${data.cashier || cashier.name}</span></div>
+<div class="separator"></div>
+${itemsHtml}
+<div class="separator"></div>
+<div class="row"><span>Subtotal</span><span>${formatCurrency(data.subtotal)}</span></div>
+${discountHtml}${taxHtml}
+<div class="separator-solid"></div>
+<div class="total-row"><span>TOTAL</span><span>${formatCurrency(data.total)}</span></div>
+<div class="row"><span>Tunai</span><span>${formatCurrency(data.cash)}</span></div>
+<div class="row bold"><span>Kembali</span><span>${formatCurrency(data.change)}</span></div>
+<div class="separator"></div>
+<p class="footer">${store.note || 'Terima kasih!'}</p>
+<br/><br/>
+</body></html>`;
+
+    const win = window.open('', '_blank', `width=300,height=500`);
+    if (!win) { alert('Popup diblokir browser. Izinkan popup untuk cetak struk.'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 400);
+  };
+
+  // ── Pengaturan Toko ───────────────────────────────────────────────────────
+  const renderSettings = () => {
+    const store = getStoreSettings();
+    if (dom.settingStoreName) dom.settingStoreName.value = store.name;
+    if (dom.settingStoreAddress) dom.settingStoreAddress.value = store.address;
+    if (dom.settingStorePhone) dom.settingStorePhone.value = store.phone;
+    if (dom.settingStoreNote) dom.settingStoreNote.value = store.note;
+    if (dom.settingPaperSize) dom.settingPaperSize.value = store.paperSize;
+    updateSettingsPreview(store);
+  };
+
+  const updateSettingsPreview = store => {
+    if (dom.previewStoreName) dom.previewStoreName.textContent = store.name || 'NAMA TOKO';
+    if (dom.previewStoreAddress) dom.previewStoreAddress.textContent = store.address || 'Alamat toko';
+    if (dom.previewStorePhone) dom.previewStorePhone.textContent = store.phone ? 'Telp: ' + store.phone : 'No. Telepon';
+    if (dom.previewStoreNote) dom.previewStoreNote.textContent = store.note || 'Terima kasih!';
+  };
+  // ─────────────────────────────────────────────────────────────────────────
 
   const closeReceipt = () => {
     dom.receiptModal.classList.add('hidden');
@@ -1697,6 +1832,39 @@ const App = (() => {
     });
 
     logoutButton?.addEventListener('click', logout);
+
+    // ── Thermal print ──
+    dom.printThermalBtn?.addEventListener('click', () => {
+      const data = dom.printThermalBtn._receiptData;
+      if (data) printThermal(data);
+    });
+
+    // ── Pengaturan ──
+    const settingInputs = [dom.settingStoreName, dom.settingStoreAddress, dom.settingStorePhone, dom.settingStoreNote];
+    settingInputs.forEach(inp => {
+      inp?.addEventListener('input', () => {
+        updateSettingsPreview({
+          name: dom.settingStoreName?.value,
+          address: dom.settingStoreAddress?.value,
+          phone: dom.settingStorePhone?.value,
+          note: dom.settingStoreNote?.value
+        });
+      });
+    });
+
+    dom.saveSettingsBtn?.addEventListener('click', () => {
+      const store = {
+        name: dom.settingStoreName.value.trim() || 'Kasir UMKM Simpel',
+        address: dom.settingStoreAddress.value.trim(),
+        phone: dom.settingStorePhone.value.trim(),
+        note: dom.settingStoreNote.value.trim(),
+        paperSize: dom.settingPaperSize.value
+      };
+      saveStoreSettings(store);
+      updateSettingsPreview(store);
+      dom.settingsSaved.classList.remove('hidden');
+      setTimeout(() => dom.settingsSaved.classList.add('hidden'), 2500);
+    });
   };
 
   const renderAll = () => {
