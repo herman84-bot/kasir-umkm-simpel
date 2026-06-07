@@ -33,6 +33,29 @@ const App = (() => {
     image: 'https://via.placeholder.com/260?text=' + encodeURIComponent(p.name)
   });
 
+  // Supabase row → app cashier object
+  const fromDbCashier = c => ({
+    id: String(c.id),
+    name: c.name,
+    password: c.password || '1234'
+  });
+
+  // Supabase row → app purchase object
+  const fromDbPurchase = p => ({
+    id: p.id,
+    supplier: p.supplier,
+    date: p.created_at,
+    total: Number(p.total),
+    status: p.status || 'Diterima',
+    items: (p.purchase_items || []).map(item => ({
+      id: String(item.product_id || ''),
+      name: item.product_name,
+      qty: Number(item.quantity),
+      price: Number(item.price),
+      subtotal: Number(item.subtotal)
+    }))
+  });
+
   // Supabase row → app transaction object
   const fromDbTransaction = tx => ({
     id: 'INV' + tx.id,
@@ -220,17 +243,18 @@ const App = (() => {
   };
 
   const loadLocalSettings = () => {
-    const cashiersData = localStorage.getItem(STORAGE.cashiers);
     const settingsData = localStorage.getItem(STORAGE.settings);
-    const purchasesData = localStorage.getItem(STORAGE.purchases);
-    state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers;
     const settings = settingsData ? JSON.parse(settingsData) : {};
     state.darkMode = settings.darkMode || false;
-    state.selectedCashierId = settings.selectedCashierId || state.cashiers[0]?.id || '';
-    state.activeUserId = settings.activeUserId || state.selectedCashierId;
     state.reportRange = settings.reportRange || '7';
     state.historySearch = settings.historySearch || '';
+    // cashiers & purchases now loaded from Supabase; these are temp fallbacks
+    const cashiersData = localStorage.getItem(STORAGE.cashiers);
+    const purchasesData = localStorage.getItem(STORAGE.purchases);
+    state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers;
     state.purchases = purchasesData ? JSON.parse(purchasesData) : [];
+    state.selectedCashierId = settings.selectedCashierId || state.cashiers[0]?.id || '';
+    state.activeUserId = settings.activeUserId || state.selectedCashierId;
   };
 
   const loadData = async () => {
@@ -247,34 +271,59 @@ const App = (() => {
     }
 
     try {
-      setLoadingStatus('Memuat data produk...', 40);
+      setLoadingStatus('Memuat data produk...', 30);
       const { data: products, error: pErr } = await db
-        .from('products')
-        .select('*')
-        .order('id', { ascending: true });
-
+        .from('products').select('*').order('id', { ascending: true });
       if (pErr) throw pErr;
       state.products = products && products.length > 0
-        ? products.map(fromDbProduct)
-        : sampleProducts;
+        ? products.map(fromDbProduct) : sampleProducts;
 
-      setLoadingStatus('Memuat riwayat transaksi...', 70);
+      setLoadingStatus('Memuat kasir...', 50);
+      const { data: cashiers, error: cErr } = await db
+        .from('cashiers').select('*').order('id', { ascending: true });
+      if (!cErr && cashiers && cashiers.length > 0) {
+        state.cashiers = cashiers.map(fromDbCashier);
+        const settingsData = localStorage.getItem(STORAGE.settings);
+        const settings = settingsData ? JSON.parse(settingsData) : {};
+        state.selectedCashierId = settings.selectedCashierId || state.cashiers[0]?.id || '';
+        state.activeUserId = settings.activeUserId || state.selectedCashierId;
+      } else {
+        // Seed sample cashiers if table is empty
+        for (const c of sampleCashiers) {
+          await db.from('cashiers').insert({ name: c.name, password: c.password }).select().single();
+        }
+        const { data: seeded } = await db.from('cashiers').select('*').order('id');
+        state.cashiers = seeded ? seeded.map(fromDbCashier) : sampleCashiers;
+        state.selectedCashierId = state.cashiers[0]?.id || '';
+        state.activeUserId = state.selectedCashierId;
+      }
+
+      setLoadingStatus('Memuat transaksi...', 65);
       const { data: transactions, error: tErr } = await db
-        .from('transactions')
-        .select('*, transaction_items(*)')
-        .order('created_at', { ascending: false })
-        .limit(500);
-
+        .from('transactions').select('*, transaction_items(*)')
+        .order('created_at', { ascending: false }).limit(500);
       if (tErr) throw tErr;
       state.transactions = transactions ? transactions.map(fromDbTransaction) : [];
+
+      setLoadingStatus('Memuat pembelian...', 85);
+      const { data: purchases, error: puErr } = await db
+        .from('purchases').select('*, purchase_items(*)')
+        .order('created_at', { ascending: false });
+      if (!puErr && purchases) {
+        state.purchases = purchases.map(fromDbPurchase);
+      }
 
       setLoadingStatus('Siap!', 100);
     } catch (err) {
       console.warn('Supabase error, fallback to localStorage:', err);
       const productsData = localStorage.getItem(STORAGE.products);
       const historyData = localStorage.getItem(STORAGE.transactions);
+      const cashiersData = localStorage.getItem(STORAGE.cashiers);
+      const purchasesData = localStorage.getItem(STORAGE.purchases);
       state.products = productsData ? JSON.parse(productsData) : sampleProducts;
       state.transactions = historyData ? JSON.parse(historyData) : [];
+      state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers;
+      state.purchases = purchasesData ? JSON.parse(purchasesData) : [];
     }
 
     syncStorage();
@@ -690,15 +739,46 @@ const App = (() => {
       return;
     }
     const total = state.draftPurchase.items.reduce((sum, item) => sum + item.qty * item.price, 0);
+    const purchaseId = dom.purchaseInvoice.value.trim() || `PO${Date.now()}`;
+
     const purchase = {
-      id: dom.purchaseInvoice.value.trim() || `PO${Date.now()}`,
+      id: purchaseId,
       supplier: dom.purchaseSupplier.value.trim(),
       date: new Date().toISOString(),
       items: state.draftPurchase.items,
       total,
       status: 'Diterima'
     };
-    state.purchases.push(purchase);
+
+    if (db) {
+      try {
+        // Insert purchase header
+        const { error: poErr } = await db.from('purchases').insert({
+          id: purchaseId,
+          supplier: purchase.supplier,
+          total,
+          status: 'Diterima'
+        });
+        if (poErr) throw poErr;
+
+        // Insert purchase items
+        const itemRows = state.draftPurchase.items.map(item => ({
+          purchase_id: purchaseId,
+          product_id: parseInt(item.id) || null,
+          product_name: item.name,
+          quantity: item.qty,
+          price: item.price,
+          subtotal: item.qty * item.price
+        }));
+        const { error: itemsErr } = await db.from('purchase_items').insert(itemRows);
+        if (itemsErr) throw itemsErr;
+      } catch (err) {
+        alert('Gagal menyimpan pembelian: ' + err.message);
+        return;
+      }
+    }
+
+    state.purchases.unshift(purchase);
 
     // Update stock locally and in Supabase
     for (const item of state.draftPurchase.items) {
@@ -1237,10 +1317,18 @@ const App = (() => {
       syncStorage();
     });
 
-    dom.addCashierButton.addEventListener('click', () => {
+    dom.addCashierButton.addEventListener('click', async () => {
       const cashierName = prompt('Masukkan nama kasir baru:');
       if (!cashierName) return;
-      const newCashier = { id: `C${Date.now()}`, name: cashierName.trim() };
+      const cashierPassword = prompt('Masukkan password kasir (default: 1234):') || '1234';
+      let newCashier = { id: `C${Date.now()}`, name: cashierName.trim(), password: cashierPassword };
+      if (db) {
+        const { data, error } = await db.from('cashiers')
+          .insert({ name: cashierName.trim(), password: cashierPassword })
+          .select().single();
+        if (error) { alert('Gagal tambah kasir: ' + error.message); return; }
+        newCashier = fromDbCashier(data);
+      }
       state.cashiers.push(newCashier);
       state.selectedCashierId = newCashier.id;
       renderCashierSelect();
