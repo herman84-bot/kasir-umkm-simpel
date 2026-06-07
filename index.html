@@ -634,11 +634,13 @@
         <button id="closeScanner" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200">×</button>
       </div>
       <div class="p-6">
-        <div id="scannerArea" class="relative h-80 rounded-3xl border-2 border-dashed border-slate-300 bg-slate-100 overflow-hidden">
-          <div class="absolute inset-0 flex items-center justify-center text-slate-400 pointer-events-none z-10">
+        <div id="scannerArea" class="relative h-80 rounded-3xl border-2 border-dashed border-slate-300 bg-slate-900 overflow-hidden">
+          <video id="scannerVideo" class="absolute inset-0 w-full h-full object-cover hidden" playsinline muted></video>
+          <div id="scannerScanLine" class="absolute left-0 right-0 h-0.5 bg-red-500 shadow-[0_0_8px_red] hidden z-20" style="top:50%"></div>
+          <div id="scannerPlaceholder" class="absolute inset-0 flex items-center justify-center text-slate-400 pointer-events-none z-10">
             <div class="text-center">
               <div class="text-5xl mb-2">📷</div>
-              <p class="text-sm">Kamera akan tampil di sini</p>
+              <p class="text-sm">Tekan "Mulai Scan" untuk membuka kamera</p>
             </div>
           </div>
         </div>

@@ -279,6 +279,10 @@ const App = (() => {
     currentTransaction: null,
     draftPurchase: { supplier: '', invoice: '', items: [] },
     scannerContext: 'kasir',
+    scannerStream: null,
+    scannerDetector: null,
+    scannerRAF: null,
+    scannerEngine: null,
     authUser: null,
     store: null,
     storeId: null
@@ -383,6 +387,9 @@ const App = (() => {
     scannerStatus: document.getElementById('scannerStatus'),
     scannerSubtitle: document.getElementById('scannerSubtitle'),
     scannerArea: document.getElementById('scannerArea'),
+    scannerVideo: document.getElementById('scannerVideo'),
+    scannerScanLine: document.getElementById('scannerScanLine'),
+    scannerPlaceholder: document.getElementById('scannerPlaceholder'),
     scannerResult: document.getElementById('scannerResult'),
     scannerResultName: document.getElementById('scannerResultName'),
     scannerResultCode: document.getElementById('scannerResultCode'),
@@ -915,6 +922,8 @@ const App = (() => {
     } else {
       dom.scannerSubtitle.textContent = 'Scan barcode untuk mencari dan menambah produk ke keranjang.';
     }
+    // Auto-buka kamera agar langsung bisa dipakai
+    startBarcodeScanner();
   };
 
   const closeScannerModal = () => {
@@ -962,29 +971,91 @@ const App = (() => {
     }
   };
 
-  const startBarcodeScanner = () => {
-    if (!navigator.mediaDevices || !Quagga) {
-      dom.scannerStatus.textContent = 'Scanner tidak tersedia di perangkat ini.';
+  const startBarcodeScanner = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      dom.scannerStatus.textContent = 'Kamera tidak tersedia. Pastikan buka lewat HTTPS dan izinkan kamera.';
       return;
     }
     dom.scannerStatus.textContent = 'Membuka kamera...';
     dom.scannerResult.classList.add('hidden');
     dom.scannerNotFound.classList.add('hidden');
+
+    // Native BarcodeDetector (Chrome Android/Desktop) — paling andal
+    if ('BarcodeDetector' in window) {
+      try {
+        await startNativeScanner();
+        return;
+      } catch (e) {
+        dom.scannerStatus.textContent = 'Beralih ke mode cadangan...';
+      }
+    }
+    // Fallback: Quagga
+    startQuaggaScanner();
+  };
+
+  const startNativeScanner = async () => {
+    state.scannerEngine = 'native';
+    const formats = ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code'];
+    let supported = formats;
+    try {
+      const avail = await window.BarcodeDetector.getSupportedFormats();
+      supported = formats.filter(f => avail.includes(f));
+      if (!supported.length) supported = undefined;
+    } catch { /* pakai default */ }
+    state.scannerDetector = new window.BarcodeDetector(supported ? { formats: supported } : undefined);
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } }, audio: false
+    });
+    state.scannerStream = stream;
+    const video = dom.scannerVideo;
+    video.srcObject = stream;
+    video.classList.remove('hidden');
+    dom.scannerPlaceholder.classList.add('hidden');
+    dom.scannerScanLine.classList.remove('hidden');
+    await video.play();
+    dom.scannerStatus.textContent = 'Arahkan kamera ke barcode...';
+
+    const tick = async () => {
+      if (state.scannerEngine !== 'native' || !state.scannerDetector) return;
+      try {
+        const codes = await state.scannerDetector.detect(video);
+        if (codes && codes.length) {
+          const code = codes[0].rawValue;
+          handleScannedCode(code);
+          stopBarcodeScanner();
+          return;
+        }
+      } catch { /* frame gagal, lanjut */ }
+      state.scannerRAF = requestAnimationFrame(tick);
+    };
+    state.scannerRAF = requestAnimationFrame(tick);
+  };
+
+  const startQuaggaScanner = () => {
+    if (typeof Quagga === 'undefined') {
+      dom.scannerStatus.textContent = 'Scanner tidak tersedia di perangkat ini. Gunakan input manual.';
+      return;
+    }
+    state.scannerEngine = 'quagga';
+    dom.scannerPlaceholder.classList.add('hidden');
     Quagga.init({
       inputStream: {
         type: 'LiveStream',
         target: dom.scannerArea,
         constraints: { facingMode: 'environment' }
       },
-      decoder: { readers: ['ean_reader', 'ean_8_reader', 'code_128_reader', 'code_39_reader'] },
+      decoder: { readers: ['ean_reader', 'ean_8_reader', 'code_128_reader', 'code_39_reader', 'upc_reader'] },
       locate: true
     }, err => {
       if (err) {
         dom.scannerStatus.textContent = 'Gagal membuka kamera: ' + (err.message || err);
+        dom.scannerPlaceholder.classList.remove('hidden');
         return;
       }
       Quagga.start();
-      dom.scannerStatus.textContent = 'Mencari barcode... arahkan kamera ke barcode.';
+      dom.scannerScanLine.classList.remove('hidden');
+      dom.scannerStatus.textContent = 'Arahkan kamera ke barcode...';
     });
     Quagga.onDetected(result => {
       const code = result.codeResult.code;
@@ -994,13 +1065,27 @@ const App = (() => {
   };
 
   const stopBarcodeScanner = () => {
-    try {
-      if (Quagga) {
-        Quagga.stop();
-        Quagga.offDetected();
-      }
-    } catch (e) { /* ignore */ }
-    dom.scannerStatus.textContent = 'Scanner dihentikan.';
+    // Hentikan engine native
+    if (state.scannerRAF) { cancelAnimationFrame(state.scannerRAF); state.scannerRAF = null; }
+    state.scannerDetector = null;
+    if (state.scannerStream) {
+      state.scannerStream.getTracks().forEach(t => t.stop());
+      state.scannerStream = null;
+    }
+    if (dom.scannerVideo) {
+      dom.scannerVideo.srcObject = null;
+      dom.scannerVideo.classList.add('hidden');
+    }
+    // Hentikan Quagga
+    if (state.scannerEngine === 'quagga' && typeof Quagga !== 'undefined') {
+      try { Quagga.stop(); Quagga.offDetected(); } catch (e) { /* ignore */ }
+    }
+    state.scannerEngine = null;
+    if (dom.scannerScanLine) dom.scannerScanLine.classList.add('hidden');
+    if (dom.scannerPlaceholder) dom.scannerPlaceholder.classList.remove('hidden');
+    if (dom.scannerStatus && !dom.scannerStatus.textContent.startsWith('✅')) {
+      dom.scannerStatus.textContent = 'Scanner dihentikan.';
+    }
   };
 
   const resetPurchaseDraft = () => {
