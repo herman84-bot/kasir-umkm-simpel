@@ -528,7 +528,7 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div>
             <h3 class="text-2xl font-semibold">Kelola Kasir</h3>
-            <p class="text-slate-500">Tambah, edit, atau hapus akun kasir.</p>
+            <p class="text-slate-500">Tambah, edit, atau hapus operator kasir toko.</p>
           </div>
           <button id="addCashierBtn" class="rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">+ Tambah Kasir</button>
         </div>
@@ -547,6 +547,12 @@
             <p class="text-xs text-slate-500 uppercase tracking-wide">Kasir Biasa</p>
             <p class="text-3xl font-bold mt-1 text-slate-700" id="statTotalKasir">0</p>
           </div>
+        </div>
+
+        <!-- Info cara kerja kasir -->
+        <div class="rounded-2xl bg-sky-50 border border-sky-200 px-4 py-3 text-sm text-sky-800 mb-4">
+          💡 <strong>Cara kerja:</strong> Pemilik toko login dengan <strong>email & password</strong> di halaman awal.
+          Kasir di bawah ini adalah <strong>operator</strong> yang dipilih lewat dropdown di halaman Kasir — tidak perlu login ulang, cukup pilih nama & masukkan PIN.
         </div>
 
         <!-- Daftar kasir -->
@@ -574,15 +580,16 @@
             placeholder="contoh: Budi Santoso" />
         </label>
         <label class="block">
-          <span class="text-slate-700 font-medium text-sm">Password</span>
+          <span class="text-slate-700 font-medium text-sm">PIN Kasir</span>
           <div class="relative mt-2">
-            <input id="cashierFormPassword" type="password"
+            <input id="cashierFormPassword" type="password" inputmode="numeric" maxlength="8"
               class="w-full rounded-2xl border border-slate-300 px-4 py-3 pr-12 focus:ring-2 focus:ring-sky-400 focus:outline-none"
-              placeholder="Kosongkan jika tidak ingin ubah password" />
+              placeholder="contoh: 1234" />
             <button type="button" id="toggleCashierPassword"
               class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">👁</button>
           </div>
-          <p id="cashierPasswordHint" class="text-xs text-slate-400 mt-1 hidden">Kosongkan jika tidak ingin mengubah password.</p>
+          <p class="text-xs text-slate-400 mt-1">PIN dipakai kasir untuk ganti operator di halaman Kasir. Bukan untuk login ke aplikasi.</p>
+          <p id="cashierPasswordHint" class="text-xs text-slate-400 mt-1 hidden">Kosongkan jika tidak ingin mengubah PIN.</p>
         </label>
         <label class="block">
           <span class="text-slate-700 font-medium text-sm">Role / Jabatan</span>
@@ -603,12 +610,12 @@
   <div id="loginModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
     <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
       <div class="border-b border-slate-200 p-5">
-        <h3 class="text-xl font-semibold">Masuk Kasir</h3>
-        <p class="text-slate-500">Gunakan akun kasir untuk mencatat transaksi.</p>
+        <h3 class="text-xl font-semibold">Ganti Operator Kasir</h3>
+        <p class="text-slate-500">Pilih kasir yang akan bertugas sekarang.</p>
       </div>
       <form id="loginForm" class="space-y-4 p-6">
         <label class="block"><span class="text-slate-700">Nama Kasir</span><input id="loginName" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="contoh: Budi" /></label>
-        <label class="block"><span class="text-slate-700">Password</span><input id="loginPassword" type="password" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="masukkan password" /></label>
+        <label class="block"><span class="text-slate-700">PIN Kasir</span><input id="loginPassword" type="password" inputmode="numeric" maxlength="8" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="masukkan PIN" /></label>
         <div class="flex gap-3">
           <button type="submit" class="flex-1 rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">Masuk</button>
           <button type="button" id="loginCancel" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
