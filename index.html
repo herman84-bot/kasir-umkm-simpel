@@ -148,6 +148,7 @@
         <button data-screen="inventory" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📦 Inventory</button>
         <button data-screen="pembelian" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">🛍 Pembelian</button>
         <button data-screen="riwayat" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📋 Riwayat</button>
+        <button data-screen="kelolaKasir" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">👥 Kelola Kasir</button>
       </nav>
       <!-- User Info & Logout -->
       <div class="mt-6 border-t border-slate-700 pt-5">
@@ -164,23 +165,19 @@
       </div>
     </aside>
     <main class="flex-1 p-6">
-      <header class="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="text-3xl font-semibold">Aplikasi Kasir UMKM</h2>
-          <p class="text-slate-500 mt-1">Sistem POS dan manajemen stok satu halaman.</p>
+          <h2 class="text-2xl font-semibold" id="headerTitle">Aplikasi Kasir UMKM</h2>
+          <p class="text-slate-500 text-sm mt-0.5" id="todayDate"></p>
         </div>
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div class="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm text-sm text-slate-600" id="cashierSelectWrapper">
-            <label for="cashierSelect" class="font-medium">Kasir aktif:</label>
-            <select id="cashierSelect" class="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-slate-900"></select>
-            <button id="addCashierButton" class="rounded-2xl bg-slate-900 px-3 py-2 text-white text-sm hover:bg-slate-800 transition">+ Tambah</button>
+        <div class="flex flex-wrap items-center gap-2 text-sm">
+          <div class="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm text-slate-600" id="cashierSelectWrapper">
+            <span class="font-medium text-slate-500">Kasir:</span>
+            <select id="cashierSelect" class="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-slate-900 text-sm"></select>
           </div>
-          <div class="flex items-center gap-2 text-sm text-slate-600">
-            <span class="px-3 py-2 bg-white rounded-2xl shadow-sm">Tanggal: <strong id="todayDate"></strong></span>
-            <button id="themeToggle" class="rounded-2xl bg-white px-4 py-3 text-slate-900 shadow-sm hover:bg-slate-100 transition">Dark Mode</button>
-            <button id="exportDataButton" class="rounded-2xl bg-white px-4 py-3 text-slate-900 shadow-sm hover:bg-slate-100 transition">Backup JSON</button>
-            <button id="importDataButton" class="rounded-2xl bg-white px-4 py-3 text-slate-900 shadow-sm hover:bg-slate-100 transition">Restore JSON</button>
-          </div>
+          <button id="themeToggle" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm">🌙 Tema</button>
+          <button id="exportDataButton" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm">💾 Backup</button>
+          <button id="importDataButton" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm">📂 Restore</button>
         </div>
       </header>
 
@@ -415,7 +412,82 @@
           </table>
         </div>
       </section>
+
+      <!-- Kelola Kasir (Admin Only) -->
+      <section id="kelolaKasir" class="screen hidden">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div>
+            <h3 class="text-2xl font-semibold">Kelola Kasir</h3>
+            <p class="text-slate-500">Tambah, edit, atau hapus akun kasir.</p>
+          </div>
+          <button id="addCashierBtn" class="rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">+ Tambah Kasir</button>
+        </div>
+
+        <!-- Stats ringkas -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-5">
+            <p class="text-xs text-slate-500 uppercase tracking-wide">Total Kasir</p>
+            <p class="text-3xl font-bold mt-1" id="statTotalCashier">0</p>
+          </div>
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-5">
+            <p class="text-xs text-slate-500 uppercase tracking-wide">Admin</p>
+            <p class="text-3xl font-bold mt-1 text-sky-600" id="statTotalAdmin">0</p>
+          </div>
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-5">
+            <p class="text-xs text-slate-500 uppercase tracking-wide">Kasir Biasa</p>
+            <p class="text-3xl font-bold mt-1 text-slate-700" id="statTotalKasir">0</p>
+          </div>
+        </div>
+
+        <!-- Daftar kasir -->
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" id="cashierGrid"></div>
+      </section>
     </main>
+  </div>
+
+  <!-- Modal Tambah/Edit Kasir -->
+  <div id="cashierModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+        <div>
+          <h3 class="text-xl font-semibold" id="cashierModalTitle">Tambah Kasir</h3>
+          <p class="text-slate-500 text-sm">Isi data akun kasir dengan benar.</p>
+        </div>
+        <button id="closeCashierModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
+      </div>
+      <form id="cashierForm" class="p-6 space-y-4">
+        <input type="hidden" id="cashierFormId" />
+        <label class="block">
+          <span class="text-slate-700 font-medium text-sm">Nama Kasir</span>
+          <input id="cashierFormName" required
+            class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+            placeholder="contoh: Budi Santoso" />
+        </label>
+        <label class="block">
+          <span class="text-slate-700 font-medium text-sm">Password</span>
+          <div class="relative mt-2">
+            <input id="cashierFormPassword" type="password"
+              class="w-full rounded-2xl border border-slate-300 px-4 py-3 pr-12 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+              placeholder="Kosongkan jika tidak ingin ubah password" />
+            <button type="button" id="toggleCashierPassword"
+              class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">👁</button>
+          </div>
+          <p id="cashierPasswordHint" class="text-xs text-slate-400 mt-1 hidden">Kosongkan jika tidak ingin mengubah password.</p>
+        </label>
+        <label class="block">
+          <span class="text-slate-700 font-medium text-sm">Role / Jabatan</span>
+          <select id="cashierFormRole" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
+            <option value="kasir">🧾 Kasir — akses kasir & riwayat</option>
+            <option value="admin">👑 Admin — akses penuh semua fitur</option>
+          </select>
+        </label>
+        <div id="cashierFormError" class="hidden rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+        <div class="flex gap-3 pt-2">
+          <button type="submit" class="flex-1 rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">Simpan</button>
+          <button type="button" id="cancelCashierModal" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <div id="loginModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">

@@ -237,7 +237,6 @@ const App = (() => {
     productImage: document.getElementById('productImage'),
     historyTable: document.getElementById('historyTable'),
     cashierSelect: document.getElementById('cashierSelect'),
-    addCashierButton: document.getElementById('addCashierButton'),
     themeToggle: document.getElementById('themeToggle'),
     reportRangeSelect: document.getElementById('reportRangeSelect'),
     reportSales: document.getElementById('reportSales'),
@@ -269,6 +268,22 @@ const App = (() => {
     profitMargin: document.getElementById('profitMargin'),
     purchaseTable: document.getElementById('purchaseTable'),
     addPurchaseButton: document.getElementById('addPurchaseButton'),
+    cashierGrid: document.getElementById('cashierGrid'),
+    addCashierBtn: document.getElementById('addCashierBtn'),
+    cashierModal: document.getElementById('cashierModal'),
+    closeCashierModal: document.getElementById('closeCashierModal'),
+    cancelCashierModal: document.getElementById('cancelCashierModal'),
+    cashierForm: document.getElementById('cashierForm'),
+    cashierFormId: document.getElementById('cashierFormId'),
+    cashierFormName: document.getElementById('cashierFormName'),
+    cashierFormPassword: document.getElementById('cashierFormPassword'),
+    cashierFormRole: document.getElementById('cashierFormRole'),
+    cashierFormError: document.getElementById('cashierFormError'),
+    cashierPasswordHint: document.getElementById('cashierPasswordHint'),
+    cashierModalTitle: document.getElementById('cashierModalTitle'),
+    statTotalCashier: document.getElementById('statTotalCashier'),
+    statTotalAdmin: document.getElementById('statTotalAdmin'),
+    statTotalKasir: document.getElementById('statTotalKasir'),
     loginModal: document.getElementById('loginModal'),
     loginForm: document.getElementById('loginForm'),
     loginName: document.getElementById('loginName'),
@@ -429,8 +444,162 @@ const App = (() => {
 
   const applyTheme = () => {
     document.body.classList.toggle('dark', state.darkMode);
-    dom.themeToggle.textContent = state.darkMode ? 'Light Mode' : 'Dark Mode';
+    dom.themeToggle.textContent = state.darkMode ? '☀️ Terang' : '🌙 Tema';
   };
+
+  // ── Kelola Kasir ──────────────────────────────────────────────────────────
+  const renderCashierManagement = () => {
+    if (!dom.cashierGrid) return;
+    const session = getSession();
+    const admins = state.cashiers.filter(c => c.role === 'admin').length;
+    const kasirs = state.cashiers.filter(c => c.role !== 'admin').length;
+    if (dom.statTotalCashier) dom.statTotalCashier.textContent = state.cashiers.length;
+    if (dom.statTotalAdmin) dom.statTotalAdmin.textContent = admins;
+    if (dom.statTotalKasir) dom.statTotalKasir.textContent = kasirs;
+
+    dom.cashierGrid.innerHTML = state.cashiers.map(c => {
+      const isAdmin = c.role === 'admin';
+      const isSelf = session && c.id === session.id;
+      const initial = c.name.charAt(0).toUpperCase();
+      const roleLabel = isAdmin ? '👑 Admin' : '🧾 Kasir';
+      const roleBg = isAdmin ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600';
+      const avatarBg = isAdmin ? 'bg-sky-600' : 'bg-slate-500';
+      return `
+        <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-5 flex flex-col gap-4">
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-full ${avatarBg} flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">${initial}</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <p class="font-semibold text-slate-900 truncate">${c.name}</p>
+                ${isSelf ? '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Anda</span>' : ''}
+              </div>
+              <span class="text-xs px-2 py-0.5 rounded-full ${roleBg} font-medium mt-1 inline-block">${roleLabel}</span>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button data-edit-cashier="${c.id}"
+              class="flex-1 rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition font-medium">
+              ✏️ Edit
+            </button>
+            <button data-delete-cashier="${c.id}" ${isSelf ? 'disabled title="Tidak bisa hapus akun sendiri"' : ''}
+              class="flex-1 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600 hover:bg-rose-100 transition font-medium ${isSelf ? 'opacity-40 cursor-not-allowed' : ''}">
+              🗑 Hapus
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    dom.cashierGrid.querySelectorAll('[data-edit-cashier]').forEach(btn => {
+      btn.addEventListener('click', () => openCashierModal(btn.dataset.editCashier));
+    });
+    dom.cashierGrid.querySelectorAll('[data-delete-cashier]:not([disabled])').forEach(btn => {
+      btn.addEventListener('click', () => deleteCashier(btn.dataset.deleteCashier));
+    });
+  };
+
+  const openCashierModal = (id = '') => {
+    dom.cashierFormError.classList.add('hidden');
+    dom.cashierForm.reset();
+    dom.cashierFormId.value = id;
+    if (id) {
+      const c = state.cashiers.find(x => x.id === id);
+      if (!c) return;
+      dom.cashierModalTitle.textContent = 'Edit Kasir';
+      dom.cashierFormName.value = c.name;
+      dom.cashierFormRole.value = c.role || 'kasir';
+      dom.cashierPasswordHint.classList.remove('hidden');
+      dom.cashierFormPassword.required = false;
+      dom.cashierFormPassword.placeholder = 'Kosongkan jika tidak ingin ubah';
+    } else {
+      dom.cashierModalTitle.textContent = 'Tambah Kasir Baru';
+      dom.cashierPasswordHint.classList.add('hidden');
+      dom.cashierFormPassword.required = true;
+      dom.cashierFormPassword.placeholder = 'Masukkan password';
+    }
+    dom.cashierModal.classList.remove('hidden');
+    dom.cashierModal.style.display = 'flex';
+    dom.cashierFormName.focus();
+  };
+
+  const closeCashierModalFn = () => {
+    dom.cashierModal.classList.add('hidden');
+    dom.cashierModal.style.display = '';
+  };
+
+  const saveCashier = async event => {
+    event.preventDefault();
+    dom.cashierFormError.classList.add('hidden');
+    const id = dom.cashierFormId.value;
+    const name = dom.cashierFormName.value.trim();
+    const password = dom.cashierFormPassword.value.trim();
+    const role = dom.cashierFormRole.value;
+
+    if (!name) { showCashierError('Nama kasir tidak boleh kosong.'); return; }
+    if (!id && !password) { showCashierError('Password wajib diisi untuk kasir baru.'); return; }
+
+    // Cek nama duplikat
+    const duplicate = state.cashiers.find(c => c.name.toLowerCase() === name.toLowerCase() && c.id !== id);
+    if (duplicate) { showCashierError('Nama kasir sudah digunakan.'); return; }
+
+    if (db) {
+      const numId = parseInt(id);
+      if (!isNaN(numId)) {
+        // Update
+        const payload = { name, role };
+        if (password) payload.password = password;
+        const { error } = await db.from('cashiers').update(payload).eq('id', numId);
+        if (error) { showCashierError('Gagal simpan: ' + error.message); return; }
+        const idx = state.cashiers.findIndex(c => c.id === id);
+        if (idx >= 0) {
+          state.cashiers[idx] = { ...state.cashiers[idx], name, role, ...(password ? { password } : {}) };
+        }
+        // Update session jika edit diri sendiri
+        const session = getSession();
+        if (session && session.id === id) saveSession(state.cashiers[idx]);
+      } else {
+        // Insert
+        const { data, error } = await db.from('cashiers')
+          .insert({ name, password, role }).select().single();
+        if (error) { showCashierError('Gagal tambah: ' + error.message); return; }
+        state.cashiers.push(fromDbCashier(data));
+      }
+    } else {
+      // localStorage fallback
+      if (id) {
+        const idx = state.cashiers.findIndex(c => c.id === id);
+        if (idx >= 0) state.cashiers[idx] = { ...state.cashiers[idx], name, role, ...(password ? { password } : {}) };
+      } else {
+        state.cashiers.push({ id: `C${Date.now()}`, name, password, role });
+      }
+    }
+
+    syncStorage();
+    renderCashierSelect();
+    renderCashierManagement();
+    closeCashierModalFn();
+  };
+
+  const showCashierError = msg => {
+    dom.cashierFormError.textContent = msg;
+    dom.cashierFormError.classList.remove('hidden');
+  };
+
+  const deleteCashier = async id => {
+    const c = state.cashiers.find(x => x.id === id);
+    if (!c) return;
+    if (!confirm(`Hapus kasir "${c.name}"? Aksi ini tidak bisa dibatalkan.`)) return;
+    const numId = parseInt(id);
+    if (db && !isNaN(numId)) {
+      const { error } = await db.from('cashiers').delete().eq('id', numId);
+      if (error) { alert('Gagal hapus kasir: ' + error.message); return; }
+    }
+    state.cashiers = state.cashiers.filter(x => x.id !== id);
+    syncStorage();
+    renderCashierSelect();
+    renderCashierManagement();
+  };
+  // ─────────────────────────────────────────────────────────────────────────
 
   const escapeCSV = value => `"${String(value).replace(/"/g, '""')}"`;
 
@@ -1121,6 +1290,7 @@ const App = (() => {
       button.classList.toggle('bg-slate-700', button.dataset.screen === screenId);
       button.classList.toggle('text-white', button.dataset.screen === screenId);
     });
+    if (screenId === 'kelolaKasir') renderCashierManagement();
   };
 
   const showInventoryModal = (title = 'Tambah Produk') => {
@@ -1387,22 +1557,14 @@ const App = (() => {
       syncStorage();
     });
 
-    dom.addCashierButton.addEventListener('click', async () => {
-      const cashierName = prompt('Masukkan nama kasir baru:');
-      if (!cashierName) return;
-      const cashierPassword = prompt('Masukkan password kasir (default: 1234):') || '1234';
-      let newCashier = { id: `C${Date.now()}`, name: cashierName.trim(), password: cashierPassword };
-      if (db) {
-        const { data, error } = await db.from('cashiers')
-          .insert({ name: cashierName.trim(), password: cashierPassword })
-          .select().single();
-        if (error) { alert('Gagal tambah kasir: ' + error.message); return; }
-        newCashier = fromDbCashier(data);
-      }
-      state.cashiers.push(newCashier);
-      state.selectedCashierId = newCashier.id;
-      renderCashierSelect();
-      syncStorage();
+    // Kelola Kasir
+    dom.addCashierBtn?.addEventListener('click', () => openCashierModal());
+    dom.closeCashierModal?.addEventListener('click', closeCashierModalFn);
+    dom.cancelCashierModal?.addEventListener('click', closeCashierModalFn);
+    dom.cashierForm?.addEventListener('submit', saveCashier);
+    document.getElementById('toggleCashierPassword')?.addEventListener('click', () => {
+      const inp = dom.cashierFormPassword;
+      inp.type = inp.type === 'password' ? 'text' : 'password';
     });
 
     dom.themeToggle.addEventListener('click', () => {
@@ -1538,8 +1700,9 @@ const App = (() => {
   };
 
   const renderAll = () => {
-    dom.todayDate.textContent = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+    dom.todayDate.textContent = '📅 ' + new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
     renderCashierSelect();
+    renderCashierManagement();
     applyTheme();
     dom.reportRangeSelect.value = state.reportRange;
     dom.historySearchInput.value = state.historySearch;
