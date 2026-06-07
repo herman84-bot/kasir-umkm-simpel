@@ -96,19 +96,72 @@
     </div>
   </div>
 
-  <div class="min-h-screen flex flex-col md:flex-row">
-    <aside class="w-full md:w-72 bg-slate-900 text-white px-5 py-6 shadow-lg">
+  <!-- Login Page -->
+  <div id="loginPage" class="fixed inset-0 z-[99] hidden items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-sky-900">
+    <div class="w-full max-w-md px-6">
+      <div class="text-center mb-8">
+        <div class="text-6xl mb-4">🛒</div>
+        <h1 class="text-3xl font-bold text-white">Kasir UMKM Simpel</h1>
+        <p class="text-slate-400 mt-2">Point of Sale & Inventory Management</p>
+      </div>
+      <div class="bg-white rounded-3xl shadow-2xl p-8">
+        <h2 class="text-xl font-semibold text-slate-800 mb-6">Masuk ke Aplikasi</h2>
+        <div id="loginError" class="hidden mb-4 rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+        <form id="loginPageForm" class="space-y-4">
+          <label class="block">
+            <span class="text-slate-700 text-sm font-medium">Nama Kasir</span>
+            <input id="loginPageName" required autocomplete="username"
+              class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+              placeholder="Masukkan nama kasir" />
+          </label>
+          <label class="block">
+            <span class="text-slate-700 text-sm font-medium">Password</span>
+            <div class="relative mt-2">
+              <input id="loginPagePassword" type="password" required autocomplete="current-password"
+                class="w-full rounded-2xl border border-slate-300 px-4 py-3 pr-12 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+                placeholder="Masukkan password" />
+              <button type="button" id="togglePassword"
+                class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">
+                👁
+              </button>
+            </div>
+          </label>
+          <button type="submit" id="loginPageBtn"
+            class="w-full rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-700 transition mt-2">
+            Masuk
+          </button>
+        </form>
+        <p class="text-center text-xs text-slate-400 mt-6">Hubungi admin jika lupa password</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="appContainer" class="hidden min-h-screen flex flex-col md:flex-row">
+    <aside class="w-full md:w-72 bg-slate-900 text-white px-5 py-6 shadow-lg flex flex-col">
       <div class="mb-8">
         <h1 class="text-2xl font-semibold">Kasir UMKM</h1>
         <p class="text-slate-300 text-sm mt-1">Point of Sale & Inventory</p>
       </div>
-      <nav class="space-y-2">
-        <button data-screen="dashboard" class="menu-btn w-full text-left px-4 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 transition">Dashboard</button>
-        <button data-screen="kasir" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">Kasir</button>
-        <button data-screen="inventory" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">Inventory</button>
-        <button data-screen="pembelian" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">Pembelian</button>
-        <button data-screen="riwayat" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">Riwayat</button>
+      <nav class="space-y-2 flex-1">
+        <button data-screen="dashboard" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 transition">📊 Dashboard</button>
+        <button data-screen="kasir" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">🧾 Kasir</button>
+        <button data-screen="inventory" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📦 Inventory</button>
+        <button data-screen="pembelian" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">🛍 Pembelian</button>
+        <button data-screen="riwayat" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📋 Riwayat</button>
       </nav>
+      <!-- User Info & Logout -->
+      <div class="mt-6 border-t border-slate-700 pt-5">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-full bg-sky-600 flex items-center justify-center text-white font-bold text-lg" id="userAvatar">K</div>
+          <div>
+            <p class="font-semibold text-sm" id="sidebarUserName">Kasir</p>
+            <span id="sidebarUserRole" class="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">kasir</span>
+          </div>
+        </div>
+        <button id="logoutButton" class="w-full rounded-2xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 transition text-left">
+          🚪 Keluar
+        </button>
+      </div>
     </aside>
     <main class="flex-1 p-6">
       <header class="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -117,10 +170,10 @@
           <p class="text-slate-500 mt-1">Sistem POS dan manajemen stok satu halaman.</p>
         </div>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div class="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm text-sm text-slate-600">
-            <label for="cashierSelect" class="font-medium">Kasir:</label>
+          <div class="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm text-sm text-slate-600" id="cashierSelectWrapper">
+            <label for="cashierSelect" class="font-medium">Kasir aktif:</label>
             <select id="cashierSelect" class="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-slate-900"></select>
-            <button id="addCashierButton" class="rounded-2xl bg-slate-900 px-3 py-2 text-white text-sm hover:bg-slate-800 transition">Tambah</button>
+            <button id="addCashierButton" class="rounded-2xl bg-slate-900 px-3 py-2 text-white text-sm hover:bg-slate-800 transition">+ Tambah</button>
           </div>
           <div class="flex items-center gap-2 text-sm text-slate-600">
             <span class="px-3 py-2 bg-white rounded-2xl shadow-sm">Tanggal: <strong id="todayDate"></strong></span>

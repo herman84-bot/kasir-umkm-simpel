@@ -77,6 +77,76 @@ const App = (() => {
     change: Number(tx.change_amount)
   });
 
+  // ── Session ───────────────────────────────────────────────────────────────
+  const SESSION_KEY = 'kasir_session';
+
+  const saveSession = user => {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+      id: user.id, name: user.name, role: user.role, password: user.password
+    }));
+  };
+
+  const getSession = () => {
+    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)); } catch { return null; }
+  };
+
+  const clearSession = () => sessionStorage.removeItem(SESSION_KEY);
+
+  const showLoginPage = () => {
+    const lp = document.getElementById('loginPage');
+    lp.classList.remove('hidden');
+    lp.style.display = 'flex';
+    document.getElementById('appContainer').classList.add('hidden');
+    document.getElementById('appContainer').style.display = 'none';
+  };
+
+  const showApp = () => {
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('loginPage').classList.add('hidden');
+    const app = document.getElementById('appContainer');
+    app.classList.remove('hidden');
+    app.style.display = 'flex';
+  };
+
+  const applyRoleAccess = user => {
+    // Sidebar user info
+    const nameEl = document.getElementById('sidebarUserName');
+    const roleEl = document.getElementById('sidebarUserRole');
+    const avatar = document.getElementById('userAvatar');
+    if (nameEl) nameEl.textContent = user.name;
+    if (roleEl) {
+      roleEl.textContent = user.role === 'admin' ? '👑 Admin' : '🧾 Kasir';
+      roleEl.className = user.role === 'admin'
+        ? 'text-xs px-2 py-0.5 rounded-full bg-sky-700 text-sky-100'
+        : 'text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300';
+    }
+    if (avatar) avatar.textContent = user.name.charAt(0).toUpperCase();
+
+    // Show/hide admin-only menu items
+    document.querySelectorAll('[data-role="admin"]').forEach(el => {
+      el.style.display = user.role === 'admin' ? '' : 'none';
+    });
+
+    // Show/hide cashier selector (admin only)
+    const wrapper = document.getElementById('cashierSelectWrapper');
+    if (wrapper) wrapper.style.display = user.role === 'admin' ? '' : 'none';
+
+    // If kasir, force-set active cashier to themselves
+    if (user.role !== 'admin') {
+      state.selectedCashierId = user.id;
+      state.activeUserId = user.id;
+    }
+  };
+
+  const logout = () => {
+    if (!confirm('Yakin ingin keluar?')) return;
+    clearSession();
+    state.cart = {};
+    state.cashAmount = 0;
+    showLoginPage();
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
   const setLoadingStatus = (msg, pct) => {
     const el = document.getElementById('loadingStatus');
     const bar = document.getElementById('loadingBar');
@@ -1416,6 +1486,55 @@ const App = (() => {
       if (event.target === dom.purchaseModal) closePurchaseModal();
       if (event.target === dom.loginModal) hideLoginModal();
     });
+
+    // ── Login page form ──
+    const loginPageForm = document.getElementById('loginPageForm');
+    const loginPageBtn = document.getElementById('loginPageBtn');
+    const loginError = document.getElementById('loginError');
+    const togglePassword = document.getElementById('togglePassword');
+    const loginPagePassword = document.getElementById('loginPagePassword');
+    const logoutButton = document.getElementById('logoutButton');
+
+    togglePassword?.addEventListener('click', () => {
+      loginPagePassword.type = loginPagePassword.type === 'password' ? 'text' : 'password';
+    });
+
+    loginPageForm?.addEventListener('submit', async event => {
+      event.preventDefault();
+      loginError.classList.add('hidden');
+      loginPageBtn.textContent = 'Memeriksa...';
+      loginPageBtn.disabled = true;
+
+      const name = document.getElementById('loginPageName').value.trim();
+      const password = document.getElementById('loginPagePassword').value.trim();
+
+      const user = state.cashiers.find(c =>
+        c.name.toLowerCase() === name.toLowerCase() && c.password === password
+      );
+
+      if (!user) {
+        loginError.textContent = 'Nama kasir atau password salah. Coba lagi.';
+        loginError.classList.remove('hidden');
+        loginPageBtn.textContent = 'Masuk';
+        loginPageBtn.disabled = false;
+        return;
+      }
+
+      saveSession(user);
+      state.selectedCashierId = user.id;
+      state.activeUserId = user.id;
+      syncStorage();
+      applyRoleAccess(user);
+
+      // Navigate based on role
+      showApp();
+      showScreen(user.role === 'admin' ? 'dashboard' : 'kasir');
+      renderAll();
+      loginPageBtn.textContent = 'Masuk';
+      loginPageBtn.disabled = false;
+    });
+
+    logoutButton?.addEventListener('click', logout);
   };
 
   const renderAll = () => {
@@ -1447,10 +1566,27 @@ const App = (() => {
     setLoadingStatus('Memuat data...', 25);
     await loadData();
     bindEvents();
-    showScreen('dashboard');
-    renderAll();
     registerServiceWorker();
     hideLoadingOverlay();
+
+    const session = getSession();
+    if (session) {
+      // Validate session user still exists in loaded cashiers
+      const user = state.cashiers.find(c => c.id === session.id && c.password === session.password);
+      if (user) {
+        state.selectedCashierId = user.id;
+        state.activeUserId = user.id;
+        applyRoleAccess(user);
+        showApp();
+        showScreen(user.role === 'admin' ? 'dashboard' : 'kasir');
+        renderAll();
+        return;
+      }
+      clearSession();
+    }
+
+    // No valid session → show login page
+    showLoginPage();
   };
 
   return { init };
