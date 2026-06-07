@@ -4,8 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kasir UMKM Simpel</title>
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="manifest" href="manifest.json" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
   <style>
     body {
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -91,6 +94,7 @@
         <button data-screen="dashboard" class="menu-btn w-full text-left px-4 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 transition">Dashboard</button>
         <button data-screen="kasir" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">Kasir</button>
         <button data-screen="inventory" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">Inventory</button>
+        <button data-screen="pembelian" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">Pembelian</button>
         <button data-screen="riwayat" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">Riwayat</button>
       </nav>
     </aside>
@@ -109,6 +113,8 @@
           <div class="flex items-center gap-2 text-sm text-slate-600">
             <span class="px-3 py-2 bg-white rounded-2xl shadow-sm">Tanggal: <strong id="todayDate"></strong></span>
             <button id="themeToggle" class="rounded-2xl bg-white px-4 py-3 text-slate-900 shadow-sm hover:bg-slate-100 transition">Dark Mode</button>
+            <button id="exportDataButton" class="rounded-2xl bg-white px-4 py-3 text-slate-900 shadow-sm hover:bg-slate-100 transition">Backup JSON</button>
+            <button id="importDataButton" class="rounded-2xl bg-white px-4 py-3 text-slate-900 shadow-sm hover:bg-slate-100 transition">Restore JSON</button>
           </div>
         </div>
       </header>
@@ -130,6 +136,31 @@
             <p class="mt-4 text-4xl font-semibold text-slate-900" id="statProfit">Rp0</p>
             <p class="mt-2 text-slate-500">Pendapatan setelah biaya dan pajak.</p>
           </article>
+        </div>
+        <div class="rounded-3xl bg-white p-6 shadow-xl border border-slate-200 mb-6">
+          <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 class="text-xl font-semibold">Status Persediaan</h3>
+              <p class="text-slate-500">Awas produk dengan stok rendah.</p>
+            </div>
+            <div class="rounded-3xl bg-rose-50 px-4 py-3 text-rose-700 shadow-sm" id="lowStockAlert">Tidak ada stok kritis.</div>
+          </div>
+        </div>
+        <div class="rounded-3xl bg-white p-6 shadow-xl border border-slate-200 mb-6">
+          <div class="grid gap-4 lg:grid-cols-3">
+            <div class="rounded-3xl bg-slate-50 p-5 shadow-sm border border-slate-200">
+              <p class="text-sm uppercase tracking-[0.2em] text-slate-500">Produk Terlaris</p>
+              <p class="mt-4 text-3xl font-semibold" id="topProduct">-</p>
+            </div>
+            <div class="rounded-3xl bg-slate-50 p-5 shadow-sm border border-slate-200">
+              <p class="text-sm uppercase tracking-[0.2em] text-slate-500">Kategori Terbaik</p>
+              <p class="mt-4 text-3xl font-semibold" id="topCategory">-</p>
+            </div>
+            <div class="rounded-3xl bg-slate-50 p-5 shadow-sm border border-slate-200">
+              <p class="text-sm uppercase tracking-[0.2em] text-slate-500">Persentase Laba</p>
+              <p class="mt-4 text-3xl font-semibold" id="profitMargin">-</p>
+            </div>
+          </div>
         </div>
         <div class="rounded-3xl bg-white p-6 shadow-xl border border-slate-200">
           <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
@@ -179,6 +210,8 @@
               </div>
               <div class="flex flex-col gap-3 sm:flex-row">
                 <input id="searchInput" type="search" placeholder="Cari nama atau kode..." class="w-full sm:w-72 rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
+                <input id="barcodeInput" type="text" placeholder="Masukkan / scan kode" class="w-full sm:w-72 rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
+                <button id="scanButton" type="button" class="rounded-2xl bg-slate-900 px-5 py-3 text-white hover:bg-slate-800 transition">Scan Barcode</button>
                 <select id="categoryFilter" class="rounded-2xl border border-slate-300 px-4 py-3 bg-white">
                   <option value="All">Semua Kategori</option>
                   <option value="Makanan">Makanan</option>
@@ -260,6 +293,34 @@
         </div>
       </section>
 
+      <section id="pembelian" class="screen hidden">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
+          <div>
+            <h3 class="text-2xl font-semibold">Pembelian Supplier</h3>
+            <p class="text-slate-500">Catat pembelian stok dan kelola invoice supplier.</p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <button id="addPurchaseButton" class="rounded-2xl bg-slate-900 px-5 py-3 text-white hover:bg-slate-800 transition">Tambah Pembelian</button>
+            <button id="exportPurchase" class="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Export CSV</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto rounded-3xl bg-white p-4 shadow-xl border border-slate-200">
+          <table class="w-full text-left text-sm">
+            <thead class="border-b border-slate-200 text-slate-500">
+              <tr>
+                <th class="p-3">Tanggal</th>
+                <th class="p-3">Invoice</th>
+                <th class="p-3">Supplier</th>
+                <th class="p-3">Total Pembelian</th>
+                <th class="p-3">Produk</th>
+                <th class="p-3">Status</th>
+              </tr>
+            </thead>
+            <tbody id="purchaseTable"></tbody>
+          </table>
+        </div>
+      </section>
+
       <section id="riwayat" class="screen hidden">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div>
@@ -289,6 +350,77 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <div id="loginModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+      <div class="border-b border-slate-200 p-5">
+        <h3 class="text-xl font-semibold">Masuk Kasir</h3>
+        <p class="text-slate-500">Gunakan akun kasir untuk mencatat transaksi.</p>
+      </div>
+      <form id="loginForm" class="space-y-4 p-6">
+        <label class="block"><span class="text-slate-700">Nama Kasir</span><input id="loginName" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="contoh: Budi" /></label>
+        <label class="block"><span class="text-slate-700">Password</span><input id="loginPassword" type="password" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="masukkan password" /></label>
+        <div class="flex gap-3">
+          <button type="submit" class="flex-1 rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">Masuk</button>
+          <button type="button" id="loginCancel" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="scannerModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-3xl rounded-3xl bg-white shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+        <div>
+          <h3 class="text-xl font-semibold">Scan Barcode</h3>
+          <p class="text-slate-500">Gunakan kamera untuk scan kode produk.</p>
+        </div>
+        <button id="closeScanner" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200">×</button>
+      </div>
+      <div class="p-6">
+        <div id="scannerArea" class="h-80 rounded-3xl border border-slate-200 bg-slate-100"></div>
+        <div class="mt-4 flex items-center justify-between gap-3">
+          <button id="startScanner" class="rounded-2xl bg-sky-600 px-5 py-3 text-white hover:bg-sky-700 transition">Mulai Scan</button>
+          <button id="stopScanner" class="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Hentikan</button>
+          <span id="scannerStatus" class="text-sm text-slate-500">Siap memindai.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="purchaseModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 py-6">
+    <div class="w-full max-w-3xl rounded-3xl bg-white shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+        <div>
+          <h3 class="text-xl font-semibold">Tambah Pembelian</h3>
+          <p class="text-slate-500">Catat barang masuk dari supplier.</p>
+        </div>
+        <button id="closePurchaseModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200">×</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block"><span class="text-slate-700">Supplier</span><input id="purchaseSupplier" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" /></label>
+          <label class="block"><span class="text-slate-700">ID Invoice</span><input id="purchaseInvoice" value="" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="INV-001" /></label>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block"><span class="text-slate-700">Pilih Produk</span><select id="purchaseProduct" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white"></select></label>
+          <label class="block"><span class="text-slate-700">Jumlah Beli</span><input id="purchaseQty" type="number" min="1" value="1" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" /></label>
+        </div>
+        <button id="addPurchaseItem" class="rounded-2xl bg-slate-900 px-5 py-3 text-white hover:bg-slate-800 transition">Tambah Item Pembelian</button>
+        <div class="rounded-3xl bg-slate-50 p-4 border border-slate-200" id="purchaseItemsList">
+          <p class="text-slate-500">Belum ada item pembelian.</p>
+        </div>
+        <div class="flex items-center justify-between text-slate-700">
+          <span class="font-semibold">Total Pembelian</span>
+          <span id="purchaseTotal">Rp0</span>
+        </div>
+        <div class="flex gap-3">
+          <button id="savePurchase" class="flex-1 rounded-2xl bg-sky-600 px-5 py-3 text-white hover:bg-sky-700 transition">Simpan Pembelian</button>
+          <button id="cancelPurchase" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="receiptModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 py-6">
@@ -366,6 +498,7 @@
     </div>
   </div>
 
+  <input type="file" id="backupFileInput" accept="application/json" class="hidden" />
   <script src="app.js"></script>
 </body>
 </html>

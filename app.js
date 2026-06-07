@@ -3,6 +3,7 @@ const App = (() => {
     products: 'pos_products',
     transactions: 'pos_transactions',
     cashiers: 'pos_cashiers',
+    purchases: 'pos_purchases',
     settings: 'pos_settings'
   };
 
@@ -16,13 +17,14 @@ const App = (() => {
   ];
 
   const sampleCashiers = [
-    { id: 'C001', name: 'Kasir A' },
-    { id: 'C002', name: 'Kasir B' }
+    { id: 'C001', name: 'Kasir A', password: '1234' },
+    { id: 'C002', name: 'Kasir B', password: '1234' }
   ];
 
   const state = {
     products: [],
     transactions: [],
+    purchases: [],
     cashiers: [],
     cart: {},
     selectedCategory: 'All',
@@ -33,8 +35,10 @@ const App = (() => {
     cashAmount: 0,
     reportRange: '7',
     selectedCashierId: '',
+    activeUserId: '',
     darkMode: false,
-    currentTransaction: null
+    currentTransaction: null,
+    draftPurchase: { supplier: '', invoice: '', items: [] }
   };
 
   const dom = {
@@ -84,7 +88,43 @@ const App = (() => {
     reportItemsSold: document.getElementById('reportItemsSold'),
     exportInventory: document.getElementById('exportInventory'),
     exportHistory: document.getElementById('exportHistory'),
+    exportPurchase: document.getElementById('exportPurchase'),
+    exportDataButton: document.getElementById('exportDataButton'),
+    importDataButton: document.getElementById('importDataButton'),
+    backupFileInput: document.getElementById('backupFileInput'),
     historySearchInput: document.getElementById('historySearchInput'),
+    purchaseTable: document.getElementById('purchaseTable'),
+    addPurchaseButton: document.getElementById('addPurchaseButton'),
+    purchaseModal: document.getElementById('purchaseModal'),
+    closePurchaseModal: document.getElementById('closePurchaseModal'),
+    cancelPurchase: document.getElementById('cancelPurchase'),
+    purchaseSupplier: document.getElementById('purchaseSupplier'),
+    purchaseInvoice: document.getElementById('purchaseInvoice'),
+    purchaseProduct: document.getElementById('purchaseProduct'),
+    purchaseQty: document.getElementById('purchaseQty'),
+    addPurchaseItem: document.getElementById('addPurchaseItem'),
+    purchaseItemsList: document.getElementById('purchaseItemsList'),
+    purchaseTotal: document.getElementById('purchaseTotal'),
+    savePurchase: document.getElementById('savePurchase'),
+    lowStockAlert: document.getElementById('lowStockAlert'),
+    topProduct: document.getElementById('topProduct'),
+    topCategory: document.getElementById('topCategory'),
+    profitMargin: document.getElementById('profitMargin'),
+    purchaseTable: document.getElementById('purchaseTable'),
+    addPurchaseButton: document.getElementById('addPurchaseButton'),
+    loginModal: document.getElementById('loginModal'),
+    loginForm: document.getElementById('loginForm'),
+    loginName: document.getElementById('loginName'),
+    loginPassword: document.getElementById('loginPassword'),
+    loginCancel: document.getElementById('loginCancel'),
+    scannerModal: document.getElementById('scannerModal'),
+    scanButton: document.getElementById('scanButton'),
+    closeScanner: document.getElementById('closeScanner'),
+    startScanner: document.getElementById('startScanner'),
+    stopScanner: document.getElementById('stopScanner'),
+    scannerStatus: document.getElementById('scannerStatus'),
+    scannerArea: document.getElementById('scannerArea'),
+    barcodeInput: document.getElementById('barcodeInput'),
     receiptModal: document.getElementById('receiptModal'),
     closeReceipt: document.getElementById('closeReceipt'),
     closeReceiptBottom: document.getElementById('closeReceiptBottom'),
@@ -117,8 +157,11 @@ const App = (() => {
     const settings = settingsData ? JSON.parse(settingsData) : {};
     state.darkMode = settings.darkMode || false;
     state.selectedCashierId = settings.selectedCashierId || state.cashiers[0]?.id || '';
+    state.activeUserId = settings.activeUserId || state.selectedCashierId;
     state.reportRange = settings.reportRange || '7';
     state.historySearch = settings.historySearch || '';
+    const purchasesData = localStorage.getItem(STORAGE.purchases);
+    state.purchases = purchasesData ? JSON.parse(purchasesData) : [];
     syncStorage();
   };
 
@@ -126,9 +169,11 @@ const App = (() => {
     localStorage.setItem(STORAGE.products, JSON.stringify(state.products));
     localStorage.setItem(STORAGE.transactions, JSON.stringify(state.transactions));
     localStorage.setItem(STORAGE.cashiers, JSON.stringify(state.cashiers));
+    localStorage.setItem(STORAGE.purchases, JSON.stringify(state.purchases));
     localStorage.setItem(STORAGE.settings, JSON.stringify({
       darkMode: state.darkMode,
       selectedCashierId: state.selectedCashierId,
+      activeUserId: state.activeUserId,
       reportRange: state.reportRange,
       historySearch: state.historySearch
     }));
@@ -196,6 +241,76 @@ const App = (() => {
     downloadCSV('riwayat_transaksi_umkm.csv', rows);
   };
 
+  const exportPurchasesCSV = () => {
+    const rows = [[
+      'Tanggal', 'Invoice', 'Supplier', 'Total', 'Produk', 'Status'
+    ]];
+    state.purchases.forEach(order => {
+      rows.push([
+        new Date(order.date).toLocaleString('id-ID'),
+        order.id,
+        order.supplier,
+        order.total,
+        order.items.map(item => `${item.name} x${item.qty}`).join(' | '),
+        order.status
+      ]);
+    });
+    downloadCSV('pembelian_umkm.csv', rows);
+  };
+
+  const exportAppBackup = () => {
+    const payload = {
+      products: state.products,
+      transactions: state.transactions,
+      purchases: state.purchases,
+      cashiers: state.cashiers,
+      settings: {
+        darkMode: state.darkMode,
+        selectedCashierId: state.selectedCashierId,
+        activeUserId: state.activeUserId,
+        reportRange: state.reportRange,
+        historySearch: state.historySearch
+      }
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'kasir_umkm_backup.json');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const importAppBackup = event => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        state.products = data.products || state.products;
+        state.transactions = data.transactions || state.transactions;
+        state.purchases = data.purchases || state.purchases;
+        state.cashiers = data.cashiers || state.cashiers;
+        if (data.settings) {
+          state.darkMode = data.settings.darkMode ?? state.darkMode;
+          state.selectedCashierId = data.settings.selectedCashierId || state.selectedCashierId;
+          state.activeUserId = data.settings.activeUserId || state.activeUserId;
+          state.reportRange = data.settings.reportRange || state.reportRange;
+          state.historySearch = data.settings.historySearch || state.historySearch;
+        }
+        syncStorage();
+        renderAll();
+        alert('Data berhasil dipulihkan dari backup.');
+      } catch (error) {
+        alert('Gagal memulihkan data. Pastikan file backup benar.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const getFilteredTransactions = () => {
     const query = state.historySearch.trim().toLowerCase();
     return state.transactions.filter(tx => {
@@ -224,6 +339,212 @@ const App = (() => {
     dom.reportSales.textContent = formatCurrency(totalSales);
     dom.reportTransactions.textContent = totalTrans;
     dom.reportItemsSold.textContent = totalItems;
+
+    const lowStockProducts = state.products.filter(product => product.stock > 0 && product.stock <= 5);
+    dom.lowStockAlert.textContent = lowStockProducts.length ? `${lowStockProducts.length} produk stok rendah, segera kulakan lagi.` : 'Tidak ada stok kritis.';
+
+    const bestProduct = state.products.slice().sort((a, b) => {
+      const aQty = state.transactions.reduce((sum, tx) => sum + tx.items.filter(item => item.id === a.id).reduce((s, item) => s + item.qty, 0), 0);
+      const bQty = state.transactions.reduce((sum, tx) => sum + tx.items.filter(item => item.id === b.id).reduce((s, item) => s + item.qty, 0), 0);
+      return bQty - aQty;
+    })[0];
+    dom.topProduct.textContent = bestProduct ? `${bestProduct.name}` : '-';
+
+    const categorySales = {};
+    state.transactions.forEach(tx => {
+      tx.items.forEach(item => {
+        const product = state.products.find(p => p.id === item.id);
+        if (!product) return;
+        categorySales[product.category] = (categorySales[product.category] || 0) + item.qty;
+      });
+    });
+    const topCategory = Object.keys(categorySales).sort((a, b) => categorySales[b] - categorySales[a])[0] || '-';
+    dom.topCategory.textContent = topCategory;
+
+    const totalProfit = state.transactions.reduce((sum, tx) => sum + tx.items.reduce((itemSum, item) => itemSum + item.qty * (item.price - item.cost), 0) - tx.tax, 0);
+    const margin = totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0;
+    dom.profitMargin.textContent = `${margin}%`;
+  };
+
+  const renderPurchaseHistory = () => {
+    dom.purchaseTable.innerHTML = state.purchases.slice().reverse().map(order => {
+      const time = new Date(order.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short', year: 'numeric' });
+      return `
+        <tr class="border-b border-slate-200">
+          <td class="p-3">${time}</td>
+          <td class="p-3">#${order.id}</td>
+          <td class="p-3">${order.supplier}</td>
+          <td class="p-3 font-semibold">${formatCurrency(order.total)}</td>
+          <td class="p-3">${order.items.length} produk</td>
+          <td class="p-3">${order.status}</td>
+        </tr>
+      `;
+    }).join('') || '<tr><td colspan="6" class="p-8 text-center text-slate-500">Belum ada data pembelian.</td></tr>';
+  };
+
+  const getActiveUser = () => {
+    return state.cashiers.find(item => item.id === state.activeUserId) || getSelectedCashier();
+  };
+
+  const showLoginModal = () => {
+    dom.loginModal.classList.remove('hidden');
+  };
+
+  const hideLoginModal = () => {
+    dom.loginModal.classList.add('hidden');
+    dom.loginForm.reset();
+  };
+
+  const authenticateUser = (name, password) => {
+    const user = state.cashiers.find(item => item.name.toLowerCase() === name.toLowerCase() && item.password === password);
+    if (!user) return false;
+    state.activeUserId = user.id;
+    state.selectedCashierId = user.id;
+    renderCashierSelect();
+    syncStorage();
+    hideLoginModal();
+    return true;
+  };
+
+  const openScannerModal = () => {
+    dom.scannerModal.classList.remove('hidden');
+    dom.scannerStatus.textContent = 'Siap memindai.';
+  };
+
+  const closeScannerModal = () => {
+    dom.scannerModal.classList.add('hidden');
+    stopBarcodeScanner();
+  };
+
+  const startBarcodeScanner = () => {
+    if (!navigator.mediaDevices || !Quagga) {
+      dom.scannerStatus.textContent = 'Scanner tidak tersedia di perangkat ini.';
+      return;
+    }
+    dom.scannerStatus.textContent = 'Mencari barcode...';
+    Quagga.init({
+      inputStream: {
+        type: 'LiveStream',
+        target: dom.scannerArea,
+        constraints: { facingMode: 'environment' }
+      },
+      decoder: { readers: ['ean_reader', 'ean_8_reader', 'code_128_reader', 'code_39_reader'] }
+    }, err => {
+      if (err) {
+        dom.scannerStatus.textContent = 'Gagal membuka kamera: ' + err.message;
+        return;
+      }
+      Quagga.start();
+    });
+    Quagga.onDetected(result => {
+      const code = result.codeResult.code;
+      dom.barcodeInput.value = code;
+      state.searchQuery = code;
+      dom.searchInput.value = code;
+      renderProducts();
+      dom.scannerStatus.textContent = `Barcode terdeteksi: ${code}`;
+      stopBarcodeScanner();
+      closeScannerModal();
+    });
+  };
+
+  const stopBarcodeScanner = () => {
+    if (Quagga) {
+      Quagga.stop();
+      Quagga.offDetected();
+    }
+    dom.scannerStatus.textContent = 'Scanner dihentikan.';
+  };
+
+  const resetPurchaseDraft = () => {
+    state.draftPurchase = { supplier: '', invoice: `PO${Date.now()}`, items: [] };
+    dom.purchaseSupplier.value = '';
+    dom.purchaseInvoice.value = state.draftPurchase.invoice;
+    dom.purchaseQty.value = 1;
+    dom.purchaseItemsList.innerHTML = '<p class="text-slate-500">Belum ada item pembelian.</p>';
+    dom.purchaseTotal.textContent = formatCurrency(0);
+  };
+
+  const renderPurchaseOptions = () => {
+    dom.purchaseProduct.innerHTML = state.products.map(product => `
+      <option value="${product.id}">${product.name} (${product.stock} stok)</option>
+    `).join('');
+  };
+
+  const renderPurchaseDraft = () => {
+    if (!state.draftPurchase.items.length) {
+      dom.purchaseItemsList.innerHTML = '<p class="text-slate-500">Belum ada item pembelian.</p>';
+      dom.purchaseTotal.textContent = formatCurrency(0);
+      return;
+    }
+    let total = 0;
+    dom.purchaseItemsList.innerHTML = state.draftPurchase.items.map(item => {
+      const subtotal = item.qty * item.price;
+      total += subtotal;
+      return `
+        <div class="flex items-center justify-between gap-3 rounded-2xl bg-white p-3 border border-slate-200 mb-3">
+          <div>
+            <p class="font-semibold">${item.name}</p>
+            <p class="text-slate-500 text-sm">Qty ${item.qty} x ${formatCurrency(item.price)}</p>
+          </div>
+          <span class="font-semibold">${formatCurrency(subtotal)}</span>
+        </div>
+      `;
+    }).join('');
+    dom.purchaseTotal.textContent = formatCurrency(total);
+  };
+
+  const openPurchaseModal = () => {
+    resetPurchaseDraft();
+    renderPurchaseOptions();
+    dom.purchaseModal.classList.remove('hidden');
+  };
+
+  const closePurchaseModal = () => {
+    dom.purchaseModal.classList.add('hidden');
+  };
+
+  const addPurchaseItemToDraft = () => {
+    const productId = dom.purchaseProduct.value;
+    const qty = Number(dom.purchaseQty.value) || 1;
+    const product = state.products.find(item => item.id === productId);
+    if (!product) return;
+    const existing = state.draftPurchase.items.find(item => item.id === productId);
+    if (existing) {
+      existing.qty += qty;
+    } else {
+      state.draftPurchase.items.push({ id: product.id, name: product.name, price: product.cost, qty });
+    }
+    renderPurchaseDraft();
+  };
+
+  const savePurchaseOrder = () => {
+    if (!dom.purchaseSupplier.value.trim() || !state.draftPurchase.items.length) {
+      alert('Isi supplier dan tambahkan item pembelian terlebih dahulu.');
+      return;
+    }
+    const total = state.draftPurchase.items.reduce((sum, item) => sum + item.qty * item.price, 0);
+    const purchase = {
+      id: dom.purchaseInvoice.value.trim() || `PO${Date.now()}`,
+      supplier: dom.purchaseSupplier.value.trim(),
+      date: new Date().toISOString(),
+      items: state.draftPurchase.items,
+      total,
+      status: 'Diterima'
+    };
+    state.purchases.push(purchase);
+    state.draftPurchase.items.forEach(item => {
+      const product = state.products.find(prod => prod.id === item.id);
+      if (product) {
+        product.stock += item.qty;
+      }
+    });
+    syncStorage();
+    renderInventory();
+    renderPurchaseHistory();
+    renderReportSummary();
+    closePurchaseModal();
+    alert('Pembelian berhasil disimpan dan stok diperbarui.');
   };
 
   const getFilteredProducts = () => {
@@ -705,9 +1026,32 @@ const App = (() => {
     dom.closeInventoryModal.addEventListener('click', hideInventoryModal);
     dom.cancelInventory.addEventListener('click', hideInventoryModal);
     dom.inventoryForm.addEventListener('submit', saveProduct);
+    dom.scanButton.addEventListener('click', openScannerModal);
+    dom.closeScanner.addEventListener('click', closeScannerModal);
+    dom.startScanner.addEventListener('click', startBarcodeScanner);
+    dom.stopScanner.addEventListener('click', stopBarcodeScanner);
+    dom.addPurchaseButton.addEventListener('click', openPurchaseModal);
+    dom.closePurchaseModal.addEventListener('click', closePurchaseModal);
+    dom.cancelPurchase.addEventListener('click', closePurchaseModal);
+    dom.addPurchaseItem.addEventListener('click', addPurchaseItemToDraft);
+    dom.savePurchase.addEventListener('click', savePurchaseOrder);
+    dom.exportPurchase.addEventListener('click', exportPurchasesCSV);
+    dom.exportDataButton.addEventListener('click', exportAppBackup);
+    dom.importDataButton.addEventListener('click', () => dom.backupFileInput.click());
+    dom.backupFileInput.addEventListener('change', importAppBackup);
+    dom.loginForm.addEventListener('submit', event => {
+      event.preventDefault();
+      if (!authenticateUser(dom.loginName.value.trim(), dom.loginPassword.value.trim())) {
+        alert('Nama atau password salah. Coba lagi.');
+      }
+    });
+    dom.loginCancel.addEventListener('click', hideLoginModal);
     document.addEventListener('click', event => {
       if (event.target === dom.inventoryModal) hideInventoryModal();
       if (event.target === dom.receiptModal) closeReceipt();
+      if (event.target === dom.scannerModal) closeScannerModal();
+      if (event.target === dom.purchaseModal) closePurchaseModal();
+      if (event.target === dom.loginModal) hideLoginModal();
     });
   };
 
@@ -726,11 +1070,20 @@ const App = (() => {
     renderReportSummary();
   };
 
+  const registerServiceWorker = () => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(() => console.log('Service worker terdaftar.'))
+        .catch(err => console.warn('Gagal daftar service worker:', err));
+    }
+  };
+
   const init = () => {
     loadData();
     bindEvents();
     showScreen('dashboard');
     renderAll();
+    registerServiceWorker();
   };
 
   return { init };
