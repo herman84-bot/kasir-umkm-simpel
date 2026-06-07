@@ -54,8 +54,8 @@ const App = (() => {
   };
 
   // ── Supabase ──────────────────────────────────────────────────────────────
-  const SUPABASE_URL = 'https://drhdlwtorgszmmeoekii.supabase.co';
-  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyaGRsd3Rvcmdzem1tZW9la2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNjE0MjcsImV4cCI6MjA5NDgzNzQyN30.M4VRA3U_ybL76I8qxnEAEbhVA8Iqy3eK6ABrar00blU';
+  const SUPABASE_URL = 'https://pfmsblktxlnovtajnxvc.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_rF4Ul9n6WS4R00twmmCbdQ_wJ0KAOv6';
   let db = null;
 
   const initSupabase = () => {
