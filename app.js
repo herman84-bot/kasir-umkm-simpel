@@ -7,6 +7,69 @@ const App = (() => {
     settings: 'pos_settings'
   };
 
+  // ── Supabase ──────────────────────────────────────────────────────────────
+  const SUPABASE_URL = 'https://drhdlwtorgszmmeoekii.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyaGRsd3Rvcmdzem1tZW9la2lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNjE0MjcsImV4cCI6MjA5NDgzNzQyN30.M4VRA3U_ybL76I8qxnEAEbhVA8Iqy3eK6ABrar00blU';
+  let db = null;
+
+  const initSupabase = () => {
+    if (window.supabase) {
+      db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      return true;
+    }
+    return false;
+  };
+
+  // Supabase row → app product object
+  const fromDbProduct = p => ({
+    id: String(p.id),
+    code: 'P' + String(p.id).padStart(3, '0'),
+    barcode: p.barcode || '',
+    name: p.name,
+    category: p.category || 'Lainnya',
+    price: Number(p.price) || 0,
+    cost: Number(p.cost) || 0,
+    stock: Number(p.stock) || 0,
+    image: 'https://via.placeholder.com/260?text=' + encodeURIComponent(p.name)
+  });
+
+  // Supabase row → app transaction object
+  const fromDbTransaction = tx => ({
+    id: 'INV' + tx.id,
+    date: tx.created_at,
+    cashier: tx.cashier_name || 'Kasir',
+    items: (tx.transaction_items || []).map(item => ({
+      id: String(item.product_id || ''),
+      name: item.product_name,
+      qty: Number(item.quantity),
+      price: Number(item.price_at_sale),
+      cost: 0,
+      subtotal: Number(item.subtotal)
+    })),
+    subtotal: Number(tx.total_amount),
+    discount: 0,
+    tax: 0,
+    total: Number(tx.total_amount),
+    cash: Number(tx.payment_amount),
+    change: Number(tx.change_amount)
+  });
+
+  const setLoadingStatus = (msg, pct) => {
+    const el = document.getElementById('loadingStatus');
+    const bar = document.getElementById('loadingBar');
+    if (el) el.textContent = msg;
+    if (bar) bar.style.width = pct + '%';
+  };
+
+  const hideLoadingOverlay = () => {
+    const el = document.getElementById('loadingOverlay');
+    if (!el) return;
+    el.style.opacity = '0';
+    el.style.pointerEvents = 'none';
+    setTimeout(() => el.remove(), 400);
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
   const sampleProducts = [
     { id: 'P001', code: 'P001', barcode: '8991234000011', name: 'Nasi Goreng Spesial', category: 'Makanan', price: 22000, cost: 14000, stock: 12, image: 'https://via.placeholder.com/260?text=Nasi+Goreng' },
     { id: 'P002', code: 'P002', barcode: '8991234000028', name: 'Es Teh Manis', category: 'Minuman', price: 8000, cost: 2500, stock: 20, image: 'https://via.placeholder.com/260?text=Es+Teh' },
@@ -156,14 +219,10 @@ const App = (() => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value);
   };
 
-  const loadData = () => {
-    const productsData = localStorage.getItem(STORAGE.products);
-    const historyData = localStorage.getItem(STORAGE.transactions);
+  const loadLocalSettings = () => {
     const cashiersData = localStorage.getItem(STORAGE.cashiers);
     const settingsData = localStorage.getItem(STORAGE.settings);
-
-    state.products = productsData ? JSON.parse(productsData) : sampleProducts;
-    state.transactions = historyData ? JSON.parse(historyData) : [];
+    const purchasesData = localStorage.getItem(STORAGE.purchases);
     state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers;
     const settings = settingsData ? JSON.parse(settingsData) : {};
     state.darkMode = settings.darkMode || false;
@@ -171,8 +230,53 @@ const App = (() => {
     state.activeUserId = settings.activeUserId || state.selectedCashierId;
     state.reportRange = settings.reportRange || '7';
     state.historySearch = settings.historySearch || '';
-    const purchasesData = localStorage.getItem(STORAGE.purchases);
     state.purchases = purchasesData ? JSON.parse(purchasesData) : [];
+  };
+
+  const loadData = async () => {
+    loadLocalSettings();
+
+    if (!db) {
+      // Fallback: localStorage only
+      const productsData = localStorage.getItem(STORAGE.products);
+      const historyData = localStorage.getItem(STORAGE.transactions);
+      state.products = productsData ? JSON.parse(productsData) : sampleProducts;
+      state.transactions = historyData ? JSON.parse(historyData) : [];
+      syncStorage();
+      return;
+    }
+
+    try {
+      setLoadingStatus('Memuat data produk...', 40);
+      const { data: products, error: pErr } = await db
+        .from('products')
+        .select('*')
+        .order('id', { ascending: true });
+
+      if (pErr) throw pErr;
+      state.products = products && products.length > 0
+        ? products.map(fromDbProduct)
+        : sampleProducts;
+
+      setLoadingStatus('Memuat riwayat transaksi...', 70);
+      const { data: transactions, error: tErr } = await db
+        .from('transactions')
+        .select('*, transaction_items(*)')
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+      if (tErr) throw tErr;
+      state.transactions = transactions ? transactions.map(fromDbTransaction) : [];
+
+      setLoadingStatus('Siap!', 100);
+    } catch (err) {
+      console.warn('Supabase error, fallback to localStorage:', err);
+      const productsData = localStorage.getItem(STORAGE.products);
+      const historyData = localStorage.getItem(STORAGE.transactions);
+      state.products = productsData ? JSON.parse(productsData) : sampleProducts;
+      state.transactions = historyData ? JSON.parse(historyData) : [];
+    }
+
     syncStorage();
   };
 
@@ -580,7 +684,7 @@ const App = (() => {
     renderPurchaseDraft();
   };
 
-  const savePurchaseOrder = () => {
+  const savePurchaseOrder = async () => {
     if (!dom.purchaseSupplier.value.trim() || !state.draftPurchase.items.length) {
       alert('Isi supplier dan tambahkan item pembelian terlebih dahulu.');
       return;
@@ -595,12 +699,21 @@ const App = (() => {
       status: 'Diterima'
     };
     state.purchases.push(purchase);
-    state.draftPurchase.items.forEach(item => {
+
+    // Update stock locally and in Supabase
+    for (const item of state.draftPurchase.items) {
       const product = state.products.find(prod => prod.id === item.id);
       if (product) {
         product.stock += item.qty;
+        if (db) {
+          const numId = parseInt(product.id);
+          if (!isNaN(numId)) {
+            await db.from('products').update({ stock: product.stock }).eq('id', numId);
+          }
+        }
       }
-    });
+    }
+
     syncStorage();
     renderInventory();
     renderPurchaseHistory();
@@ -892,30 +1005,60 @@ const App = (() => {
     showInventoryModal('Edit Produk');
   };
 
-  const deleteProduct = productId => {
+  const deleteProduct = async productId => {
     if (!confirm('Hapus produk ini dari inventory?')) return;
+    const numId = parseInt(productId);
+    if (db && !isNaN(numId)) {
+      const { error } = await db.from('products').delete().eq('id', numId);
+      if (error) { alert('Gagal hapus produk: ' + error.message); return; }
+    }
     state.products = state.products.filter(item => item.id !== productId);
     syncStorage();
     renderInventory();
     renderProducts();
   };
 
-  const saveProduct = event => {
+  const saveProduct = async event => {
     event.preventDefault();
-    const id = dom.productId.value || `P${Math.floor(Date.now() / 1000)}`;
-    const productData = {
-      id,
-      code: dom.productCode.value.trim(),
-      barcode: dom.productBarcode.value.trim(),
+    const existingId = dom.productId.value;
+    const dbPayload = {
       name: dom.productName.value.trim(),
+      barcode: dom.productBarcode.value.trim() || null,
       category: dom.productCategory.value,
       price: Number(dom.productPrice.value) || 0,
       cost: Number(dom.productCost.value) || 0,
-      stock: Number(dom.productStock.value) || 0,
+      stock: Number(dom.productStock.value) || 0
+    };
+
+    let finalId = existingId;
+
+    if (db) {
+      const numId = parseInt(existingId);
+      if (!isNaN(numId)) {
+        // Update existing
+        const { error } = await db.from('products').update(dbPayload).eq('id', numId);
+        if (error) { alert('Gagal simpan produk: ' + error.message); return; }
+      } else {
+        // Insert new
+        const { data, error } = await db.from('products').insert(dbPayload).select().single();
+        if (error) { alert('Gagal tambah produk: ' + error.message); return; }
+        finalId = String(data.id);
+      }
+    }
+
+    const productData = {
+      id: finalId,
+      code: 'P' + String(finalId).padStart(3, '0'),
+      barcode: dbPayload.barcode || '',
+      name: dbPayload.name,
+      category: dbPayload.category,
+      price: dbPayload.price,
+      cost: dbPayload.cost,
+      stock: dbPayload.stock,
       image: dom.productImage.value.trim() || 'https://via.placeholder.com/260'
     };
 
-    const existingIndex = state.products.findIndex(item => item.id === id);
+    const existingIndex = state.products.findIndex(item => item.id === existingId);
     if (existingIndex >= 0) {
       state.products[existingIndex] = productData;
     } else {
@@ -927,7 +1070,7 @@ const App = (() => {
     hideInventoryModal();
   };
 
-  const handlePayment = () => {
+  const handlePayment = async () => {
     const cartItems = getCartItems();
     if (!cartItems.length) {
       alert('Keranjang masih kosong. Tambahkan produk terlebih dahulu.');
@@ -943,8 +1086,49 @@ const App = (() => {
       return;
     }
 
-    const invoiceId = `INV${Date.now()}`;
     const cashier = getSelectedCashier();
+    let invoiceId = `INV${Date.now()}`;
+
+    if (db) {
+      try {
+        // Insert transaction header
+        const { data: tx, error: txErr } = await db.from('transactions').insert({
+          cashier_name: cashier.name,
+          total_amount: totals.total,
+          payment_amount: totals.cash,
+          change_amount: totals.change
+        }).select().single();
+        if (txErr) throw txErr;
+
+        invoiceId = 'INV' + tx.id;
+
+        // Insert transaction items
+        const itemRows = cartItems.map(item => ({
+          transaction_id: tx.id,
+          product_id: parseInt(item.id) || null,
+          product_name: item.name,
+          quantity: item.qty,
+          price_at_sale: item.price,
+          subtotal: item.qty * item.price
+        }));
+        const { error: itemsErr } = await db.from('transaction_items').insert(itemRows);
+        if (itemsErr) throw itemsErr;
+
+        // Update stock in Supabase
+        for (const item of cartItems) {
+          const numId = parseInt(item.id);
+          const product = state.products.find(p => p.id === item.id);
+          if (!isNaN(numId) && product) {
+            const newStock = Math.max(0, product.stock - item.qty);
+            await db.from('products').update({ stock: newStock }).eq('id', numId);
+          }
+        }
+      } catch (err) {
+        alert('Gagal menyimpan transaksi ke database: ' + err.message);
+        return;
+      }
+    }
+
     const transaction = {
       id: invoiceId,
       date: new Date().toISOString(),
@@ -958,13 +1142,11 @@ const App = (() => {
       change: totals.change
     };
 
-    state.transactions.push(transaction);
+    state.transactions.unshift(transaction);
     state.currentTransaction = transaction;
     cartItems.forEach(item => {
       const product = state.products.find(productItem => productItem.id === item.id);
-      if (product) {
-        product.stock = Math.max(0, product.stock - item.qty);
-      }
+      if (product) product.stock = Math.max(0, product.stock - item.qty);
     });
     state.cart = {};
     state.cashAmount = 0;
@@ -1171,12 +1353,16 @@ const App = (() => {
     }
   };
 
-  const init = () => {
-    loadData();
+  const init = async () => {
+    setLoadingStatus('Menghubungkan ke database...', 10);
+    initSupabase();
+    setLoadingStatus('Memuat data...', 25);
+    await loadData();
     bindEvents();
     showScreen('dashboard');
     renderAll();
     registerServiceWorker();
+    hideLoadingOverlay();
   };
 
   return { init };

@@ -9,6 +9,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body {
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -84,6 +85,17 @@
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-slate-900 text-white transition-opacity duration-300">
+    <div class="text-4xl mb-4 animate-pulse">🛒</div>
+    <h2 class="text-xl font-semibold mb-2">Kasir UMKM Simpel</h2>
+    <p id="loadingStatus" class="text-slate-400 text-sm">Menghubungkan ke database...</p>
+    <div class="mt-6 w-48 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+      <div id="loadingBar" class="h-full bg-sky-500 rounded-full transition-all duration-500" style="width:10%"></div>
+    </div>
+  </div>
+
   <div class="min-h-screen flex flex-col md:flex-row">
     <aside class="w-full md:w-72 bg-slate-900 text-white px-5 py-6 shadow-lg">
       <div class="mb-8">
