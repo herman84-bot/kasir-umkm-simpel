@@ -8,12 +8,12 @@ const App = (() => {
   };
 
   const sampleProducts = [
-    { id: 'P001', code: 'P001', name: 'Nasi Goreng Spesial', category: 'Makanan', price: 22000, cost: 14000, stock: 12, image: 'https://via.placeholder.com/260?text=Nasi+Goreng' },
-    { id: 'P002', code: 'P002', name: 'Es Teh Manis', category: 'Minuman', price: 8000, cost: 2500, stock: 20, image: 'https://via.placeholder.com/260?text=Es+Teh' },
-    { id: 'P003', code: 'P003', name: 'Beras 5kg', category: 'Sembako', price: 65000, cost: 53000, stock: 8, image: 'https://via.placeholder.com/260?text=Beras' },
-    { id: 'P004', code: 'P004', name: 'Pensil 2B', category: 'ATK', price: 1500, cost: 700, stock: 25, image: 'https://via.placeholder.com/260?text=Pensil' },
-    { id: 'P005', code: 'P005', name: 'Roti Tawar', category: 'Makanan', price: 12000, cost: 7000, stock: 5, image: 'https://via.placeholder.com/260?text=Roti+Tawar' },
-    { id: 'P006', code: 'P006', name: 'Mineral Water', category: 'Minuman', price: 5000, cost: 2000, stock: 30, image: 'https://via.placeholder.com/260?text=Air+Mineral' }
+    { id: 'P001', code: 'P001', barcode: '8991234000011', name: 'Nasi Goreng Spesial', category: 'Makanan', price: 22000, cost: 14000, stock: 12, image: 'https://via.placeholder.com/260?text=Nasi+Goreng' },
+    { id: 'P002', code: 'P002', barcode: '8991234000028', name: 'Es Teh Manis', category: 'Minuman', price: 8000, cost: 2500, stock: 20, image: 'https://via.placeholder.com/260?text=Es+Teh' },
+    { id: 'P003', code: 'P003', barcode: '8991234000035', name: 'Beras 5kg', category: 'Sembako', price: 65000, cost: 53000, stock: 8, image: 'https://via.placeholder.com/260?text=Beras' },
+    { id: 'P004', code: 'P004', barcode: '8991234000042', name: 'Pensil 2B', category: 'ATK', price: 1500, cost: 700, stock: 25, image: 'https://via.placeholder.com/260?text=Pensil' },
+    { id: 'P005', code: 'P005', barcode: '8991234000059', name: 'Roti Tawar', category: 'Makanan', price: 12000, cost: 7000, stock: 5, image: 'https://via.placeholder.com/260?text=Roti+Tawar' },
+    { id: 'P006', code: 'P006', barcode: '8991234000066', name: 'Mineral Water', category: 'Minuman', price: 5000, cost: 2000, stock: 30, image: 'https://via.placeholder.com/260?text=Air+Mineral' }
   ];
 
   const sampleCashiers = [
@@ -38,7 +38,8 @@ const App = (() => {
     activeUserId: '',
     darkMode: false,
     currentTransaction: null,
-    draftPurchase: { supplier: '', invoice: '', items: [] }
+    draftPurchase: { supplier: '', invoice: '', items: [] },
+    scannerContext: 'kasir'
   };
 
   const dom = {
@@ -123,8 +124,18 @@ const App = (() => {
     startScanner: document.getElementById('startScanner'),
     stopScanner: document.getElementById('stopScanner'),
     scannerStatus: document.getElementById('scannerStatus'),
+    scannerSubtitle: document.getElementById('scannerSubtitle'),
     scannerArea: document.getElementById('scannerArea'),
+    scannerResult: document.getElementById('scannerResult'),
+    scannerResultName: document.getElementById('scannerResultName'),
+    scannerResultCode: document.getElementById('scannerResultCode'),
+    scannerNotFound: document.getElementById('scannerNotFound'),
+    scannerNotFoundCode: document.getElementById('scannerNotFoundCode'),
+    manualBarcodeInput: document.getElementById('manualBarcodeInput'),
+    manualBarcodeSubmit: document.getElementById('manualBarcodeSubmit'),
     barcodeInput: document.getElementById('barcodeInput'),
+    productBarcode: document.getElementById('productBarcode'),
+    inventoryScanButton: document.getElementById('inventoryScanButton'),
     receiptModal: document.getElementById('receiptModal'),
     closeReceipt: document.getElementById('closeReceipt'),
     closeReceiptBottom: document.getElementById('closeReceiptBottom'),
@@ -406,14 +417,64 @@ const App = (() => {
     return true;
   };
 
-  const openScannerModal = () => {
+  const openScannerModal = (context = 'kasir') => {
+    state.scannerContext = context;
     dom.scannerModal.classList.remove('hidden');
+    dom.scannerModal.style.display = 'flex';
     dom.scannerStatus.textContent = 'Siap memindai.';
+    dom.scannerResult.classList.add('hidden');
+    dom.scannerNotFound.classList.add('hidden');
+    dom.manualBarcodeInput.value = '';
+    if (context === 'inventory') {
+      dom.scannerSubtitle.textContent = 'Scan barcode untuk mengisi kode produk.';
+    } else {
+      dom.scannerSubtitle.textContent = 'Scan barcode untuk mencari dan menambah produk ke keranjang.';
+    }
   };
 
   const closeScannerModal = () => {
     dom.scannerModal.classList.add('hidden');
+    dom.scannerModal.style.display = '';
     stopBarcodeScanner();
+  };
+
+  const handleScannedCode = code => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+
+    if (state.scannerContext === 'inventory') {
+      dom.productBarcode.value = trimmed;
+      dom.scannerStatus.textContent = `Barcode diset: ${trimmed}`;
+      dom.scannerResult.classList.remove('hidden');
+      dom.scannerNotFound.classList.add('hidden');
+      dom.scannerResultName.textContent = trimmed;
+      dom.scannerResultCode.textContent = 'Barcode berhasil direkam untuk produk ini.';
+      setTimeout(() => closeScannerModal(), 1200);
+      return;
+    }
+
+    const product = state.products.find(p =>
+      p.barcode === trimmed || p.code === trimmed || p.id === trimmed
+    );
+
+    if (product) {
+      dom.scannerResult.classList.remove('hidden');
+      dom.scannerNotFound.classList.add('hidden');
+      dom.scannerResultName.textContent = product.name;
+      dom.scannerResultCode.textContent = `Kode: ${product.code} | Barcode: ${product.barcode || '-'} | Stok: ${product.stock}`;
+      dom.scannerStatus.textContent = `✅ Ditemukan: ${product.name}`;
+      addToCart(product.id);
+      setTimeout(() => closeScannerModal(), 1000);
+    } else {
+      dom.scannerNotFound.classList.remove('hidden');
+      dom.scannerResult.classList.add('hidden');
+      dom.scannerNotFoundCode.textContent = `Kode "${trimmed}" tidak cocok dengan produk manapun.`;
+      dom.barcodeInput.value = trimmed;
+      state.searchQuery = trimmed;
+      dom.searchInput.value = trimmed;
+      renderProducts();
+      dom.scannerStatus.textContent = `Barcode terdeteksi: ${trimmed} (tidak ditemukan)`;
+    }
   };
 
   const startBarcodeScanner = () => {
@@ -421,38 +482,39 @@ const App = (() => {
       dom.scannerStatus.textContent = 'Scanner tidak tersedia di perangkat ini.';
       return;
     }
-    dom.scannerStatus.textContent = 'Mencari barcode...';
+    dom.scannerStatus.textContent = 'Membuka kamera...';
+    dom.scannerResult.classList.add('hidden');
+    dom.scannerNotFound.classList.add('hidden');
     Quagga.init({
       inputStream: {
         type: 'LiveStream',
         target: dom.scannerArea,
         constraints: { facingMode: 'environment' }
       },
-      decoder: { readers: ['ean_reader', 'ean_8_reader', 'code_128_reader', 'code_39_reader'] }
+      decoder: { readers: ['ean_reader', 'ean_8_reader', 'code_128_reader', 'code_39_reader'] },
+      locate: true
     }, err => {
       if (err) {
-        dom.scannerStatus.textContent = 'Gagal membuka kamera: ' + err.message;
+        dom.scannerStatus.textContent = 'Gagal membuka kamera: ' + (err.message || err);
         return;
       }
       Quagga.start();
+      dom.scannerStatus.textContent = 'Mencari barcode... arahkan kamera ke barcode.';
     });
     Quagga.onDetected(result => {
       const code = result.codeResult.code;
-      dom.barcodeInput.value = code;
-      state.searchQuery = code;
-      dom.searchInput.value = code;
-      renderProducts();
-      dom.scannerStatus.textContent = `Barcode terdeteksi: ${code}`;
+      handleScannedCode(code);
       stopBarcodeScanner();
-      closeScannerModal();
     });
   };
 
   const stopBarcodeScanner = () => {
-    if (Quagga) {
-      Quagga.stop();
-      Quagga.offDetected();
-    }
+    try {
+      if (Quagga) {
+        Quagga.stop();
+        Quagga.offDetected();
+      }
+    } catch (e) { /* ignore */ }
     dom.scannerStatus.textContent = 'Scanner dihentikan.';
   };
 
@@ -551,7 +613,10 @@ const App = (() => {
     return state.products.filter(product => {
       const matchesCategory = state.selectedCategory === 'All' || product.category === state.selectedCategory;
       const query = state.searchQuery.trim().toLowerCase();
-      const matchesSearch = !query || product.name.toLowerCase().includes(query) || product.code.toLowerCase().includes(query);
+      const matchesSearch = !query ||
+        product.name.toLowerCase().includes(query) ||
+        product.code.toLowerCase().includes(query) ||
+        (product.barcode && product.barcode.toLowerCase().includes(query));
       return matchesCategory && matchesSearch;
     });
   };
@@ -746,6 +811,7 @@ const App = (() => {
         <tr class="border-b border-slate-200">
           <td class="p-3 font-semibold">${product.code}</td>
           <td class="p-3">${product.name}</td>
+          <td class="p-3 text-xs text-slate-500 font-mono">${product.barcode || '-'}</td>
           <td class="p-3">${product.category}</td>
           <td class="p-3">${formatCurrency(product.price)}</td>
           <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${criticalClass}">${product.stock}</span></td>
@@ -808,6 +874,7 @@ const App = (() => {
 
   const openInventoryModal = productId => {
     if (!productId) {
+      dom.productBarcode.value = '';
       showInventoryModal('Tambah Produk');
       return;
     }
@@ -821,6 +888,7 @@ const App = (() => {
     dom.productCost.value = product.cost;
     dom.productStock.value = product.stock;
     dom.productImage.value = product.image;
+    dom.productBarcode.value = product.barcode || '';
     showInventoryModal('Edit Produk');
   };
 
@@ -838,6 +906,7 @@ const App = (() => {
     const productData = {
       id,
       code: dom.productCode.value.trim(),
+      barcode: dom.productBarcode.value.trim(),
       name: dom.productName.value.trim(),
       category: dom.productCategory.value,
       price: Number(dom.productPrice.value) || 0,
@@ -1026,10 +1095,34 @@ const App = (() => {
     dom.closeInventoryModal.addEventListener('click', hideInventoryModal);
     dom.cancelInventory.addEventListener('click', hideInventoryModal);
     dom.inventoryForm.addEventListener('submit', saveProduct);
-    dom.scanButton.addEventListener('click', openScannerModal);
+    dom.scanButton.addEventListener('click', () => openScannerModal('kasir'));
+    dom.inventoryScanButton.addEventListener('click', () => openScannerModal('inventory'));
     dom.closeScanner.addEventListener('click', closeScannerModal);
     dom.startScanner.addEventListener('click', startBarcodeScanner);
     dom.stopScanner.addEventListener('click', stopBarcodeScanner);
+    dom.manualBarcodeSubmit.addEventListener('click', () => {
+      handleScannedCode(dom.manualBarcodeInput.value);
+    });
+    dom.manualBarcodeInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') handleScannedCode(dom.manualBarcodeInput.value);
+    });
+    dom.barcodeInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const code = dom.barcodeInput.value.trim();
+        if (!code) return;
+        const product = state.products.find(p =>
+          p.barcode === code || p.code === code || p.id === code
+        );
+        if (product) {
+          addToCart(product.id);
+          dom.barcodeInput.value = '';
+        } else {
+          state.searchQuery = code;
+          dom.searchInput.value = code;
+          renderProducts();
+        }
+      }
+    });
     dom.addPurchaseButton.addEventListener('click', openPurchaseModal);
     dom.closePurchaseModal.addEventListener('click', closePurchaseModal);
     dom.cancelPurchase.addEventListener('click', closePurchaseModal);
