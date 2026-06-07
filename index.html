@@ -106,43 +106,86 @@
     </div>
   </div>
 
-  <!-- Login Page -->
-  <div id="loginPage" class="fixed inset-0 z-[99] hidden items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-sky-900">
+  <!-- Login / Register Page -->
+  <div id="loginPage" class="fixed inset-0 z-[99] hidden items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-sky-900 overflow-y-auto py-8">
     <div class="w-full max-w-md px-6">
-      <div class="text-center mb-8">
-        <div class="text-6xl mb-4">🛒</div>
+      <div class="text-center mb-6">
+        <div class="text-6xl mb-3">🛒</div>
         <h1 class="text-3xl font-bold text-white">Kasir UMKM Simpel</h1>
         <p class="text-slate-400 mt-2">Point of Sale & Inventory Management</p>
       </div>
       <div class="bg-white rounded-3xl shadow-2xl p-8">
-        <h2 class="text-xl font-semibold text-slate-800 mb-6">Masuk ke Aplikasi</h2>
-        <div id="loginError" class="hidden mb-4 rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
-        <form id="loginPageForm" class="space-y-4">
+        <!-- Tab switch -->
+        <div class="flex rounded-2xl bg-slate-100 p-1 mb-6">
+          <button id="tabLogin" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-slate-900 shadow-sm transition">Masuk</button>
+          <button id="tabRegister" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 transition">Daftar Toko</button>
+        </div>
+
+        <div id="authError" class="hidden mb-4 rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+        <div id="authSuccess" class="hidden mb-4 rounded-2xl bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700"></div>
+
+        <!-- FORM MASUK -->
+        <form id="loginForm2" class="space-y-4">
           <label class="block">
-            <span class="text-slate-700 text-sm font-medium">Nama Kasir</span>
-            <input id="loginPageName" required autocomplete="username"
+            <span class="text-slate-700 text-sm font-medium">Email</span>
+            <input id="loginEmail" type="email" required autocomplete="email"
               class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none"
-              placeholder="Masukkan nama kasir" />
+              placeholder="email@toko.com" />
           </label>
           <label class="block">
             <span class="text-slate-700 text-sm font-medium">Password</span>
             <div class="relative mt-2">
-              <input id="loginPagePassword" type="password" required autocomplete="current-password"
+              <input id="loginPass" type="password" required autocomplete="current-password"
                 class="w-full rounded-2xl border border-slate-300 px-4 py-3 pr-12 focus:ring-2 focus:ring-sky-400 focus:outline-none"
                 placeholder="Masukkan password" />
-              <button type="button" id="togglePassword"
-                class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">
-                👁
-              </button>
+              <button type="button" data-toggle="loginPass"
+                class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">👁</button>
             </div>
           </label>
-          <button type="submit" id="loginPageBtn"
+          <button type="submit" id="loginSubmitBtn"
             class="w-full rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-700 transition mt-2">
             Masuk
           </button>
         </form>
-        <p class="text-center text-xs text-slate-400 mt-6">Hubungi admin jika lupa password</p>
+
+        <!-- FORM DAFTAR -->
+        <form id="registerForm" class="space-y-4 hidden">
+          <label class="block">
+            <span class="text-slate-700 text-sm font-medium">Nama Toko</span>
+            <input id="regStoreName" required
+              class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+              placeholder="contoh: Warung Barokah" />
+          </label>
+          <label class="block">
+            <span class="text-slate-700 text-sm font-medium">Nama Anda (Pemilik)</span>
+            <input id="regOwnerName" required
+              class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+              placeholder="contoh: Budi Santoso" />
+          </label>
+          <label class="block">
+            <span class="text-slate-700 text-sm font-medium">Email</span>
+            <input id="regEmail" type="email" required autocomplete="email"
+              class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+              placeholder="email@toko.com" />
+          </label>
+          <label class="block">
+            <span class="text-slate-700 text-sm font-medium">Password (min. 6 karakter)</span>
+            <div class="relative mt-2">
+              <input id="regPass" type="password" required minlength="6" autocomplete="new-password"
+                class="w-full rounded-2xl border border-slate-300 px-4 py-3 pr-12 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+                placeholder="Buat password" />
+              <button type="button" data-toggle="regPass"
+                class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">👁</button>
+            </div>
+          </label>
+          <button type="submit" id="registerSubmitBtn"
+            class="w-full rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition mt-2">
+            Daftar & Buat Toko
+          </button>
+          <p class="text-xs text-slate-400 text-center">Dengan mendaftar, Anda otomatis menjadi Admin toko.</p>
+        </form>
       </div>
+      <p class="text-center text-xs text-slate-500 mt-5">Data toko Anda terisolasi & aman.</p>
     </div>
   </div>
 

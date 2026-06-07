@@ -16,14 +16,41 @@ const App = (() => {
     paperSize: '58'
   };
 
+  // Ambil pengaturan toko dari record store (Supabase), fallback ke default
   const getStoreSettings = () => {
+    const s = state.store;
+    if (s) {
+      return {
+        name: s.name || defaultStoreSettings.name,
+        address: s.address || '',
+        phone: s.phone || '',
+        note: s.note || defaultStoreSettings.note,
+        paperSize: s.paper_size || '58'
+      };
+    }
     try {
       return { ...defaultStoreSettings, ...JSON.parse(localStorage.getItem(STORAGE.storeSettings) || '{}') };
     } catch { return { ...defaultStoreSettings }; }
   };
 
-  const saveStoreSettings = settings => {
+  // Simpan pengaturan toko ke tabel stores (Supabase) + cache lokal
+  const saveStoreSettings = async settings => {
     localStorage.setItem(STORAGE.storeSettings, JSON.stringify(settings));
+    if (db && state.storeId) {
+      const { error } = await db.from('stores').update({
+        name: settings.name,
+        address: settings.address,
+        phone: settings.phone,
+        note: settings.note,
+        paper_size: settings.paperSize
+      }).eq('id', state.storeId);
+      if (error) return { error: error.message };
+      if (state.store) {
+        state.store = { ...state.store, name: settings.name, address: settings.address,
+          phone: settings.phone, note: settings.note, paper_size: settings.paperSize };
+      }
+    }
+    return {};
   };
 
   // ── Supabase ──────────────────────────────────────────────────────────────
@@ -97,19 +124,63 @@ const App = (() => {
   });
 
   // ── Session ───────────────────────────────────────────────────────────────
-  const SESSION_KEY = 'kasir_session';
-
-  const saveSession = user => {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({
-      id: user.id, name: user.name, role: user.role, password: user.password
-    }));
+  // ── Auth (Supabase) ───────────────────────────────────────────────────────
+  const getAuthSession = async () => {
+    if (!db) return null;
+    const { data } = await db.auth.getSession();
+    return data?.session || null;
   };
 
-  const getSession = () => {
-    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)); } catch { return null; }
+  // Login toko via email + password
+  const handleLogin = async (email, password) => {
+    if (!db) return { error: 'Database tidak tersedia.' };
+    const { data, error } = await db.auth.signInWithPassword({ email, password });
+    if (error) return { error: terjemahAuthError(error.message) };
+    state.authUser = data.user;
+    return { user: data.user };
   };
 
-  const clearSession = () => sessionStorage.removeItem(SESSION_KEY);
+  // Daftar toko baru: buat akun auth + store + admin cashier
+  const handleRegister = async ({ storeName, ownerName, email, password }) => {
+    if (!db) return { error: 'Database tidak tersedia.' };
+    const { data, error } = await db.auth.signUp({ email, password });
+    if (error) return { error: terjemahAuthError(error.message) };
+    if (!data.user) return { error: 'Gagal membuat akun.' };
+
+    // Pastikan ada sesi aktif (email confirmation harus dimatikan di Supabase)
+    let session = data.session;
+    if (!session) {
+      const res = await db.auth.signInWithPassword({ email, password });
+      if (res.error) {
+        return { needConfirm: true };
+      }
+      session = res.data.session;
+    }
+    state.authUser = data.user;
+
+    // Buat record toko
+    const { data: store, error: sErr } = await db.from('stores')
+      .insert({ owner_id: data.user.id, name: storeName.trim() })
+      .select().single();
+    if (sErr) return { error: 'Gagal membuat toko: ' + sErr.message };
+
+    // Buat kasir admin (pemilik) — PIN default 1234
+    await db.from('cashiers').insert({
+      store_id: store.id, name: ownerName.trim(), password: '1234', role: 'admin'
+    });
+
+    return { user: data.user, store };
+  };
+
+  const terjemahAuthError = msg => {
+    const m = (msg || '').toLowerCase();
+    if (m.includes('invalid login')) return 'Email atau password salah.';
+    if (m.includes('already registered') || m.includes('already been registered')) return 'Email sudah terdaftar. Silakan masuk.';
+    if (m.includes('password should be at least')) return 'Password minimal 6 karakter.';
+    if (m.includes('unable to validate email') || m.includes('invalid email')) return 'Format email tidak valid.';
+    if (m.includes('email not confirmed')) return 'Email belum dikonfirmasi.';
+    return msg || 'Terjadi kesalahan.';
+  };
 
   const showLoginPage = () => {
     const lp = document.getElementById('loginPage');
@@ -127,39 +198,32 @@ const App = (() => {
     app.style.display = 'flex';
   };
 
-  const applyRoleAccess = user => {
-    // Sidebar user info
+  // Setelah login: pemilik toko selalu admin (akses penuh)
+  const applyRoleAccess = () => {
+    const owner = state.cashiers.find(c => c.role === 'admin') || state.cashiers[0];
+    const name = owner?.name || state.store?.name || 'Pemilik';
     const nameEl = document.getElementById('sidebarUserName');
     const roleEl = document.getElementById('sidebarUserRole');
     const avatar = document.getElementById('userAvatar');
-    if (nameEl) nameEl.textContent = user.name;
+    if (nameEl) nameEl.textContent = name;
     if (roleEl) {
-      roleEl.textContent = user.role === 'admin' ? '👑 Admin' : '🧾 Kasir';
-      roleEl.className = user.role === 'admin'
-        ? 'text-xs px-2 py-0.5 rounded-full bg-sky-700 text-sky-100'
-        : 'text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300';
+      roleEl.textContent = '👑 Admin Toko';
+      roleEl.className = 'text-xs px-2 py-0.5 rounded-full bg-sky-700 text-sky-100';
     }
-    if (avatar) avatar.textContent = user.name.charAt(0).toUpperCase();
-
-    // Show/hide admin-only menu items
-    document.querySelectorAll('[data-role="admin"]').forEach(el => {
-      el.style.display = user.role === 'admin' ? '' : 'none';
-    });
-
-    // Show/hide cashier selector (admin only)
+    if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
+    // Pemilik authenticated → semua menu tampil
+    document.querySelectorAll('[data-role="admin"]').forEach(el => { el.style.display = ''; });
     const wrapper = document.getElementById('cashierSelectWrapper');
-    if (wrapper) wrapper.style.display = user.role === 'admin' ? '' : 'none';
-
-    // If kasir, force-set active cashier to themselves
-    if (user.role !== 'admin') {
-      state.selectedCashierId = user.id;
-      state.activeUserId = user.id;
-    }
+    if (wrapper) wrapper.style.display = '';
+    if (owner) state.selectedCashierId = owner.id;
   };
 
-  const logout = () => {
-    if (!confirm('Yakin ingin keluar?')) return;
-    clearSession();
+  const logout = async () => {
+    if (!confirm('Yakin ingin keluar dari toko?')) return;
+    if (db) await db.auth.signOut();
+    state.authUser = null;
+    state.store = null;
+    state.storeId = null;
     state.cart = {};
     state.cashAmount = 0;
     showLoginPage();
@@ -214,7 +278,10 @@ const App = (() => {
     darkMode: false,
     currentTransaction: null,
     draftPurchase: { supplier: '', invoice: '', items: [] },
-    scannerContext: 'kasir'
+    scannerContext: 'kasir',
+    authUser: null,
+    store: null,
+    storeId: null
   };
 
   const dom = {
@@ -381,48 +448,44 @@ const App = (() => {
     state.activeUserId = settings.activeUserId || state.selectedCashierId;
   };
 
+  // Memuat record toko milik user yang login
+  const loadStore = async () => {
+    const { data, error } = await db.from('stores').select('*').limit(1).maybeSingle();
+    if (error) { console.warn('loadStore error:', error); return null; }
+    if (data) {
+      state.store = data;
+      state.storeId = data.id;
+    }
+    return data;
+  };
+
+  // Memuat seluruh data toko (dipanggil SETELAH login berhasil)
   const loadData = async () => {
     loadLocalSettings();
 
-    if (!db) {
-      // Fallback: localStorage only
-      const productsData = localStorage.getItem(STORAGE.products);
-      const historyData = localStorage.getItem(STORAGE.transactions);
-      state.products = productsData ? JSON.parse(productsData) : sampleProducts;
-      state.transactions = historyData ? JSON.parse(historyData) : [];
-      syncStorage();
+    setLoadingStatus('Memuat data toko...', 25);
+    await loadStore();
+    if (!state.storeId) {
+      // User login tapi belum punya toko (kasus langka) — kosongkan
+      state.products = []; state.transactions = []; state.cashiers = []; state.purchases = [];
       return;
     }
 
     try {
-      setLoadingStatus('Memuat data produk...', 30);
+      setLoadingStatus('Memuat produk...', 40);
       const { data: products, error: pErr } = await db
         .from('products').select('*').order('id', { ascending: true });
       if (pErr) throw pErr;
-      state.products = products && products.length > 0
-        ? products.map(fromDbProduct) : sampleProducts;
+      state.products = products ? products.map(fromDbProduct) : [];
 
-      setLoadingStatus('Memuat kasir...', 50);
-      const { data: cashiers, error: cErr } = await db
+      setLoadingStatus('Memuat kasir...', 55);
+      const { data: cashiers } = await db
         .from('cashiers').select('*').order('id', { ascending: true });
-      if (!cErr && cashiers && cashiers.length > 0) {
-        state.cashiers = cashiers.map(fromDbCashier);
-        const settingsData = localStorage.getItem(STORAGE.settings);
-        const settings = settingsData ? JSON.parse(settingsData) : {};
-        state.selectedCashierId = settings.selectedCashierId || state.cashiers[0]?.id || '';
-        state.activeUserId = settings.activeUserId || state.selectedCashierId;
-      } else {
-        // Seed sample cashiers if table is empty
-        for (const c of sampleCashiers) {
-          await db.from('cashiers').insert({ name: c.name, password: c.password }).select().single();
-        }
-        const { data: seeded } = await db.from('cashiers').select('*').order('id');
-        state.cashiers = seeded ? seeded.map(fromDbCashier) : sampleCashiers;
-        state.selectedCashierId = state.cashiers[0]?.id || '';
-        state.activeUserId = state.selectedCashierId;
-      }
+      state.cashiers = cashiers ? cashiers.map(fromDbCashier) : [];
+      state.selectedCashierId = (state.cashiers.find(c => c.role === 'admin') || state.cashiers[0])?.id || '';
+      state.activeUserId = state.selectedCashierId;
 
-      setLoadingStatus('Memuat transaksi...', 65);
+      setLoadingStatus('Memuat transaksi...', 70);
       const { data: transactions, error: tErr } = await db
         .from('transactions').select('*, transaction_items(*)')
         .order('created_at', { ascending: false }).limit(500);
@@ -430,24 +493,18 @@ const App = (() => {
       state.transactions = transactions ? transactions.map(fromDbTransaction) : [];
 
       setLoadingStatus('Memuat pembelian...', 85);
-      const { data: purchases, error: puErr } = await db
+      const { data: purchases } = await db
         .from('purchases').select('*, purchase_items(*)')
         .order('created_at', { ascending: false });
-      if (!puErr && purchases) {
-        state.purchases = purchases.map(fromDbPurchase);
-      }
+      state.purchases = purchases ? purchases.map(fromDbPurchase) : [];
 
       setLoadingStatus('Siap!', 100);
     } catch (err) {
-      console.warn('Supabase error, fallback to localStorage:', err);
-      const productsData = localStorage.getItem(STORAGE.products);
-      const historyData = localStorage.getItem(STORAGE.transactions);
-      const cashiersData = localStorage.getItem(STORAGE.cashiers);
-      const purchasesData = localStorage.getItem(STORAGE.purchases);
-      state.products = productsData ? JSON.parse(productsData) : sampleProducts;
-      state.transactions = historyData ? JSON.parse(historyData) : [];
-      state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers;
-      state.purchases = purchasesData ? JSON.parse(purchasesData) : [];
+      console.warn('Gagal memuat data toko:', err);
+      state.products = state.products || [];
+      state.transactions = state.transactions || [];
+      state.cashiers = state.cashiers || [];
+      state.purchases = state.purchases || [];
     }
 
     syncStorage();
@@ -489,7 +546,7 @@ const App = (() => {
   // ── Kelola Kasir ──────────────────────────────────────────────────────────
   const renderCashierManagement = () => {
     if (!dom.cashierGrid) return;
-    const session = getSession();
+    const activeId = state.selectedCashierId;
     const admins = state.cashiers.filter(c => c.role === 'admin').length;
     const kasirs = state.cashiers.filter(c => c.role !== 'admin').length;
     if (dom.statTotalCashier) dom.statTotalCashier.textContent = state.cashiers.length;
@@ -498,7 +555,7 @@ const App = (() => {
 
     dom.cashierGrid.innerHTML = state.cashiers.map(c => {
       const isAdmin = c.role === 'admin';
-      const isSelf = session && c.id === session.id;
+      const isSelf = c.id === activeId;
       const initial = c.name.charAt(0).toUpperCase();
       const roleLabel = isAdmin ? '👑 Admin' : '🧾 Kasir';
       const roleBg = isAdmin ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600';
@@ -593,13 +650,10 @@ const App = (() => {
         if (idx >= 0) {
           state.cashiers[idx] = { ...state.cashiers[idx], name, role, ...(password ? { password } : {}) };
         }
-        // Update session jika edit diri sendiri
-        const session = getSession();
-        if (session && session.id === id) saveSession(state.cashiers[idx]);
       } else {
         // Insert
         const { data, error } = await db.from('cashiers')
-          .insert({ name, password, role }).select().single();
+          .insert({ name, password, role, store_id: state.storeId }).select().single();
         if (error) { showCashierError('Gagal tambah: ' + error.message); return; }
         state.cashiers.push(fromDbCashier(data));
       }
@@ -1033,6 +1087,7 @@ const App = (() => {
         // Insert purchase header
         const { error: poErr } = await db.from('purchases').insert({
           id: purchaseId,
+          store_id: state.storeId,
           supplier: purchase.supplier,
           total,
           status: 'Diterima'
@@ -1400,7 +1455,8 @@ const App = (() => {
         if (error) { alert('Gagal simpan produk: ' + error.message); return; }
       } else {
         // Insert new
-        const { data, error } = await db.from('products').insert(dbPayload).select().single();
+        const { data, error } = await db.from('products')
+          .insert({ ...dbPayload, store_id: state.storeId }).select().single();
         if (error) { alert('Gagal tambah produk: ' + error.message); return; }
         finalId = String(data.id);
       }
@@ -1453,6 +1509,7 @@ const App = (() => {
       try {
         // Insert transaction header
         const { data: tx, error: txErr } = await db.from('transactions').insert({
+          store_id: state.storeId,
           cashier_name: cashier.name,
           total_amount: totals.total,
           payment_amount: totals.cash,
@@ -1784,51 +1841,84 @@ ${discountHtml}${taxHtml}
       if (event.target === dom.loginModal) hideLoginModal();
     });
 
-    // ── Login page form ──
-    const loginPageForm = document.getElementById('loginPageForm');
-    const loginPageBtn = document.getElementById('loginPageBtn');
-    const loginError = document.getElementById('loginError');
-    const togglePassword = document.getElementById('togglePassword');
-    const loginPagePassword = document.getElementById('loginPagePassword');
+    // ── Login / Register (Supabase Auth) ──
+    const tabLogin = document.getElementById('tabLogin');
+    const tabRegister = document.getElementById('tabRegister');
+    const loginForm2 = document.getElementById('loginForm2');
+    const registerForm = document.getElementById('registerForm');
+    const authError = document.getElementById('authError');
+    const authSuccess = document.getElementById('authSuccess');
     const logoutButton = document.getElementById('logoutButton');
 
-    togglePassword?.addEventListener('click', () => {
-      loginPagePassword.type = loginPagePassword.type === 'password' ? 'text' : 'password';
+    const showAuthError = msg => {
+      authSuccess.classList.add('hidden');
+      authError.textContent = msg;
+      authError.classList.remove('hidden');
+    };
+    const clearAuthMsg = () => {
+      authError.classList.add('hidden');
+      authSuccess.classList.add('hidden');
+    };
+
+    const activateTab = which => {
+      clearAuthMsg();
+      const onLogin = which === 'login';
+      loginForm2.classList.toggle('hidden', !onLogin);
+      registerForm.classList.toggle('hidden', onLogin);
+      tabLogin.className = onLogin
+        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-slate-900 shadow-sm transition'
+        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 transition';
+      tabRegister.className = !onLogin
+        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-slate-900 shadow-sm transition'
+        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 transition';
+    };
+    tabLogin?.addEventListener('click', () => activateTab('login'));
+    tabRegister?.addEventListener('click', () => activateTab('register'));
+
+    // Toggle lihat password (semua tombol .toggle-pw)
+    document.querySelectorAll('.toggle-pw').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const inp = document.getElementById(btn.dataset.toggle);
+        if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
+      });
     });
 
-    loginPageForm?.addEventListener('submit', async event => {
+    // MASUK
+    loginForm2?.addEventListener('submit', async event => {
       event.preventDefault();
-      loginError.classList.add('hidden');
-      loginPageBtn.textContent = 'Memeriksa...';
-      loginPageBtn.disabled = true;
+      clearAuthMsg();
+      const btn = document.getElementById('loginSubmitBtn');
+      btn.textContent = 'Memeriksa...'; btn.disabled = true;
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPass').value;
+      const res = await handleLogin(email, password);
+      btn.textContent = 'Masuk'; btn.disabled = false;
+      if (res.error) { showAuthError(res.error); return; }
+      await enterAppAfterAuth();
+    });
 
-      const name = document.getElementById('loginPageName').value.trim();
-      const password = document.getElementById('loginPagePassword').value.trim();
-
-      const user = state.cashiers.find(c =>
-        c.name.toLowerCase() === name.toLowerCase() && c.password === password
-      );
-
-      if (!user) {
-        loginError.textContent = 'Nama kasir atau password salah. Coba lagi.';
-        loginError.classList.remove('hidden');
-        loginPageBtn.textContent = 'Masuk';
-        loginPageBtn.disabled = false;
+    // DAFTAR
+    registerForm?.addEventListener('submit', async event => {
+      event.preventDefault();
+      clearAuthMsg();
+      const btn = document.getElementById('registerSubmitBtn');
+      btn.textContent = 'Memproses...'; btn.disabled = true;
+      const res = await handleRegister({
+        storeName: document.getElementById('regStoreName').value,
+        ownerName: document.getElementById('regOwnerName').value,
+        email: document.getElementById('regEmail').value.trim(),
+        password: document.getElementById('regPass').value
+      });
+      btn.textContent = 'Daftar & Buat Toko'; btn.disabled = false;
+      if (res.error) { showAuthError(res.error); return; }
+      if (res.needConfirm) {
+        authError.classList.add('hidden');
+        authSuccess.textContent = 'Akun dibuat! Silakan cek email Anda untuk konfirmasi, lalu masuk.';
+        authSuccess.classList.remove('hidden');
+        activateTab('login');
         return;
       }
-
-      saveSession(user);
-      state.selectedCashierId = user.id;
-      state.activeUserId = user.id;
-      syncStorage();
-      applyRoleAccess(user);
-
-      // Navigate based on role
-      showApp();
-      showScreen(user.role === 'admin' ? 'dashboard' : 'kasir');
-      renderAll();
-      loginPageBtn.textContent = 'Masuk';
-      loginPageBtn.disabled = false;
+      await enterAppAfterAuth();
     });
 
     logoutButton?.addEventListener('click', logout);
@@ -1852,7 +1942,7 @@ ${discountHtml}${taxHtml}
       });
     });
 
-    dom.saveSettingsBtn?.addEventListener('click', () => {
+    dom.saveSettingsBtn?.addEventListener('click', async () => {
       const store = {
         name: dom.settingStoreName.value.trim() || 'Kasir UMKM Simpel',
         address: dom.settingStoreAddress.value.trim(),
@@ -1860,7 +1950,12 @@ ${discountHtml}${taxHtml}
         note: dom.settingStoreNote.value.trim(),
         paperSize: dom.settingPaperSize.value
       };
-      saveStoreSettings(store);
+      dom.saveSettingsBtn.disabled = true;
+      dom.saveSettingsBtn.textContent = 'Menyimpan...';
+      const res = await saveStoreSettings(store);
+      dom.saveSettingsBtn.disabled = false;
+      dom.saveSettingsBtn.textContent = '💾 Simpan Pengaturan';
+      if (res.error) { alert('Gagal menyimpan: ' + res.error); return; }
       updateSettingsPreview(store);
       dom.settingsSaved.classList.remove('hidden');
       setTimeout(() => dom.settingsSaved.classList.add('hidden'), 2500);
@@ -1891,33 +1986,54 @@ ${discountHtml}${taxHtml}
     }
   };
 
+  // Dipanggil setelah login/daftar berhasil ATAU saat sesi masih aktif
+  const enterAppAfterAuth = async () => {
+    await loadData();
+
+    // Pengaman: user terautentikasi tapi belum punya toko (mis. lewat konfirmasi email)
+    if (db && state.authUser && !state.storeId) {
+      let storeName = prompt('Selamat datang! Masukkan nama toko Anda untuk memulai:');
+      storeName = (storeName || '').trim() || 'Toko Saya';
+      const ownerName = prompt('Nama Anda (pemilik):') || 'Pemilik';
+      const { data: store, error } = await db.from('stores')
+        .insert({ owner_id: state.authUser.id, name: storeName }).select().single();
+      if (!error && store) {
+        state.store = store;
+        state.storeId = store.id;
+        await db.from('cashiers').insert({
+          store_id: store.id, name: ownerName.trim(), password: '1234', role: 'admin'
+        });
+        await loadData();
+      } else if (error) {
+        alert('Gagal membuat toko: ' + error.message);
+      }
+    }
+
+    applyRoleAccess();
+    showApp();
+    showScreen('dashboard');
+    renderAll();
+  };
+
   const init = async () => {
     setLoadingStatus('Menghubungkan ke database...', 10);
     initSupabase();
-    setLoadingStatus('Memuat data...', 25);
-    await loadData();
+    loadLocalSettings();
     bindEvents();
     registerServiceWorker();
-    hideLoadingOverlay();
 
-    const session = getSession();
+    // Cek sesi Supabase yang masih aktif
+    setLoadingStatus('Memeriksa sesi...', 20);
+    const session = await getAuthSession();
+
     if (session) {
-      // Validate session user still exists in loaded cashiers
-      const user = state.cashiers.find(c => c.id === session.id && c.password === session.password);
-      if (user) {
-        state.selectedCashierId = user.id;
-        state.activeUserId = user.id;
-        applyRoleAccess(user);
-        showApp();
-        showScreen(user.role === 'admin' ? 'dashboard' : 'kasir');
-        renderAll();
-        return;
-      }
-      clearSession();
+      state.authUser = session.user;
+      await enterAppAfterAuth();
+      hideLoadingOverlay();
+    } else {
+      hideLoadingOverlay();
+      showLoginPage();
     }
-
-    // No valid session → show login page
-    showLoginPage();
   };
 
   return { init };
