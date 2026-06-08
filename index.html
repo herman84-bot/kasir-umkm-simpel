@@ -190,7 +190,8 @@
   </div>
 
   <div id="appContainer" class="hidden min-h-screen flex flex-col md:flex-row">
-    <aside class="w-full md:w-72 bg-slate-900 text-white px-5 py-6 shadow-lg flex flex-col">
+    <!-- Sidebar: hidden on mobile, visible on md+ -->
+    <aside class="hidden md:flex md:w-72 bg-slate-900 text-white px-5 py-6 shadow-lg flex-col">
       <div class="mb-8">
         <h1 class="text-2xl font-semibold">Kasir UMKM</h1>
         <p class="text-slate-300 text-sm mt-1">Point of Sale & Inventory</p>
@@ -218,7 +219,40 @@
         </button>
       </div>
     </aside>
-    <main class="flex-1 p-6">
+
+    <!-- Bottom Navigation Bar: visible on mobile only -->
+    <nav id="bottomNav" class="fixed bottom-0 left-0 right-0 z-40 bg-slate-900 md:hidden flex items-stretch border-t border-slate-700">
+      <button data-screen="dashboard" data-role="admin" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+        <span class="text-xl leading-none">📊</span>
+        <span class="text-[10px] mt-0.5 leading-tight">Dashboard</span>
+      </button>
+      <button data-screen="kasir" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+        <span class="text-xl leading-none">🧾</span>
+        <span class="text-[10px] mt-0.5 leading-tight">Kasir</span>
+      </button>
+      <button data-screen="inventory" data-role="admin" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+        <span class="text-xl leading-none">📦</span>
+        <span class="text-[10px] mt-0.5 leading-tight">Inventory</span>
+      </button>
+      <button data-screen="pembelian" data-role="admin" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+        <span class="text-xl leading-none">🛍</span>
+        <span class="text-[10px] mt-0.5 leading-tight">Beli</span>
+      </button>
+      <button data-screen="riwayat" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+        <span class="text-xl leading-none">📋</span>
+        <span class="text-[10px] mt-0.5 leading-tight">Riwayat</span>
+      </button>
+      <button data-screen="kelolaKasir" data-role="admin" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+        <span class="text-xl leading-none">👥</span>
+        <span class="text-[10px] mt-0.5 leading-tight">Kasir</span>
+      </button>
+      <button data-screen="pengaturan" data-role="admin" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+        <span class="text-xl leading-none">⚙️</span>
+        <span class="text-[10px] mt-0.5 leading-tight">Setting</span>
+      </button>
+    </nav>
+
+    <main class="flex-1 p-3 md:p-6 pb-20 md:pb-6">
       <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 class="text-2xl font-semibold" id="headerTitle">Aplikasi Kasir UMKM</h2>
@@ -226,12 +260,18 @@
         </div>
         <div class="flex flex-wrap items-center gap-2 text-sm">
           <div class="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm text-slate-600" id="cashierSelectWrapper">
-            <span class="font-medium text-slate-500">Kasir:</span>
-            <select id="cashierSelect" class="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-slate-900 text-sm"></select>
+            <span class="hidden sm:inline font-medium text-slate-500">Kasir:</span>
+            <select id="cashierSelect" class="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-slate-900 text-sm max-w-[120px] sm:max-w-none"></select>
           </div>
-          <button id="themeToggle" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm">🌙 Tema</button>
-          <button id="exportDataButton" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm">💾 Backup</button>
-          <button id="importDataButton" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm">📂 Restore</button>
+          <button id="themeToggle" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Tema">
+            <span>🌙</span><span class="hidden sm:inline"> Tema</span>
+          </button>
+          <button id="exportDataButton" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Backup">
+            <span>💾</span><span class="hidden sm:inline"> Backup</span>
+          </button>
+          <button id="importDataButton" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Restore">
+            <span>📂</span><span class="hidden sm:inline"> Restore</span>
+          </button>
         </div>
       </header>
 
@@ -625,7 +665,7 @@
   </div>
 
   <div id="scannerModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/70 px-4 py-6">
-    <div class="w-full max-w-3xl rounded-3xl bg-white shadow-2xl overflow-hidden">
+    <div class="w-full max-w-3xl rounded-3xl bg-white shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
       <div class="flex items-center justify-between border-b border-slate-200 p-5">
         <div>
           <h3 class="text-xl font-semibold">Scan Barcode</h3>
@@ -633,8 +673,8 @@
         </div>
         <button id="closeScanner" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200">×</button>
       </div>
-      <div class="p-6">
-        <div id="scannerArea" class="relative h-80 rounded-3xl border-2 border-dashed border-slate-300 bg-slate-900 overflow-hidden">
+      <div class="p-6 overflow-y-auto flex-1">
+        <div id="scannerArea" class="relative h-64 md:h-80 rounded-3xl border-2 border-dashed border-slate-300 bg-slate-900 overflow-hidden">
           <video id="scannerVideo" class="absolute inset-0 w-full h-full object-cover hidden" playsinline muted></video>
           <div id="scannerScanLine" class="absolute left-0 right-0 h-0.5 bg-red-500 shadow-[0_0_8px_red] hidden z-20" style="top:50%"></div>
           <div id="scannerPlaceholder" class="absolute inset-0 flex items-center justify-center text-slate-400 pointer-events-none z-10">
@@ -672,15 +712,15 @@
   </div>
 
   <div id="purchaseModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 py-6">
-    <div class="w-full max-w-3xl rounded-3xl bg-white shadow-2xl overflow-hidden">
-      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+    <div class="w-full max-w-3xl rounded-3xl bg-white shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5 flex-shrink-0">
         <div>
           <h3 class="text-xl font-semibold">Tambah Pembelian</h3>
           <p class="text-slate-500">Catat barang masuk dari supplier.</p>
         </div>
         <button id="closePurchaseModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200">×</button>
       </div>
-      <div class="p-6 space-y-4">
+      <div class="p-6 space-y-4 overflow-y-auto flex-1">
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="block"><span class="text-slate-700">Supplier</span><input id="purchaseSupplier" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" /></label>
           <label class="block"><span class="text-slate-700">ID Invoice</span><input id="purchaseInvoice" value="" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="INV-001" /></label>
@@ -747,15 +787,15 @@
   </div>
 
   <div id="inventoryModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 py-6">
-    <div class="w-full max-w-xl rounded-3xl bg-white shadow-2xl overflow-hidden">
-      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+    <div class="w-full max-w-xl rounded-3xl bg-white shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5 flex-shrink-0">
         <div>
           <h3 class="text-xl font-semibold" id="inventoryModalTitle">Tambah Produk</h3>
           <p class="text-slate-500">Kelola data produk dan stok.</p>
         </div>
         <button id="closeInventoryModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200">×</button>
       </div>
-      <form id="inventoryForm" class="space-y-4 p-6">
+      <form id="inventoryForm" class="space-y-4 p-6 overflow-y-auto flex-1">
         <input type="hidden" id="productId" />
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="block"><span class="text-slate-700">Kode Produk</span><input id="productCode" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" /></label>

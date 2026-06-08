@@ -211,7 +211,7 @@ const App = (() => {
       roleEl.className = 'text-xs px-2 py-0.5 rounded-full bg-sky-700 text-sky-100';
     }
     if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
-    // Pemilik authenticated → semua menu tampil
+    // Pemilik authenticated → semua menu tampil (sidebar + bottom nav)
     document.querySelectorAll('[data-role="admin"]').forEach(el => { el.style.display = ''; });
     const wrapper = document.getElementById('cashierSelectWrapper');
     if (wrapper) wrapper.style.display = '';
@@ -1469,6 +1469,13 @@ const App = (() => {
       button.classList.toggle('bg-slate-700', button.dataset.screen === screenId);
       button.classList.toggle('text-white', button.dataset.screen === screenId);
     });
+    // Update bottom nav active state
+    document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
+      const isActive = btn.dataset.screen === screenId;
+      btn.classList.toggle('text-white', isActive);
+      btn.classList.toggle('text-slate-400', !isActive);
+      btn.classList.toggle('bg-slate-800', isActive);
+    });
     if (screenId === 'kelolaKasir') renderCashierManagement();
     if (screenId === 'pengaturan') renderSettings();
   };
@@ -1797,6 +1804,11 @@ ${discountHtml}${taxHtml}
 
   const bindEvents = () => {
     dom.menuButtons.forEach(button => {
+      button.addEventListener('click', () => showScreen(button.dataset.screen));
+    });
+
+    // Bottom nav buttons (mobile)
+    document.querySelectorAll('.bottom-nav-btn').forEach(button => {
       button.addEventListener('click', () => showScreen(button.dataset.screen));
     });
 
