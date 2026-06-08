@@ -1544,13 +1544,22 @@ const App = (() => {
     renderProducts();
   };
 
+  const BLOCKED_KEYWORDS = ['rokok', 'tembakau', 'cigarette', 'tobacco', 'vape', 'vaping', 'vapor', 'e-cig', 'ecig', 'shisha', 'hookah', 'marlboro', 'sampoerna', 'gudang garam', 'dji sam soe', 'la lights', 'camel', 'dunhill'];
+  const isTobaccoProduct = text => BLOCKED_KEYWORDS.some(k => text.toLowerCase().includes(k));
+
   const saveProduct = async event => {
     event.preventDefault();
     const existingId = dom.productId.value;
+    const name = dom.productName.value.trim();
+    const category = dom.productCategory.value.trim();
+    if (isTobaccoProduct(name) || isTobaccoProduct(category)) {
+      alert('❌ Produk tembakau dan vape tidak diizinkan di aplikasi ini.');
+      return;
+    }
     const dbPayload = {
-      name: dom.productName.value.trim(),
+      name,
       barcode: dom.productBarcode.value.trim() || null,
-      category: dom.productCategory.value,
+      category,
       price: Number(dom.productPrice.value) || 0,
       cost: Number(dom.productCost.value) || 0,
       stock: Number(dom.productStock.value) || 0
