@@ -36,6 +36,9 @@ const App = (() => {
   // Simpan pengaturan toko ke tabel stores (Supabase) + cache lokal
   const saveStoreSettings = async settings => {
     localStorage.setItem(STORAGE.storeSettings, JSON.stringify(settings));
+    if (settings.qrisImage !== undefined) {
+      localStorage.setItem('qris_image', settings.qrisImage || '');
+    }
     if (db && state.storeId) {
       const { error } = await db.from('stores').update({
         name: settings.name,
@@ -52,6 +55,8 @@ const App = (() => {
     }
     return {};
   };
+
+  const getQrisImage = () => localStorage.getItem('qris_image') || '';
 
   // ── Supabase ──────────────────────────────────────────────────────────────
   const SUPABASE_URL = 'https://pfmsblktxlnovtajnxvc.supabase.co';
@@ -1851,6 +1856,18 @@ ${discountHtml}${taxHtml}
     if (dom.settingStoreNote) dom.settingStoreNote.value = store.note;
     if (dom.settingPaperSize) dom.settingPaperSize.value = store.paperSize;
     updateSettingsPreview(store);
+    // Tampilkan preview QRIS jika sudah diupload
+    const qrisImg = getQrisImage();
+    const wrapper = document.getElementById('qrisPreviewWrapper');
+    const previewImg = document.getElementById('qrisPreviewImg');
+    if (wrapper && previewImg) {
+      if (qrisImg) {
+        previewImg.src = qrisImg;
+        wrapper.classList.remove('hidden');
+      } else {
+        wrapper.classList.add('hidden');
+      }
+    }
   };
 
   const updateSettingsPreview = store => {
@@ -2055,6 +2072,22 @@ ${txRows}
     if (method !== 'Tunai') {
       const totals = calculateCart();
       state.cashAmount = totals.total;
+    }
+    if (method === 'QRIS') {
+      const qrisImg = getQrisImage();
+      if (qrisImg) {
+        const totals = calculateCart();
+        const modalImg = document.getElementById('qrisModalImg');
+        const modalTotal = document.getElementById('qrisModalTotal');
+        const qrisModal = document.getElementById('qrisModal');
+        if (modalImg) modalImg.src = qrisImg;
+        if (modalTotal) modalTotal.textContent = formatCurrency(totals.total);
+        if (qrisModal) { qrisModal.classList.remove('hidden'); qrisModal.style.display = 'flex'; }
+      } else {
+        alert('Gambar QRIS belum diupload. Silakan upload di menu Pengaturan → QRIS Statis.');
+        setPaymentMethod('Tunai');
+        return;
+      }
     }
     renderCart();
   };
@@ -2318,6 +2351,42 @@ ${txRows}
       updateSettingsPreview(store);
       dom.settingsSaved.classList.remove('hidden');
       setTimeout(() => dom.settingsSaved.classList.add('hidden'), 2500);
+    });
+
+    // ── QRIS file upload ──
+    document.getElementById('qrisFileInput')?.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) { alert('File harus berupa gambar.'); return; }
+      if (file.size > 2 * 1024 * 1024) { alert('Ukuran gambar maksimal 2MB.'); return; }
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const base64 = ev.target.result;
+        localStorage.setItem('qris_image', base64);
+        const wrapper = document.getElementById('qrisPreviewWrapper');
+        const previewImg = document.getElementById('qrisPreviewImg');
+        if (previewImg) previewImg.src = base64;
+        if (wrapper) wrapper.classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    });
+    document.getElementById('qrisDeleteBtn')?.addEventListener('click', () => {
+      if (!confirm('Hapus gambar QRIS?')) return;
+      localStorage.removeItem('qris_image');
+      const wrapper = document.getElementById('qrisPreviewWrapper');
+      const fileInput = document.getElementById('qrisFileInput');
+      if (wrapper) wrapper.classList.add('hidden');
+      if (fileInput) fileInput.value = '';
+    });
+    // ── QRIS modal ──
+    document.getElementById('closeQrisModal')?.addEventListener('click', () => {
+      const m = document.getElementById('qrisModal');
+      if (m) { m.classList.add('hidden'); m.style.display = ''; }
+      setPaymentMethod('Tunai');
+    });
+    document.getElementById('qrisConfirmBtn')?.addEventListener('click', () => {
+      const m = document.getElementById('qrisModal');
+      if (m) { m.classList.add('hidden'); m.style.display = ''; }
     });
 
     // ── Feature 1: Forgot Password ──
