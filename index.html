@@ -146,6 +146,17 @@
             class="w-full rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-700 transition mt-2">
             Masuk
           </button>
+          <div class="text-center mt-2">
+            <button type="button" id="forgotPasswordBtn" class="text-sm text-sky-600 hover:underline">Lupa Password?</button>
+          </div>
+          <div id="forgotPasswordForm" class="hidden mt-3 space-y-3 rounded-2xl bg-sky-50 border border-sky-200 p-4">
+            <p class="text-sm font-medium text-sky-800">Masukkan email untuk reset password:</p>
+            <input id="resetEmail" type="email" placeholder="email@toko.com"
+              class="w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none text-sm" />
+            <button type="button" id="sendResetBtn" class="w-full rounded-2xl bg-sky-600 px-4 py-2.5 text-white text-sm font-semibold hover:bg-sky-700 transition">
+              Kirim Link Reset
+            </button>
+          </div>
         </form>
 
         <!-- FORM DAFTAR -->
@@ -204,6 +215,7 @@
         <button data-screen="riwayat" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📋 Riwayat</button>
         <button data-screen="kelolaKasir" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">👥 Kelola Kasir</button>
         <button data-screen="pengaturan" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">⚙️ Pengaturan</button>
+        <button data-screen="tentang" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">ℹ️ Tentang</button>
       </nav>
       <!-- User Info & Logout -->
       <div class="mt-6 border-t border-slate-700 pt-5">
@@ -249,6 +261,10 @@
       <button data-screen="pengaturan" data-role="admin" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">⚙️</span>
         <span class="text-[10px] mt-0.5 leading-tight">Setting</span>
+      </button>
+      <button data-screen="tentang" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+        <span class="text-xl leading-none">ℹ️</span>
+        <span class="text-[10px] mt-0.5 leading-tight">Tentang</span>
       </button>
     </nav>
 
@@ -333,11 +349,14 @@
               <h3 class="text-xl font-semibold">Laporan Cepat</h3>
               <p class="text-slate-500">Pilih rentang harian atau mingguan untuk ringkasan penjualan.</p>
             </div>
-            <select id="reportRangeSelect" class="rounded-2xl border border-slate-300 bg-white px-4 py-3">
-              <option value="1">Hari Ini</option>
-              <option value="7" selected>7 Hari</option>
-              <option value="30">30 Hari</option>
-            </select>
+            <div class="flex gap-2 items-center">
+              <select id="reportRangeSelect" class="rounded-2xl border border-slate-300 bg-white px-4 py-3">
+                <option value="1">Hari Ini</option>
+                <option value="7" selected>7 Hari</option>
+                <option value="30">30 Hari</option>
+              </select>
+              <button id="exportPdfBtn" class="rounded-2xl bg-rose-600 px-4 py-3 text-white font-semibold hover:bg-rose-700 transition text-sm whitespace-nowrap">📄 Export PDF</button>
+            </div>
           </div>
           <div class="grid gap-4 md:grid-cols-3">
             <div class="rounded-3xl bg-slate-50 p-5 shadow-sm border border-slate-200">
@@ -357,6 +376,10 @@
       </section>
 
       <section id="kasir" class="screen hidden">
+        <div class="flex items-center justify-between mb-4">
+          <div></div>
+          <button id="tutupKasirBtn" class="rounded-2xl bg-amber-600 px-4 py-2.5 text-white text-sm font-semibold hover:bg-amber-700 transition">🔒 Tutup Kasir</button>
+        </div>
         <div class="grid gap-6 xl:grid-cols-[1.4fr_0.9fr] mb-6">
           <div class="rounded-3xl bg-white p-6 shadow-xl border border-slate-200">
             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-5">
@@ -407,12 +430,22 @@
               </div>
             </div>
             <div class="mt-5 space-y-4">
-              <label class="block">
-                <span class="text-slate-700 text-sm">Tunai Dibayarkan</span>
-                <input id="cashInput" type="number" min="0" value="0" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" />
-              </label>
-              <div class="flex items-center justify-between text-slate-600">
-                <span>Kembalian</span><span id="cashChange">Rp0</span>
+              <div>
+                <span class="text-slate-700 text-sm font-medium block mb-2">Metode Pembayaran</span>
+                <div class="flex gap-2">
+                  <button type="button" data-paymethod="Tunai" class="paymethod-btn flex-1 rounded-2xl border-2 border-sky-500 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700 transition">💵 Tunai</button>
+                  <button type="button" data-paymethod="QRIS" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-sky-300">📱 QRIS</button>
+                  <button type="button" data-paymethod="Transfer" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-sky-300">🏦 Transfer</button>
+                </div>
+              </div>
+              <div id="cashInputWrapper">
+                <label class="block">
+                  <span class="text-slate-700 text-sm">Tunai Dibayarkan</span>
+                  <input id="cashInput" type="number" min="0" value="0" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" />
+                </label>
+                <div class="flex items-center justify-between text-slate-600 mt-2">
+                  <span>Kembalian</span><span id="cashChange">Rp0</span>
+                </div>
               </div>
               <button id="payButton" class="w-full rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition">Bayar & Simpan Transaksi</button>
               <button id="printButton" class="w-full rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 font-semibold hover:bg-slate-100 transition">Cetak Struk</button>
@@ -498,6 +531,7 @@
                 <th class="p-3">Kasir</th>
                 <th class="p-3">Total</th>
                 <th class="p-3">Produk</th>
+                <th class="p-3">Metode</th>
                 <th class="p-3">Tunai</th>
                 <th class="p-3">Kembalian</th>
               </tr>
@@ -597,6 +631,34 @@
 
         <!-- Daftar kasir -->
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" id="cashierGrid"></div>
+      </section>
+
+      <!-- Tentang Aplikasi -->
+      <section id="tentang" class="screen hidden">
+        <div class="mb-6">
+          <h3 class="text-2xl font-semibold">Tentang Aplikasi</h3>
+          <p class="text-slate-500">Informasi aplikasi dan kebijakan privasi.</p>
+        </div>
+        <div class="max-w-xl space-y-6">
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 text-center">
+            <div class="text-6xl mb-3">🛒</div>
+            <h2 class="text-2xl font-bold text-slate-900">Kasir UMKM Simpel</h2>
+            <span class="inline-block mt-2 rounded-full bg-sky-100 text-sky-700 px-4 py-1 text-sm font-semibold">Versi 1.0.0</span>
+            <p class="mt-4 text-slate-600">Aplikasi kasir lengkap untuk UMKM Indonesia. Point of Sale, Inventory, Laporan, dan lebih banyak fitur dalam satu aplikasi.</p>
+            <p class="mt-2 text-slate-500 text-sm font-medium">Dikembangkan untuk UMKM Indonesia</p>
+          </div>
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-3">
+            <h4 class="font-semibold text-slate-900">Kebijakan Privasi</h4>
+            <p class="text-slate-600 text-sm">Data toko Anda disimpan secara aman di infrastruktur Supabase dengan enkripsi standar industri. Kami tidak menjual, menyewakan, atau membagikan data Anda kepada pihak ketiga dalam bentuk apapun.</p>
+            <p class="text-slate-600 text-sm">Setiap toko memiliki data yang terisolasi — pemilik toko lain tidak dapat melihat data Anda. Data hanya dapat diakses oleh akun pemilik toko yang bersangkutan.</p>
+            <p class="text-slate-600 text-sm">Dengan menggunakan aplikasi ini, Anda menyetujui bahwa data transaksi dan produk disimpan di cloud untuk keperluan sinkronisasi dan backup.</p>
+          </div>
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-2">
+            <h4 class="font-semibold text-slate-900">Dukungan & Kontak</h4>
+            <p class="text-slate-600 text-sm">Email: <a href="mailto:support@kasirumkm.id" class="text-sky-600 hover:underline">support@kasirumkm.id</a></p>
+            <p class="text-slate-600 text-sm">Aplikasi ini bersifat gratis untuk UMKM Indonesia.</p>
+          </div>
+        </div>
       </section>
     </main>
   </div>
@@ -772,7 +834,7 @@
           <div class="flex justify-between text-xs" id="receiptTaxRow"><span>Pajak 11%</span><span id="receiptTax">Rp0</span></div>
           <div class="border-t border-slate-400 my-1"></div>
           <div class="flex justify-between font-bold text-sm"><span>TOTAL</span><span id="receiptTotal">Rp0</span></div>
-          <div class="flex justify-between text-xs mt-1"><span>Tunai</span><span id="receiptCash">Rp0</span></div>
+          <div class="flex justify-between text-xs mt-1" id="receiptPaymentMethodRow"><span id="receiptPaymentMethodLabel">Tunai</span><span id="receiptCash">Rp0</span></div>
           <div class="flex justify-between text-xs font-semibold"><span>Kembali</span><span id="receiptChange">Rp0</span></div>
           <div class="border-t border-dashed border-slate-400 my-2"></div>
           <p class="text-center text-xs" id="receiptStoreNote">Terima kasih!</p>
@@ -837,10 +899,14 @@
             <input id="productCost" type="number" min="0" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="0" />
           </label>
         </div>
-        <div class="grid gap-4 sm:grid-cols-2">
+        <div class="grid gap-4 sm:grid-cols-3">
           <label class="block">
             <span class="text-slate-700 font-medium text-sm">Stok <span class="text-red-500">*</span></span>
             <input id="productStock" type="number" min="0" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="0" />
+          </label>
+          <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Stok Minimum</span>
+            <input id="productMinStock" type="number" min="0" value="5" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="5" />
           </label>
           <div class="flex gap-2 items-end">
             <label class="block flex-1">
@@ -856,6 +922,73 @@
           <button type="button" id="cancelInventory" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal Tutup Kasir / Laporan Shift -->
+  <div id="shiftModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+        <div>
+          <h3 class="text-xl font-semibold">Laporan Shift</h3>
+          <p class="text-slate-500 text-sm" id="shiftModalSubtitle">Ringkasan transaksi shift ini.</p>
+        </div>
+        <button id="closeShiftModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-center">
+            <p class="text-xs text-slate-500 uppercase tracking-wide">Kasir</p>
+            <p class="text-lg font-bold mt-1 text-slate-900" id="shiftCashierName">-</p>
+          </div>
+          <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-center">
+            <p class="text-xs text-slate-500 uppercase tracking-wide">Transaksi</p>
+            <p class="text-lg font-bold mt-1 text-slate-900" id="shiftTxCount">0</p>
+          </div>
+          <div class="rounded-2xl bg-emerald-50 border border-emerald-200 p-4 text-center">
+            <p class="text-xs text-emerald-600 uppercase tracking-wide">Total Penjualan</p>
+            <p class="text-lg font-bold mt-1 text-emerald-700" id="shiftTotalSales">Rp0</p>
+          </div>
+          <div class="rounded-2xl bg-sky-50 border border-sky-200 p-4 text-center">
+            <p class="text-xs text-sky-600 uppercase tracking-wide">Item Terjual</p>
+            <p class="text-lg font-bold mt-1 text-sky-700" id="shiftItemsSold">0</p>
+          </div>
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button id="printShiftBtn" class="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-white font-semibold hover:bg-slate-800 transition text-sm">🖨 Cetak Laporan</button>
+          <button id="resetShiftBtn" class="flex-1 rounded-2xl bg-amber-600 px-4 py-3 text-white font-semibold hover:bg-amber-700 transition text-sm">🔄 Tutup & Reset</button>
+        </div>
+        <button id="cancelShiftModal" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-slate-700 hover:bg-slate-100 transition text-sm">Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Onboarding Overlay -->
+  <div id="onboardingOverlay" class="fixed inset-0 z-[200] hidden items-center justify-center bg-slate-900/95">
+    <div class="w-full max-w-sm px-6 text-center text-white">
+      <div id="onboardingStep1" class="onboarding-step">
+        <div class="text-7xl mb-4">🎉</div>
+        <h2 class="text-2xl font-bold mb-2">Selamat Datang!</h2>
+        <p class="text-slate-300 text-lg mb-6" id="onboardingWelcomeText">Toko siap digunakan.</p>
+        <button id="onboardingNext1" class="w-full rounded-2xl bg-sky-600 px-6 py-3 text-white font-semibold hover:bg-sky-700 transition">Lanjut →</button>
+      </div>
+      <div id="onboardingStep2" class="onboarding-step hidden">
+        <div class="text-7xl mb-4">📦</div>
+        <h2 class="text-2xl font-bold mb-2">Langkah 2</h2>
+        <p class="text-slate-300 text-lg mb-6">Tambah produk dulu di menu Inventory.</p>
+        <button id="onboardingNext2" class="w-full rounded-2xl bg-sky-600 px-6 py-3 text-white font-semibold hover:bg-sky-700 transition">Lanjut →</button>
+      </div>
+      <div id="onboardingStep3" class="onboarding-step hidden">
+        <div class="text-7xl mb-4">🧾</div>
+        <h2 class="text-2xl font-bold mb-2">Langkah 3</h2>
+        <p class="text-slate-300 text-lg mb-6">Mulai transaksi di menu Kasir.</p>
+        <button id="onboardingFinish" class="w-full rounded-2xl bg-emerald-600 px-6 py-3 text-white font-semibold hover:bg-emerald-700 transition">Mulai Sekarang 🚀</button>
+      </div>
+      <div class="flex justify-center gap-2 mt-6">
+        <div id="ob-dot1" class="w-2 h-2 rounded-full bg-sky-400"></div>
+        <div id="ob-dot2" class="w-2 h-2 rounded-full bg-slate-600"></div>
+        <div id="ob-dot3" class="w-2 h-2 rounded-full bg-slate-600"></div>
+      </div>
     </div>
   </div>
 

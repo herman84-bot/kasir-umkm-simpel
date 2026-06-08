@@ -76,6 +76,7 @@ const App = (() => {
     price: Number(p.price) || 0,
     cost: Number(p.cost) || 0,
     stock: Number(p.stock) || 0,
+    minStock: Number(p.min_stock) || 5,
     image: 'https://via.placeholder.com/260?text=' + encodeURIComponent(p.name)
   });
 
@@ -116,11 +117,12 @@ const App = (() => {
       subtotal: Number(item.subtotal)
     })),
     subtotal: Number(tx.total_amount),
-    discount: 0,
+    discount: Number(tx.discount_amount) || 0,
     tax: 0,
     total: Number(tx.total_amount),
     cash: Number(tx.payment_amount),
-    change: Number(tx.change_amount)
+    change: Number(tx.change_amount),
+    paymentMethod: tx.payment_method || 'Tunai'
   });
 
   // ── Session ───────────────────────────────────────────────────────────────
@@ -285,7 +287,9 @@ const App = (() => {
     scannerEngine: null,
     authUser: null,
     store: null,
-    storeId: null
+    storeId: null,
+    paymentMethod: 'Tunai',
+    shiftStartTime: null
   };
 
   const dom = {
@@ -431,7 +435,26 @@ const App = (() => {
     previewStoreName: document.getElementById('previewStoreName'),
     previewStoreAddress: document.getElementById('previewStoreAddress'),
     previewStorePhone: document.getElementById('previewStorePhone'),
-    previewStoreNote: document.getElementById('previewStoreNote')
+    previewStoreNote: document.getElementById('previewStoreNote'),
+    productMinStock: document.getElementById('productMinStock'),
+    tutupKasirBtn: document.getElementById('tutupKasirBtn'),
+    shiftModal: document.getElementById('shiftModal'),
+    closeShiftModal: document.getElementById('closeShiftModal'),
+    cancelShiftModal: document.getElementById('cancelShiftModal'),
+    printShiftBtn: document.getElementById('printShiftBtn'),
+    resetShiftBtn: document.getElementById('resetShiftBtn'),
+    shiftCashierName: document.getElementById('shiftCashierName'),
+    shiftTxCount: document.getElementById('shiftTxCount'),
+    shiftTotalSales: document.getElementById('shiftTotalSales'),
+    shiftItemsSold: document.getElementById('shiftItemsSold'),
+    shiftModalSubtitle: document.getElementById('shiftModalSubtitle'),
+    exportPdfBtn: document.getElementById('exportPdfBtn'),
+    onboardingOverlay: document.getElementById('onboardingOverlay'),
+    cashInputWrapper: document.getElementById('cashInputWrapper'),
+    forgotPasswordBtn: document.getElementById('forgotPasswordBtn'),
+    forgotPasswordForm: document.getElementById('forgotPasswordForm'),
+    resetEmail: document.getElementById('resetEmail'),
+    sendResetBtn: document.getElementById('sendResetBtn')
   };
 
   let chartInstance = null;
@@ -843,7 +866,7 @@ const App = (() => {
     dom.reportTransactions.textContent = totalTrans;
     dom.reportItemsSold.textContent = totalItems;
 
-    const lowStockProducts = state.products.filter(product => product.stock > 0 && product.stock <= 5);
+    const lowStockProducts = state.products.filter(product => product.stock >= 0 && product.stock <= (product.minStock || 5));
     dom.lowStockAlert.textContent = lowStockProducts.length ? `${lowStockProducts.length} produk stok rendah, segera kulakan lagi.` : 'Tidak ada stok kritis.';
 
     const bestProduct = state.products.slice().sort((a, b) => {
@@ -1311,7 +1334,7 @@ const App = (() => {
   const renderProducts = () => {
     const filtered = getFilteredProducts();
     dom.productGrid.innerHTML = filtered.map(product => {
-      const isCritical = product.stock <= 5;
+      const isCritical = product.stock <= (product.minStock || 5);
       return `
         <article data-id="${product.id}" class="group cursor-pointer overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
           <img src="${product.image}" alt="${product.name}" class="h-44 w-full object-cover" />
@@ -1321,7 +1344,7 @@ const App = (() => {
                 <h4 class="text-lg font-semibold">${product.name}</h4>
                 <p class="text-slate-500 text-sm">${product.category}</p>
               </div>
-              <span class="rounded-2xl bg-slate-100 px-3 py-1 text-xs text-slate-700">Stok: ${product.stock}</span>
+              <span class="rounded-2xl bg-slate-100 px-3 py-1 text-xs text-slate-700">Stok: ${product.stock}${isCritical ? ' ⚠️' : ''}</span>
             </div>
             <div class="mt-4 flex items-center justify-between">
               <span class="text-xl font-semibold text-slate-900">${formatCurrency(product.price)}</span>
@@ -1424,15 +1447,17 @@ const App = (() => {
     ).join('');
 
     dom.inventoryTable.innerHTML = state.products.map(product => {
-      const criticalClass = product.stock <= 5 ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800';
+      const isLowStock = product.stock <= (product.minStock || 5);
+      const criticalClass = isLowStock ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800';
+      const rowClass = isLowStock ? 'border-b border-rose-200 bg-rose-50/30' : 'border-b border-slate-200';
       return `
-        <tr class="border-b border-slate-200">
+        <tr class="${rowClass}">
           <td class="p-3 font-semibold">${product.code}</td>
-          <td class="p-3">${product.name}</td>
+          <td class="p-3">${product.name}${isLowStock ? ' <span class="text-rose-500 text-xs font-bold">⚠ Stok Rendah</span>' : ''}</td>
           <td class="p-3 text-xs text-slate-500 font-mono">${product.barcode || '-'}</td>
           <td class="p-3">${product.category}</td>
           <td class="p-3">${formatCurrency(product.price)}</td>
-          <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${criticalClass}">${product.stock}</span></td>
+          <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${criticalClass}">${product.stock} / min ${product.minStock || 5}</span></td>
           <td class="p-3 space-x-2">
             <button data-edit="${product.id}" class="rounded-2xl bg-slate-900 px-4 py-2 text-white text-sm">Edit</button>
             <button data-delete="${product.id}" class="rounded-2xl bg-rose-600 px-4 py-2 text-white text-sm">Hapus</button>
@@ -1461,11 +1486,12 @@ const App = (() => {
           <td class="p-3">${tx.cashier || '-'}</td>
           <td class="p-3 font-semibold">${formatCurrency(tx.total)}</td>
           <td class="p-3">${productCount} item</td>
+          <td class="p-3"><span class="rounded-full px-2 py-0.5 text-xs font-medium ${tx.paymentMethod === 'Tunai' ? 'bg-green-100 text-green-700' : tx.paymentMethod === 'QRIS' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">${tx.paymentMethod || 'Tunai'}</span></td>
           <td class="p-3">${formatCurrency(tx.cash)}</td>
           <td class="p-3">${formatCurrency(tx.change)}</td>
         </tr>
       `;
-    }).join('') || '<tr><td colspan="7" class="p-8 text-center text-slate-500">Belum ada transaksi.</td></tr>';
+    }).join('') || '<tr><td colspan="8" class="p-8 text-center text-slate-500">Belum ada transaksi.</td></tr>';
   };
 
   const showScreen = screenId => {
@@ -1528,6 +1554,7 @@ const App = (() => {
     dom.productStock.value = product.stock;
     dom.productImage.value = product.image || 'https://via.placeholder.com/200';
     dom.productBarcode.value = product.barcode || '';
+    if (dom.productMinStock) dom.productMinStock.value = product.minStock || 5;
     showInventoryModal('Edit Produk');
   };
 
@@ -1562,7 +1589,8 @@ const App = (() => {
       category,
       price: Number(dom.productPrice.value) || 0,
       cost: Number(dom.productCost.value) || 0,
-      stock: Number(dom.productStock.value) || 0
+      stock: Number(dom.productStock.value) || 0,
+      min_stock: Number(dom.productMinStock ? dom.productMinStock.value : 5) || 5
     };
 
     let finalId = existingId;
@@ -1591,6 +1619,7 @@ const App = (() => {
       price: dbPayload.price,
       cost: dbPayload.cost,
       stock: dbPayload.stock,
+      minStock: dbPayload.min_stock || 5,
       image: dom.productImage.value.trim() || 'https://via.placeholder.com/260'
     };
 
@@ -1617,7 +1646,7 @@ const App = (() => {
       alert('Total transaksi tidak valid. Periksa diskon dan jumlah produk.');
       return;
     }
-    if (totals.cash < totals.total) {
+    if (state.paymentMethod === 'Tunai' && totals.cash < totals.total) {
       alert('Jumlah tunai belum cukup. Mohon masukkan nominal yang sesuai.');
       return;
     }
@@ -1633,7 +1662,9 @@ const App = (() => {
           cashier_name: cashier.name,
           total_amount: totals.total,
           payment_amount: totals.cash,
-          change_amount: totals.change
+          change_amount: totals.change,
+          discount_amount: totals.discount || 0,
+          payment_method: state.paymentMethod || 'Tunai'
         }).select().single();
         if (txErr) throw txErr;
 
@@ -1676,7 +1707,8 @@ const App = (() => {
       tax: totals.tax,
       total: totals.total,
       cash: totals.cash,
-      change: totals.change
+      change: totals.change,
+      paymentMethod: state.paymentMethod || 'Tunai'
     };
 
     state.transactions.unshift(transaction);
@@ -1742,6 +1774,9 @@ const App = (() => {
     dom.receiptDiscount.textContent = formatCurrency(data.discount || 0);
     dom.receiptTax.textContent = formatCurrency(data.tax || 0);
     dom.receiptTotal.textContent = formatCurrency(data.total);
+    const pm = data.paymentMethod || state.paymentMethod || 'Tunai';
+    const pmLabel = document.getElementById('receiptPaymentMethodLabel');
+    if (pmLabel) pmLabel.textContent = pm;
     dom.receiptCash.textContent = formatCurrency(data.cash);
     dom.receiptChange.textContent = formatCurrency(data.change);
 
@@ -1792,7 +1827,7 @@ ${itemsHtml}
 ${discountHtml}${taxHtml}
 <div class="separator-solid"></div>
 <div class="total-row"><span>TOTAL</span><span>${formatCurrency(data.total)}</span></div>
-<div class="row"><span>Tunai</span><span>${formatCurrency(data.cash)}</span></div>
+<div class="row"><span>${data.paymentMethod || 'Tunai'}</span><span>${formatCurrency(data.cash)}</span></div>
 <div class="row bold"><span>Kembali</span><span>${formatCurrency(data.change)}</span></div>
 <div class="separator"></div>
 <p class="footer">${store.note || 'Terima kasih!'}</p>
@@ -1828,6 +1863,200 @@ ${discountHtml}${taxHtml}
 
   const closeReceipt = () => {
     dom.receiptModal.classList.add('hidden');
+  };
+
+  // ── Feature: Export PDF Laporan ──────────────────────────────────────────
+  const exportReportPDF = () => {
+    const store = getStoreSettings();
+    const days = Number(state.reportRange) || 7;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - (days - 1));
+    const filtered = state.transactions.filter(tx => new Date(tx.date) >= cutoff);
+    const totalSales = filtered.reduce((sum, tx) => sum + tx.total, 0);
+    const totalTrans = filtered.length;
+    const totalItems = filtered.reduce((sum, tx) => sum + tx.items.reduce((s, i) => s + i.qty, 0), 0);
+    const totalProfit = filtered.reduce((sum, tx) => sum + tx.items.reduce((s, i) => s + i.qty * (i.price - i.cost), 0) - (tx.tax || 0), 0);
+
+    const txRows = filtered.slice(0, 100).map(tx => {
+      const time = new Date(tx.date).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return `<tr>
+        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${time}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${tx.id}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${tx.cashier || '-'}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right">${formatCurrency(tx.total)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${tx.paymentMethod || 'Tunai'}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Laporan ${store.name}</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:12px;color:#1e293b;padding:0;margin:0}
+  h1{margin:0 0 4px;font-size:20px}
+  .header{background:#0f172a;color:#fff;padding:20px 24px}
+  .content{padding:20px 24px}
+  .stats{display:flex;gap:16px;margin:16px 0;flex-wrap:wrap}
+  .stat{flex:1;min-width:120px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;text-align:center}
+  .stat-val{font-size:18px;font-weight:bold;color:#0f172a}
+  .stat-lbl{font-size:10px;color:#64748b;text-transform:uppercase;margin-top:4px}
+  table{width:100%;border-collapse:collapse;margin-top:12px}
+  th{background:#f1f5f9;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#475569}
+  @media print{@page{size:A4;margin:15mm}}
+</style></head><body>
+<div class="header">
+  <h1>${store.name}</h1>
+  <p style="margin:0;opacity:.8;font-size:12px">Laporan ${days === 1 ? 'Hari Ini' : days + ' Hari Terakhir'} — Dicetak: ${new Date().toLocaleDateString('id-ID', {day:'2-digit',month:'long',year:'numeric'})}</p>
+</div>
+<div class="content">
+  <div class="stats">
+    <div class="stat"><div class="stat-val">${formatCurrency(totalSales)}</div><div class="stat-lbl">Total Penjualan</div></div>
+    <div class="stat"><div class="stat-val">${totalTrans}</div><div class="stat-lbl">Transaksi</div></div>
+    <div class="stat"><div class="stat-val">${totalItems}</div><div class="stat-lbl">Item Terjual</div></div>
+    <div class="stat"><div class="stat-val">${formatCurrency(totalProfit)}</div><div class="stat-lbl">Est. Keuntungan</div></div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Waktu</th><th>Invoice</th><th>Kasir</th><th style="text-align:right">Total</th><th>Metode</th>
+    </tr></thead>
+    <tbody>${txRows || '<tr><td colspan="5" style="text-align:center;padding:20px;color:#94a3b8">Tidak ada transaksi pada periode ini.</td></tr>'}</tbody>
+  </table>
+</div>
+<script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)}<\/script>
+</body></html>`;
+
+    const win = window.open('', '_blank', 'width=800,height=600');
+    if (!win) { alert('Popup diblokir. Izinkan popup untuk export PDF.'); return; }
+    win.document.write(html);
+    win.document.close();
+  };
+
+  // ── Feature: Shift / Tutup Kasir ─────────────────────────────────────────
+  const openShiftModal = () => {
+    const cashier = getSelectedCashier();
+    const shiftStart = state.shiftStartTime || new Date(0);
+    const shiftTx = state.transactions.filter(tx => new Date(tx.date) >= shiftStart);
+    const totalSales = shiftTx.reduce((sum, tx) => sum + tx.total, 0);
+    const totalItems = shiftTx.reduce((sum, tx) => sum + tx.items.reduce((s, i) => s + i.qty, 0), 0);
+    const startStr = shiftStart.getTime() === 0 ? 'Sejak aplikasi dibuka' :
+      shiftStart.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+    if (dom.shiftCashierName) dom.shiftCashierName.textContent = cashier.name;
+    if (dom.shiftTxCount) dom.shiftTxCount.textContent = shiftTx.length;
+    if (dom.shiftTotalSales) dom.shiftTotalSales.textContent = formatCurrency(totalSales);
+    if (dom.shiftItemsSold) dom.shiftItemsSold.textContent = totalItems;
+    if (dom.shiftModalSubtitle) dom.shiftModalSubtitle.textContent = `Shift dimulai: ${startStr}`;
+
+    if (dom.shiftModal) {
+      dom.shiftModal.classList.remove('hidden');
+      dom.shiftModal.style.display = 'flex';
+    }
+  };
+
+  const closeShiftModal = () => {
+    if (dom.shiftModal) {
+      dom.shiftModal.classList.add('hidden');
+      dom.shiftModal.style.display = '';
+    }
+  };
+
+  const printShiftReport = () => {
+    const store = getStoreSettings();
+    const cashier = getSelectedCashier();
+    const shiftStart = state.shiftStartTime || new Date(0);
+    const shiftTx = state.transactions.filter(tx => new Date(tx.date) >= shiftStart);
+    const totalSales = shiftTx.reduce((sum, tx) => sum + tx.total, 0);
+    const totalItems = shiftTx.reduce((sum, tx) => sum + tx.items.reduce((s, i) => s + i.qty, 0), 0);
+    const thermalCSS = document.getElementById('thermalStyle').textContent;
+
+    const txRows = shiftTx.slice(0, 50).map(tx => {
+      const time = new Date(tx.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      return `<div class="row"><span>${time} ${tx.id.slice(-6)}</span><span>${formatCurrency(tx.total)}</span></div>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Laporan Shift</title>
+<style>${thermalCSS}</style></head><body>
+<p class="center big">${store.name}</p>
+<p class="center">LAPORAN SHIFT</p>
+<div class="separator"></div>
+<div class="row"><span>Kasir</span><span>${cashier.name}</span></div>
+<div class="row"><span>Cetak</span><span>${new Date().toLocaleString('id-ID', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
+<div class="separator"></div>
+<div class="row"><span>Transaksi</span><span>${shiftTx.length}</span></div>
+<div class="row"><span>Item Terjual</span><span>${totalItems}</span></div>
+<div class="separator-solid"></div>
+<div class="total-row"><span>TOTAL</span><span>${formatCurrency(totalSales)}</span></div>
+<div class="separator"></div>
+${txRows}
+<br/><br/>
+<script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)}<\/script>
+</body></html>`;
+
+    const win = window.open('', '_blank', 'width=300,height=500');
+    if (!win) { alert('Popup diblokir.'); return; }
+    win.document.write(html);
+    win.document.close();
+  };
+
+  const resetShift = () => {
+    if (!confirm('Tutup dan reset shift ini? Shift baru akan dimulai sekarang.')) return;
+    state.shiftStartTime = new Date();
+    closeShiftModal();
+    alert('Shift berhasil direset. Shift baru dimulai sekarang.');
+  };
+
+  // ── Feature: Onboarding ──────────────────────────────────────────────────
+  const showOnboarding = (storeName) => {
+    if (localStorage.getItem('onboardingDone')) return;
+    const overlay = dom.onboardingOverlay;
+    if (!overlay) return;
+    const welcomeText = document.getElementById('onboardingWelcomeText');
+    if (welcomeText) welcomeText.textContent = `Toko "${storeName}" siap digunakan.`;
+    overlay.classList.remove('hidden');
+    overlay.style.display = 'flex';
+  };
+
+  const hideOnboarding = (goToInventory = false) => {
+    localStorage.setItem('onboardingDone', '1');
+    const overlay = dom.onboardingOverlay;
+    if (overlay) { overlay.classList.add('hidden'); overlay.style.display = ''; }
+    if (goToInventory) showScreen('inventory');
+  };
+
+  const bindOnboarding = () => {
+    const step1 = document.getElementById('onboardingStep1');
+    const step2 = document.getElementById('onboardingStep2');
+    const step3 = document.getElementById('onboardingStep3');
+    const dot1 = document.getElementById('ob-dot1');
+    const dot2 = document.getElementById('ob-dot2');
+    const dot3 = document.getElementById('ob-dot3');
+
+    const goToStep = (n) => {
+      [step1, step2, step3].forEach((s, i) => s && s.classList.toggle('hidden', i !== n - 1));
+      [dot1, dot2, dot3].forEach((d, i) => {
+        if (!d) return;
+        d.className = i === n - 1 ? 'w-2 h-2 rounded-full bg-sky-400' : 'w-2 h-2 rounded-full bg-slate-600';
+      });
+    };
+
+    document.getElementById('onboardingNext1')?.addEventListener('click', () => goToStep(2));
+    document.getElementById('onboardingNext2')?.addEventListener('click', () => goToStep(3));
+    document.getElementById('onboardingFinish')?.addEventListener('click', () => hideOnboarding(true));
+  };
+
+  // ── Feature: Payment Method ──────────────────────────────────────────────
+  const setPaymentMethod = (method) => {
+    state.paymentMethod = method;
+    document.querySelectorAll('.paymethod-btn').forEach(btn => {
+      const active = btn.dataset.paymethod === method;
+      btn.className = `paymethod-btn flex-1 rounded-2xl border-2 px-3 py-2 text-sm font-semibold transition ${active ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'}`;
+    });
+    if (dom.cashInputWrapper) {
+      dom.cashInputWrapper.style.display = method === 'Tunai' ? '' : 'none';
+    }
+    if (method !== 'Tunai') {
+      const totals = calculateCart();
+      state.cashAmount = totals.total;
+    }
+    renderCart();
   };
 
   const bindEvents = () => {
@@ -2043,7 +2272,12 @@ ${discountHtml}${taxHtml}
         activateTab('login');
         return;
       }
+      const regStoreName2 = document.getElementById('regStoreName')?.value || 'Toko';
       await enterAppAfterAuth();
+      // Show onboarding for new registrations
+      if (!localStorage.getItem('onboardingDone')) {
+        showOnboarding(regStoreName2);
+      }
     });
 
     logoutButton?.addEventListener('click', logout);
@@ -2085,6 +2319,53 @@ ${discountHtml}${taxHtml}
       dom.settingsSaved.classList.remove('hidden');
       setTimeout(() => dom.settingsSaved.classList.add('hidden'), 2500);
     });
+
+    // ── Feature 1: Forgot Password ──
+    dom.forgotPasswordBtn?.addEventListener('click', () => {
+      const form = dom.forgotPasswordForm;
+      if (form) form.classList.toggle('hidden');
+    });
+    dom.sendResetBtn?.addEventListener('click', async () => {
+      const email = dom.resetEmail?.value.trim();
+      if (!email) { alert('Masukkan email terlebih dahulu.'); return; }
+      if (!db) { alert('Koneksi database tidak tersedia.'); return; }
+      dom.sendResetBtn.textContent = 'Mengirim...'; dom.sendResetBtn.disabled = true;
+      const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+      dom.sendResetBtn.textContent = 'Kirim Link Reset'; dom.sendResetBtn.disabled = false;
+      const authSuccess2 = document.getElementById('authSuccess');
+      const authError2 = document.getElementById('authError');
+      if (error) {
+        authError2.textContent = terjemahAuthError(error.message);
+        authError2.classList.remove('hidden');
+        authSuccess2.classList.add('hidden');
+      } else {
+        authSuccess2.textContent = 'Link reset password telah dikirim ke email Anda.';
+        authSuccess2.classList.remove('hidden');
+        authError2.classList.add('hidden');
+        if (dom.forgotPasswordForm) dom.forgotPasswordForm.classList.add('hidden');
+      }
+    });
+
+    // ── Feature 5: Shift / Tutup Kasir ──
+    dom.tutupKasirBtn?.addEventListener('click', openShiftModal);
+    dom.closeShiftModal?.addEventListener('click', closeShiftModal);
+    dom.cancelShiftModal?.addEventListener('click', closeShiftModal);
+    dom.printShiftBtn?.addEventListener('click', printShiftReport);
+    dom.resetShiftBtn?.addEventListener('click', resetShift);
+    document.addEventListener('click', e => {
+      if (e.target === dom.shiftModal) closeShiftModal();
+    });
+
+    // ── Feature 4: Export PDF ──
+    dom.exportPdfBtn?.addEventListener('click', exportReportPDF);
+
+    // ── Feature 6: Payment Method ──
+    document.querySelectorAll('.paymethod-btn').forEach(btn => {
+      btn.addEventListener('click', () => setPaymentMethod(btn.dataset.paymethod));
+    });
+
+    // ── Feature 7: Onboarding ──
+    bindOnboarding();
   };
 
   const renderAll = () => {
@@ -2134,10 +2415,13 @@ ${discountHtml}${taxHtml}
       }
     }
 
+    if (!state.shiftStartTime) state.shiftStartTime = new Date();
+
     applyRoleAccess();
     showApp();
     showScreen('dashboard');
     renderAll();
+    setPaymentMethod('Tunai');
   };
 
   const init = async () => {
