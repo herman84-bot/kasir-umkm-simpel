@@ -798,22 +798,60 @@
       <form id="inventoryForm" class="space-y-4 p-6 overflow-y-auto flex-1">
         <input type="hidden" id="productId" />
         <div class="grid gap-4 sm:grid-cols-2">
-          <label class="block"><span class="text-slate-700">Kode Produk</span><input id="productCode" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" /></label>
-          <label class="block"><span class="text-slate-700">Nama Produk</span><input id="productName" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" /></label>
+          <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Kode Produk</span>
+            <input id="productCode" readonly
+              class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-500 cursor-not-allowed"
+              placeholder="Otomatis saat disimpan" />
+          </label>
+          <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Nama Produk <span class="text-red-500">*</span></span>
+            <input id="productName" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Indomie Goreng" />
+          </label>
         </div>
         <div class="grid gap-4 sm:grid-cols-3">
-          <label class="block"><span class="text-slate-700">Kategori</span><select id="productCategory" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white"><option value="Makanan">Makanan</option><option value="Minuman">Minuman</option><option value="Sembako">Sembako</option><option value="ATK">ATK</option></select></label>
-          <label class="block"><span class="text-slate-700">Harga Jual</span><input id="productPrice" type="number" min="0" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" /></label>
-          <label class="block"><span class="text-slate-700">Harga Modal</span><input id="productCost" type="number" min="0" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" /></label>
+          <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Kategori <span class="text-red-500">*</span></span>
+            <input id="productCategory" required list="categoryList"
+              class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+              placeholder="Pilih atau ketik kategori" />
+            <datalist id="categoryList">
+              <option value="Makanan">
+              <option value="Minuman">
+              <option value="Sembako">
+              <option value="Snack">
+              <option value="Rokok">
+              <option value="ATK">
+              <option value="Kebersihan">
+              <option value="Kesehatan">
+              <option value="Elektronik">
+              <option value="Pakaian">
+              <option value="Lainnya">
+            </datalist>
+          </label>
+          <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Harga Jual <span class="text-red-500">*</span></span>
+            <input id="productPrice" type="number" min="0" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="0" />
+          </label>
+          <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Harga Modal</span>
+            <input id="productCost" type="number" min="0" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="0" />
+          </label>
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
-          <label class="block"><span class="text-slate-700">Stok</span><input id="productStock" type="number" min="0" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" /></label>
-          <label class="block"><span class="text-slate-700">Link Foto (placeholder)</span><input id="productImage" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" value="https://via.placeholder.com/200" /></label>
+          <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Stok <span class="text-red-500">*</span></span>
+            <input id="productStock" type="number" min="0" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="0" />
+          </label>
+          <div class="flex gap-2 items-end">
+            <label class="block flex-1">
+              <span class="text-slate-700 font-medium text-sm">Barcode Produk</span>
+              <input id="productBarcode" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="Scan atau ketik" />
+            </label>
+            <button type="button" id="inventoryScanButton" class="mb-0.5 rounded-2xl bg-sky-600 px-4 py-3 text-white hover:bg-sky-700 transition whitespace-nowrap">📷</button>
+          </div>
         </div>
-        <div class="flex gap-2 items-end">
-          <label class="block flex-1"><span class="text-slate-700">Barcode Produk</span><input id="productBarcode" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="Scan atau ketik kode barcode" /></label>
-          <button type="button" id="inventoryScanButton" class="rounded-2xl bg-sky-600 px-4 py-3 text-white hover:bg-sky-700 transition whitespace-nowrap">📷 Scan</button>
-        </div>
+        <input type="hidden" id="productImage" value="https://via.placeholder.com/200" />
         <div class="flex gap-3 pt-3">
           <button type="submit" class="flex-1 rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">Simpan Produk</button>
           <button type="button" id="cancelInventory" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>

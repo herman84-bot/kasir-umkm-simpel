@@ -1416,6 +1416,13 @@ const App = (() => {
   };
 
   const renderInventory = () => {
+    // Update filter kategori dari data produk yang ada
+    const cats = ['All', ...new Set(state.products.map(p => p.category).filter(Boolean))];
+    const currentCat = dom.categoryFilter.value;
+    dom.categoryFilter.innerHTML = cats.map(c =>
+      `<option value="${c}"${c === currentCat ? ' selected' : ''}>${c === 'All' ? 'Semua Kategori' : c}</option>`
+    ).join('');
+
     dom.inventoryTable.innerHTML = state.products.map(product => {
       const criticalClass = product.stock <= 5 ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800';
       return `
@@ -1489,12 +1496,24 @@ const App = (() => {
     dom.inventoryModal.classList.add('hidden');
     dom.inventoryForm.reset();
     dom.productId.value = '';
+    dom.productCode.value = '';
     dom.productImage.value = 'https://via.placeholder.com/200';
+  };
+
+  const generateProductCode = () => {
+    const maxNum = state.products.reduce((max, p) => {
+      const n = parseInt(String(p.id || p.code).replace(/\D/g, ''));
+      return isNaN(n) ? max : Math.max(max, n);
+    }, 0);
+    return 'P' + String(maxNum + 1).padStart(3, '0');
   };
 
   const openInventoryModal = productId => {
     if (!productId) {
-      dom.productBarcode.value = '';
+      dom.inventoryForm.reset();
+      dom.productId.value = '';
+      dom.productCode.value = generateProductCode();
+      dom.productImage.value = 'https://via.placeholder.com/200';
       showInventoryModal('Tambah Produk');
       return;
     }
@@ -1507,7 +1526,7 @@ const App = (() => {
     dom.productPrice.value = product.price;
     dom.productCost.value = product.cost;
     dom.productStock.value = product.stock;
-    dom.productImage.value = product.image;
+    dom.productImage.value = product.image || 'https://via.placeholder.com/200';
     dom.productBarcode.value = product.barcode || '';
     showInventoryModal('Edit Produk');
   };
