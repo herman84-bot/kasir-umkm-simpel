@@ -58,6 +58,70 @@ const App = (() => {
 
   const getQrisImage = () => localStorage.getItem('qris_image') || '';
 
+  // ── Langganan / masa aktif ────────────────────────────────────────────────
+  const SUBS_QRIS_PAYLOAD = '00020101021126570011ID.DANA.WWW011893600915303246671402090324667140303UMI51440014ID.CO.QRIS.WWW0215ID10265311627370303UMI5204899953033605802ID5916Absenta solution6014Kota Tangerang6105151166304797';
+  const SUBS_WA_NUMBER = ''; // isi nomor WhatsApp admin, format 628xxx
+
+  // Hitung sisa hari masa aktif (trial atau premium, ambil yang paling lama)
+  const getSubscriptionDaysLeft = () => {
+    const s = state.store;
+    if (!s) return null; // belum ada data toko → jangan blokir
+    const candidates = [s.trial_ends_at, s.premium_until]
+      .filter(Boolean).map(d => new Date(d).getTime());
+    // Kolom belum ada (SQL belum dijalankan) → fallback 30 hari dari created_at
+    if (!candidates.length) {
+      if (!s.created_at) return null;
+      candidates.push(new Date(s.created_at).getTime() + 30 * 24 * 3600 * 1000);
+    }
+    const expiry = Math.max(...candidates);
+    return Math.ceil((expiry - Date.now()) / (24 * 3600 * 1000));
+  };
+
+  const renderSubsQr = () => {
+    const el = document.getElementById('subsQrCode');
+    if (!el || el.dataset.rendered) return;
+    el.innerHTML = '';
+    if (window.QRCode) {
+      new QRCode(el, { text: SUBS_QRIS_PAYLOAD, width: 192, height: 192, correctLevel: QRCode.CorrectLevel.M });
+      el.dataset.rendered = '1';
+    } else {
+      el.textContent = 'Gagal memuat QR. Periksa koneksi internet.';
+    }
+  };
+
+  const showSubsOverlay = () => {
+    const overlay = document.getElementById('subsOverlay');
+    if (!overlay) return;
+    renderSubsQr();
+    const wa = document.getElementById('subsWaBtn');
+    if (wa) {
+      const msg = encodeURIComponent(`Halo, saya sudah membayar langganan Kasir UMKM Simpel.\nEmail akun: ${state.authUser?.email || '-'}\nNama toko: ${state.store?.name || '-'}`);
+      wa.href = SUBS_WA_NUMBER ? `https://wa.me/${SUBS_WA_NUMBER}?text=${msg}` : `https://wa.me/?text=${msg}`;
+    }
+    overlay.classList.remove('hidden');
+    overlay.style.display = 'flex';
+  };
+
+  const hideSubsOverlay = () => {
+    const overlay = document.getElementById('subsOverlay');
+    if (overlay) { overlay.classList.add('hidden'); overlay.style.display = ''; }
+  };
+
+  // Banner peringatan hanya muncul saat sisa ≤ 7 hari (sebelum itu terasa gratis penuh)
+  const checkSubscription = () => {
+    const daysLeft = getSubscriptionDaysLeft();
+    const banner = document.getElementById('subsBanner');
+    if (daysLeft === null) return true;
+    if (daysLeft <= 0) { showSubsOverlay(); return false; }
+    if (banner && daysLeft <= 7) {
+      document.getElementById('subsBannerText').textContent =
+        `Masa aktif toko Anda tersisa ${daysLeft} hari.`;
+      banner.classList.remove('hidden');
+      document.body.style.paddingTop = '36px';
+    }
+    return true;
+  };
+
   // ── Supabase ──────────────────────────────────────────────────────────────
   const SUPABASE_URL = 'https://pfmsblktxlnovtajnxvc.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_rF4Ul9n6WS4R00twmmCbdQ_wJ0KAOv6';
@@ -2353,6 +2417,28 @@ ${txRows}
       setTimeout(() => dom.settingsSaved.classList.add('hidden'), 2500);
     });
 
+    // ── Langganan ──
+    document.getElementById('subsBannerBtn')?.addEventListener('click', showSubsOverlay);
+    document.getElementById('subsRecheckBtn')?.addEventListener('click', async () => {
+      const btn = document.getElementById('subsRecheckBtn');
+      btn.textContent = 'Memeriksa...';
+      await loadStore();
+      btn.textContent = '🔄 Saya sudah diaktifkan — cek ulang';
+      const daysLeft = getSubscriptionDaysLeft();
+      if (daysLeft !== null && daysLeft > 0) {
+        hideSubsOverlay();
+        const banner = document.getElementById('subsBanner');
+        if (banner) { banner.classList.add('hidden'); document.body.style.paddingTop = ''; }
+        await enterAppAfterAuth();
+      } else {
+        alert('Belum aktif. Jika sudah membayar, tunggu konfirmasi admin (maks. 1×24 jam).');
+      }
+    });
+    document.getElementById('subsLogoutBtn')?.addEventListener('click', () => {
+      hideSubsOverlay();
+      logout();
+    });
+
     // ── QRIS file upload ──
     document.getElementById('qrisFileInput')?.addEventListener('change', e => {
       const file = e.target.files[0];
@@ -2485,6 +2571,12 @@ ${txRows}
     }
 
     if (!state.shiftStartTime) state.shiftStartTime = new Date();
+
+    // Cek masa aktif: kalau habis, tampilkan halaman perpanjangan dan jangan buka app
+    if (!checkSubscription()) {
+      hideLoadingOverlay();
+      return;
+    }
 
     applyRoleAccess();
     showApp();
