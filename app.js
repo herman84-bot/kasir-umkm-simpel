@@ -60,7 +60,7 @@ const App = (() => {
 
   // ── Langganan / masa aktif ────────────────────────────────────────────────
   const SUBS_QRIS_PAYLOAD = '00020101021126570011ID.DANA.WWW011893600915303246671402090324667140303UMI51440014ID.CO.QRIS.WWW0215ID10265311627370303UMI5204899953033605802ID5916Absenta solution6014Kota Tangerang6105151166304797';
-  const SUBS_WA_NUMBER = ''; // isi nomor WhatsApp admin, format 628xxx
+  const SUBS_EMAIL = 'noreply.absenta@gmail.com';
 
   // Hitung sisa hari masa aktif (trial atau premium, ambil yang paling lama)
   const getSubscriptionDaysLeft = () => {
@@ -93,10 +93,11 @@ const App = (() => {
     const overlay = document.getElementById('subsOverlay');
     if (!overlay) return;
     renderSubsQr();
-    const wa = document.getElementById('subsWaBtn');
-    if (wa) {
-      const msg = encodeURIComponent(`Halo, saya sudah membayar langganan Kasir UMKM Simpel.\nEmail akun: ${state.authUser?.email || '-'}\nNama toko: ${state.store?.name || '-'}`);
-      wa.href = SUBS_WA_NUMBER ? `https://wa.me/${SUBS_WA_NUMBER}?text=${msg}` : `https://wa.me/?text=${msg}`;
+    const emailBtn = document.getElementById('subsEmailBtn');
+    if (emailBtn) {
+      const subject = encodeURIComponent('Konfirmasi Pembayaran Langganan Kasir UMKM Simpel');
+      const body = encodeURIComponent(`Halo, saya sudah membayar langganan Kasir UMKM Simpel.\n\nEmail akun: ${state.authUser?.email || '-'}\nNama toko: ${state.store?.name || '-'}\n\n(Lampirkan screenshot bukti pembayaran di email ini)`);
+      emailBtn.href = `mailto:${SUBS_EMAIL}?subject=${subject}&body=${body}`;
     }
     overlay.classList.remove('hidden');
     overlay.style.display = 'flex';
