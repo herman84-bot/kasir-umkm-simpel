@@ -261,6 +261,8 @@ const App = (() => {
     lp.style.display = 'flex';
     document.getElementById('appContainer').classList.add('hidden');
     document.getElementById('appContainer').style.display = 'none';
+    document.getElementById('helpChatFab')?.classList.add('hidden');
+    document.getElementById('helpChatPanel')?.classList.add('hidden');
   };
 
   const showApp = () => {
@@ -1969,6 +1971,64 @@ ${discountHtml}${taxHtml}
     setTimeout(() => { win.print(); win.close(); }, 400);
   };
 
+  // ── Cetak Bluetooth via RawBT (printer thermal Bluetooth di Android) ──────
+  const buildPlainReceipt = data => {
+    const store = getStoreSettings();
+    const cashier = getSelectedCashier();
+    const width = store.paperSize === '80' ? 46 : 32;
+    const line = ch => ch.repeat(width);
+    const center = t => {
+      t = String(t).slice(0, width);
+      const pad = Math.max(0, Math.floor((width - t.length) / 2));
+      return ' '.repeat(pad) + t;
+    };
+    const row = (l, r) => {
+      l = String(l); r = String(r);
+      const space = Math.max(1, width - l.length - r.length);
+      return l + ' '.repeat(space) + r;
+    };
+    const rp = n => 'Rp' + Number(n || 0).toLocaleString('id-ID');
+
+    const out = [];
+    out.push(center(store.name));
+    if (store.address) out.push(center(store.address));
+    if (store.phone) out.push(center('Telp: ' + store.phone));
+    out.push(line('-'));
+    out.push(row('No', data.id || '-'));
+    out.push(row('Tgl', new Date(data.date).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })));
+    out.push(row('Kasir', data.cashier || cashier.name));
+    out.push(line('-'));
+    data.items.forEach(item => {
+      out.push(item.name.slice(0, width));
+      out.push(row('  ' + item.qty + ' x ' + rp(item.price), rp(item.price * item.qty)));
+    });
+    out.push(line('-'));
+    out.push(row('Subtotal', rp(data.subtotal)));
+    if (data.discount > 0) out.push(row('Diskon', '-' + rp(data.discount)));
+    out.push(line('='));
+    out.push(row('TOTAL', rp(data.total)));
+    out.push(row(data.paymentMethod || 'Tunai', rp(data.cash)));
+    out.push(row('Kembali', rp(data.change)));
+    out.push(line('-'));
+    out.push(center(store.note || 'Terima kasih!'));
+    out.push('');
+    out.push('');
+    return out.join('\n');
+  };
+
+  const printViaRawBT = data => {
+    const text = buildPlainReceipt(data);
+    // Skema intent: buka RawBT jika terpasang, jika tidak arahkan ke Play Store
+    const intentUrl = 'intent:' + encodeURIComponent(text) +
+      '#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;' +
+      'S.browser_fallback_url=' + encodeURIComponent('https://play.google.com/store/apps/details?id=ru.a402d.rawbtprinter') + ';end;';
+    try {
+      window.location.href = intentUrl;
+    } catch (e) {
+      window.location.href = 'rawbt:' + encodeURIComponent(text);
+    }
+  };
+
   // ── Pengaturan Toko ───────────────────────────────────────────────────────
   const renderSettings = () => {
     const store = getStoreSettings();
@@ -2458,6 +2518,16 @@ ${txRows}
       if (data) printThermal(data);
     });
 
+    // ── Cetak Bluetooth (RawBT) — hanya tampil di Android ──
+    const printBluetoothBtn = document.getElementById('printBluetoothBtn');
+    if (printBluetoothBtn && /android/i.test(navigator.userAgent)) {
+      printBluetoothBtn.classList.remove('hidden');
+      printBluetoothBtn.addEventListener('click', () => {
+        const data = dom.printThermalBtn?._receiptData;
+        if (data) printViaRawBT(data);
+      });
+    }
+
     // ── Pengaturan ──
     const settingInputs = [dom.settingStoreName, dom.settingStoreAddress, dom.settingStorePhone, dom.settingStoreNote];
     settingInputs.forEach(inp => {
@@ -2622,6 +2692,7 @@ ${txRows}
 
   // Dipanggil setelah login/daftar berhasil ATAU saat sesi masih aktif
   const enterAppAfterAuth = async () => {
+    showHelpChatFab();
     await loadData();
 
     // Pengaman: user terautentikasi tapi belum punya toko (mis. lewat konfirmasi email)
@@ -2663,11 +2734,94 @@ ${txRows}
     setPaymentMethod('Tunai');
   };
 
+  // ── Chat Bantuan (asisten pintar berbasis kata kunci, tanpa biaya API) ────
+  const HELP_TOPICS = [
+    { keys: ['produk', 'barang', 'tambah produk', 'input'], a: 'Untuk menambah produk: buka menu Inventori → klik "+ Tambah Produk". Kode produk dibuat otomatis, kamu juga bisa scan barcode dengan tombol 📷. Isi nama, harga jual, harga modal, dan stok, lalu Simpan.' },
+    { keys: ['scan', 'barcode', 'kamera'], a: 'Scanner barcode ada di 2 tempat: (1) halaman Kasir — tombol "Scan Barcode" untuk memanggil produk ke keranjang, (2) form Tambah Produk — tombol 📷 untuk mengisi kode otomatis. Izinkan akses kamera saat diminta browser.' },
+    { keys: ['struk', 'cetak', 'print', 'printer', 'bluetooth', 'thermal'], a: 'Setelah pembayaran, struk muncul otomatis. Pilihan cetak: 📶 Cetak Bluetooth (printer thermal Bluetooth Android, butuh aplikasi gratis RawBT dari Play Store), 🖨 Cetak Thermal (printer USB/WiFi), atau Cetak Biasa. Ukuran kertas 58/80mm diatur di Pengaturan.' },
+    { keys: ['qris', 'qr', 'dana', 'pembayaran digital'], a: 'Upload gambar QRIS statis tokomu di menu Pengaturan. Saat pelanggan memilih bayar QRIS di kasir, QR akan tampil otomatis untuk di-scan pelanggan. Konfirmasi manual setelah uang masuk.' },
+    { keys: ['kasir', 'pin', 'operator', 'karyawan', 'pegawai'], a: 'Tambahkan kasir di menu Kelola Kasir (khusus admin). Setiap kasir punya PIN sendiri. Kasir dengan role "kasir" hanya bisa membuka halaman Kasir & Riwayat — menu admin otomatis tersembunyi.' },
+    { keys: ['langganan', 'bayar', 'premium', 'trial', 'berlangganan', 'harga'], a: 'Aplikasi gratis penuh 30 hari pertama. Setelahnya Rp25.000/bulan, dibayar via QRIS DANA dari halaman perpanjangan, lalu konfirmasi ke email noreply.absenta@gmail.com — aktivasi diproses maksimal 1x24 jam.' },
+    { keys: ['laporan', 'export', 'pdf', 'omset', 'penjualan', 'grafik'], a: 'Laporan ada di Dashboard: grafik penjualan 7 hari, laporan cepat (hari ini / 7 / 30 hari), dan tombol 📄 Export PDF untuk menyimpan/mencetak laporan lengkap.' },
+    { keys: ['diskon', 'potongan'], a: 'Di halaman Kasir, sebelum bayar kamu bisa isi diskon nominal (Rp) ATAU persen (%) — salah satu saja. Diskon tercetak di struk.' },
+    { keys: ['stok', 'habis', 'minimum'], a: 'Stok berkurang otomatis setiap transaksi. Atur "stok minimum" di tiap produk — produk yang menipis akan diberi tanda peringatan di Inventori. Tambah stok lewat menu Pembelian.' },
+    { keys: ['shift', 'tutup kasir'], a: 'Gunakan tombol Shift/Tutup Kasir di halaman Kasir untuk melihat ringkasan penjualan selama shift berjalan dan mencetaknya saat pergantian operator.' },
+    { keys: ['offline', 'internet', 'sinyal'], a: 'Aplikasi tetap bisa dibuka saat offline (PWA). Namun sinkronisasi data ke cloud butuh internet — pastikan online secara berkala agar data tersimpan aman.' },
+    { keys: ['password', 'lupa', 'reset'], a: 'Lupa password? Di halaman login klik "Lupa password", masukkan email toko — link reset akan dikirim ke email tersebut.' },
+    { keys: ['hapus akun', 'hapus data'], a: 'Untuk menghapus akun dan seluruh data toko secara permanen, kirim permintaan ke noreply.absenta@gmail.com. Diproses maksimal 30 hari.' },
+    { keys: ['rokok', 'tembakau', 'vape'], a: 'Produk rokok, tembakau, dan vape diblokir permanen dan tidak bisa diinput ke aplikasi ini.' }
+  ];
+
+  const helpChatAnswer = q => {
+    const text = q.toLowerCase();
+    let best = null, bestScore = 0;
+    HELP_TOPICS.forEach(t => {
+      const score = t.keys.reduce((s, k) => s + (text.includes(k) ? k.length : 0), 0);
+      if (score > bestScore) { bestScore = score; best = t; }
+    });
+    if (best) return best.a;
+    return 'Maaf, saya belum paham pertanyaan itu 🙏 Coba kata kunci seperti: produk, scan, struk, QRIS, kasir, langganan, laporan, diskon, stok. Atau hubungi kami: noreply.absenta@gmail.com';
+  };
+
+  const initHelpChat = () => {
+    const fab = document.getElementById('helpChatFab');
+    const panel = document.getElementById('helpChatPanel');
+    const closeBtn = document.getElementById('helpChatClose');
+    const messages = document.getElementById('helpChatMessages');
+    const form = document.getElementById('helpChatForm');
+    const input = document.getElementById('helpChatInput');
+    const quick = document.getElementById('helpChatQuick');
+    if (!fab || !panel) return;
+
+    const addMsg = (text, who) => {
+      const div = document.createElement('div');
+      div.className = who === 'user'
+        ? 'ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-sky-600 text-white px-4 py-2.5'
+        : 'mr-auto max-w-[85%] rounded-2xl rounded-bl-md bg-white border border-slate-200 text-slate-700 px-4 py-2.5';
+      div.textContent = text;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    };
+
+    const ask = q => {
+      addMsg(q, 'user');
+      setTimeout(() => addMsg(helpChatAnswer(q), 'bot'), 350);
+    };
+
+    // Tombol pertanyaan cepat
+    ['Cara cetak struk?', 'Cara pakai QRIS?', 'Soal langganan', 'Tambah kasir'].forEach(label => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'rounded-full border border-sky-300 bg-sky-50 text-sky-700 px-3 py-1 text-xs hover:bg-sky-100 transition';
+      b.textContent = label;
+      b.addEventListener('click', () => ask(label));
+      quick.appendChild(b);
+    });
+
+    fab.addEventListener('click', () => {
+      panel.classList.toggle('hidden');
+      if (!panel.classList.contains('hidden') && !messages.childElementCount) {
+        addMsg('Halo! 👋 Saya asisten Kasir UMKM. Tanya apa saja: cara pakai fitur, langganan, printer, dan lainnya.', 'bot');
+      }
+    });
+    closeBtn.addEventListener('click', () => panel.classList.add('hidden'));
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const q = input.value.trim();
+      if (!q) return;
+      input.value = '';
+      ask(q);
+    });
+  };
+
+  const showHelpChatFab = () => document.getElementById('helpChatFab')?.classList.remove('hidden');
+
   const init = async () => {
     setLoadingStatus('Menghubungkan ke database...', 10);
     initSupabase();
     loadLocalSettings();
     bindEvents();
+    initHelpChat();
     registerServiceWorker();
 
     // Cek sesi Supabase yang masih aktif
