@@ -12,6 +12,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <style>
     html, body {
@@ -201,7 +202,7 @@
             Daftar & Buat Toko
           </button>
           <p class="text-xs text-slate-400 text-center">Dengan mendaftar, Anda otomatis menjadi Admin toko.</p>
-          <p class="text-xs text-center font-semibold text-sky-600">✨ Gratis penuh 30 hari pertama — tanpa kartu kredit, langsung pakai.</p>
+          <p class="text-xs text-center font-semibold text-sky-600">✨ Gratis selamanya untuk fitur dasar + bonus Premium 30 hari pertama.</p>
         </form>
       </div>
       <p class="text-center text-xs text-slate-500 mt-5">Data toko Anda terisolasi & aman.</p>
@@ -959,14 +960,19 @@
   <div id="subsOverlay" class="hidden fixed inset-0 z-[200] items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-sky-900 overflow-y-auto px-4 py-8">
     <div class="w-full max-w-md mx-auto">
       <div class="bg-white rounded-3xl shadow-2xl p-7 text-center">
-        <div class="text-5xl mb-3">⏳</div>
-        <h2 class="text-2xl font-bold text-slate-900">Masa Aktif Berakhir</h2>
-        <p class="text-slate-500 mt-2 text-sm">Terima kasih sudah memakai Kasir UMKM Simpel selama 30 hari!
-          Lanjutkan langganan agar data toko dan transaksi Anda tetap bisa diakses.</p>
+        <div class="text-5xl mb-3">👑</div>
+        <h2 id="subsOverlayTitle" class="text-2xl font-bold text-slate-900">Upgrade ke Premium</h2>
+        <p id="subsOverlayDesc" class="text-slate-500 mt-2 text-sm">Fitur dasar tetap gratis selamanya.
+          Premium membuka fitur tambahan untuk toko yang makin ramai.</p>
 
         <div class="mt-5 rounded-2xl bg-sky-50 border border-sky-200 p-4">
           <p class="text-3xl font-bold text-sky-700">Rp25.000<span class="text-base font-medium text-sky-500">/bulan</span></p>
-          <p class="text-xs text-sky-600 mt-1">Semua fitur, tanpa batasan produk & transaksi</p>
+          <div class="text-xs text-sky-700 mt-2 text-left space-y-1">
+            <p>✅ QRIS Dinamis — nominal otomatis tertanam di QR</p>
+            <p>✅ Export laporan PDF</p>
+            <p>✅ Operator kasir tanpa batas</p>
+            <p>✅ Dukungan prioritas via email</p>
+          </div>
         </div>
 
         <p class="text-sm font-semibold text-slate-700 mt-5">Scan QRIS di bawah untuk membayar:</p>
@@ -988,7 +994,7 @@
         <button id="subsRecheckBtn" class="mt-3 w-full rounded-2xl border border-slate-300 px-5 py-3 text-slate-600 hover:bg-slate-50 transition text-sm">
           🔄 Saya sudah diaktifkan — cek ulang
         </button>
-        <button id="subsLogoutBtn" class="mt-2 w-full text-xs text-slate-400 hover:text-slate-600">Keluar dari akun</button>
+        <button id="subsCloseBtn" class="mt-2 w-full rounded-2xl px-5 py-3 text-slate-500 hover:bg-slate-50 transition text-sm">Nanti dulu, lanjut pakai gratis</button>
       </div>
     </div>
   </div>
@@ -1005,7 +1011,9 @@
       </div>
       <div class="w-56 h-56 border-2 border-slate-200 rounded-2xl flex items-center justify-center bg-slate-50 overflow-hidden">
         <img id="qrisModalImg" src="" alt="QRIS" class="w-full h-full object-contain p-2" />
+        <div id="qrisModalQr" class="hidden p-3 bg-white"></div>
       </div>
+      <span id="qrisDynamicBadge" class="hidden rounded-full bg-emerald-100 text-emerald-700 px-3 py-1 text-xs font-semibold">👑 QRIS Dinamis — nominal sudah tertanam, pembeli tinggal konfirmasi</span>
       <div class="text-center">
         <p class="text-slate-600 text-sm">Total yang harus dibayar:</p>
         <p id="qrisModalTotal" class="text-2xl font-bold text-slate-900 mt-1"></p>

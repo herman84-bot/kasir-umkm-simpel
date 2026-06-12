@@ -59,7 +59,7 @@ const App = (() => {
   const getQrisImage = () => localStorage.getItem('qris_image') || '';
 
   // ── Langganan / masa aktif ────────────────────────────────────────────────
-  const SUBS_QRIS_PAYLOAD = '00020101021126570011ID.DANA.WWW011893600915303246671402090324667140303UMI51440014ID.CO.QRIS.WWW0215ID10265311627370303UMI5204899953033605802ID5916Absenta solution6014Kota Tangerang6105151166304797';
+  const SUBS_QRIS_PAYLOAD = '00020101021126570011ID.DANA.WWW011893600915303246671402090324667140303UMI51440014ID.CO.QRIS.WWW0215ID10265311627370303UMI5204899953033605802ID5916Absenta solution6014Kota Tangerang6105151166304797F';
   const SUBS_EMAIL = 'noreply.absenta@gmail.com';
 
   // Hitung sisa hari masa aktif (trial atau premium, ambil yang paling lama)
@@ -108,20 +108,121 @@ const App = (() => {
     if (overlay) { overlay.classList.add('hidden'); overlay.style.display = ''; }
   };
 
-  // Banner peringatan hanya muncul saat sisa ≤ 7 hari (sebelum itu terasa gratis penuh)
+  // ── Model FREEMIUM: aplikasi dasar gratis selamanya. ──
+  // Premium aktif jika trial (30 hari pertama) atau premium_until masih berlaku.
+  const isPremiumActive = () => {
+    const daysLeft = getSubscriptionDaysLeft();
+    return daysLeft === null ? true : daysLeft > 0;
+  };
+
+  // Gerbang fitur premium: true jika boleh lanjut, false + tampilkan upgrade jika tidak
+  const requirePremium = featureName => {
+    if (isPremiumActive()) return true;
+    const title = document.getElementById('subsOverlayTitle');
+    const desc = document.getElementById('subsOverlayDesc');
+    if (title) title.textContent = '👑 Fitur Premium';
+    if (desc) desc.textContent = `${featureName} adalah fitur Premium. Berlangganan untuk membukanya — aplikasi dasar tetap gratis selamanya.`;
+    showSubsOverlay();
+    return false;
+  };
+
+  // Banner: ingatkan trial premium akan habis (≤7 hari). Tidak pernah mengunci aplikasi.
   const checkSubscription = () => {
     const daysLeft = getSubscriptionDaysLeft();
     const banner = document.getElementById('subsBanner');
     if (daysLeft === null) return true;
-    if (daysLeft <= 0) { showSubsOverlay(); return false; }
-    if (banner && daysLeft <= 7) {
+    if (banner && daysLeft > 0 && daysLeft <= 7) {
       document.getElementById('subsBannerText').textContent =
-        `Masa aktif toko Anda tersisa ${daysLeft} hari.`;
+        `Premium gratis Anda tersisa ${daysLeft} hari. Setelah itu fitur dasar tetap gratis.`;
       banner.classList.remove('hidden');
       document.body.style.paddingTop = '36px';
     }
     return true;
   };
+
+  // ── QRIS Dinamis (Premium): konversi QRIS statis → dinamis bernominal ─────
+  const crc16ccitt = str => {
+    let crc = 0xFFFF;
+    for (let i = 0; i < str.length; i++) {
+      crc ^= str.charCodeAt(i) << 8;
+      for (let j = 0; j < 8; j++) {
+        crc = crc & 0x8000 ? (crc << 1) ^ 0x1021 : crc << 1;
+        crc &= 0xFFFF;
+      }
+    }
+    return crc.toString(16).toUpperCase().padStart(4, '0');
+  };
+
+  // Parse payload EMV menjadi daftar [tag, value] level atas
+  const parseEmv = payload => {
+    const out = [];
+    let i = 0;
+    while (i + 4 <= payload.length) {
+      const tag = payload.slice(i, i + 2);
+      const len = parseInt(payload.slice(i + 2, i + 4), 10);
+      if (isNaN(len)) break;
+      out.push([tag, payload.slice(i + 4, i + 4 + len)]);
+      i += 4 + len;
+    }
+    return out;
+  };
+
+  // Buat payload QRIS dinamis: tipe 12 + nominal (tag 54), CRC dihitung ulang
+  const makeDynamicQris = (staticPayload, amount) => {
+    try {
+      const fields = parseEmv(staticPayload).filter(([t]) => t !== '63' && t !== '54');
+      const emv = f => f[0] + String(f[1].length).padStart(2, '0') + f[1];
+      let result = '';
+      let amountInserted = false;
+      fields.forEach(f => {
+        if (f[0] === '01') f = ['01', '12']; // statis → dinamis
+        // Tag 54 (nominal) harus berada sebelum tag 58 (negara)
+        if (!amountInserted && Number(f[0]) > 54) {
+          const amt = String(Math.round(amount));
+          result += '54' + String(amt.length).padStart(2, '0') + amt;
+          amountInserted = true;
+        }
+        result += emv(f);
+      });
+      result += '6304';
+      return result + crc16ccitt(result);
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // Decode payload QR dari gambar (BarcodeDetector native, fallback jsQR)
+  const decodeQrisImage = base64 => new Promise(resolve => {
+    const img = new Image();
+    img.onload = async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      // 1) BarcodeDetector native (Chrome Android/desktop)
+      if ('BarcodeDetector' in window) {
+        try {
+          const detector = new BarcodeDetector({ formats: ['qr_code'] });
+          const codes = await detector.detect(canvas);
+          if (codes.length && codes[0].rawValue) return resolve(codes[0].rawValue);
+        } catch (e) { /* lanjut ke jsQR */ }
+      }
+      // 2) jsQR fallback
+      if (window.jsQR) {
+        try {
+          const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = window.jsQR(data.data, data.width, data.height);
+          if (code && code.data) return resolve(code.data);
+        } catch (e) { /* gagal */ }
+      }
+      resolve(null);
+    };
+    img.onerror = () => resolve(null);
+    img.src = base64;
+  });
+
+  const getQrisPayload = () => localStorage.getItem('qris_payload') || '';
 
   // ── Supabase ──────────────────────────────────────────────────────────────
   const SUPABASE_URL = 'https://pfmsblktxlnovtajnxvc.supabase.co';
@@ -2267,9 +2368,26 @@ ${txRows}
       if (qrisImg) {
         const totals = calculateCart();
         const modalImg = document.getElementById('qrisModalImg');
+        const modalQr = document.getElementById('qrisModalQr');
+        const modalBadge = document.getElementById('qrisDynamicBadge');
         const modalTotal = document.getElementById('qrisModalTotal');
         const qrisModal = document.getElementById('qrisModal');
-        if (modalImg) modalImg.src = qrisImg;
+
+        // Premium + payload terbaca → QR dinamis bernominal; selain itu gambar statis
+        const payload = getQrisPayload();
+        const dynamicPayload = (isPremiumActive() && payload) ? makeDynamicQris(payload, totals.total) : null;
+        if (dynamicPayload && window.QRCode && modalQr) {
+          modalQr.innerHTML = '';
+          new QRCode(modalQr, { text: dynamicPayload, width: 224, height: 224, correctLevel: QRCode.CorrectLevel.M });
+          modalQr.classList.remove('hidden');
+          if (modalImg) modalImg.classList.add('hidden');
+          if (modalBadge) modalBadge.classList.remove('hidden');
+        } else {
+          if (modalQr) modalQr.classList.add('hidden');
+          if (modalImg) { modalImg.src = qrisImg; modalImg.classList.remove('hidden'); }
+          if (modalBadge) modalBadge.classList.add('hidden');
+        }
+
         if (modalTotal) modalTotal.textContent = formatCurrency(totals.total);
         if (qrisModal) { qrisModal.classList.remove('hidden'); qrisModal.style.display = 'flex'; }
       } else {
@@ -2334,7 +2452,11 @@ ${txRows}
     });
 
     // Kelola Kasir
-    dom.addCashierBtn?.addEventListener('click', () => openCashierModal());
+    dom.addCashierBtn?.addEventListener('click', () => {
+      // Gratis: maksimal 2 operator (1 admin + 1 kasir). Lebih dari itu = Premium.
+      if (state.cashiers.length >= 2 && !requirePremium('Lebih dari 2 operator kasir')) return;
+      openCashierModal();
+    });
     dom.closeCashierModal?.addEventListener('click', closeCashierModalFn);
     dom.cancelCashierModal?.addEventListener('click', closeCashierModalFn);
     dom.cashierForm?.addEventListener('submit', saveCashier);
@@ -2572,15 +2694,12 @@ ${txRows}
         hideSubsOverlay();
         const banner = document.getElementById('subsBanner');
         if (banner) { banner.classList.add('hidden'); document.body.style.paddingTop = ''; }
-        await enterAppAfterAuth();
+        alert('Premium aktif! 👑 Semua fitur premium sudah terbuka.');
       } else {
         alert('Belum aktif. Jika sudah membayar, tunggu konfirmasi admin (maks. 1×24 jam).');
       }
     });
-    document.getElementById('subsLogoutBtn')?.addEventListener('click', () => {
-      hideSubsOverlay();
-      logout();
-    });
+    document.getElementById('subsCloseBtn')?.addEventListener('click', hideSubsOverlay);
 
     // ── QRIS file upload ──
     document.getElementById('qrisFileInput')?.addEventListener('change', e => {
@@ -2589,19 +2708,29 @@ ${txRows}
       if (!file.type.startsWith('image/')) { alert('File harus berupa gambar.'); return; }
       if (file.size > 2 * 1024 * 1024) { alert('Ukuran gambar maksimal 2MB.'); return; }
       const reader = new FileReader();
-      reader.onload = ev => {
+      reader.onload = async ev => {
         const base64 = ev.target.result;
         localStorage.setItem('qris_image', base64);
         const wrapper = document.getElementById('qrisPreviewWrapper');
         const previewImg = document.getElementById('qrisPreviewImg');
         if (previewImg) previewImg.src = base64;
         if (wrapper) wrapper.classList.remove('hidden');
+        // Decode isi QR untuk fitur QRIS dinamis (premium)
+        localStorage.removeItem('qris_payload');
+        const payload = await decodeQrisImage(base64);
+        if (payload && payload.startsWith('000201')) {
+          localStorage.setItem('qris_payload', payload);
+          alert('QRIS berhasil dibaca! ✅ Fitur QRIS Dinamis (nominal otomatis tertanam) aktif untuk pengguna Premium.');
+        } else {
+          alert('Gambar tersimpan, tapi isi QR tidak terbaca — QRIS Dinamis tidak tersedia. Coba upload gambar yang lebih jelas/tidak terpotong jika ingin fitur nominal otomatis.');
+        }
       };
       reader.readAsDataURL(file);
     });
     document.getElementById('qrisDeleteBtn')?.addEventListener('click', () => {
       if (!confirm('Hapus gambar QRIS?')) return;
       localStorage.removeItem('qris_image');
+      localStorage.removeItem('qris_payload');
       const wrapper = document.getElementById('qrisPreviewWrapper');
       const fileInput = document.getElementById('qrisFileInput');
       if (wrapper) wrapper.classList.add('hidden');
@@ -2655,7 +2784,10 @@ ${txRows}
     });
 
     // ── Feature 4: Export PDF ──
-    dom.exportPdfBtn?.addEventListener('click', exportReportPDF);
+    dom.exportPdfBtn?.addEventListener('click', () => {
+      if (!requirePremium('Export laporan PDF')) return;
+      exportReportPDF();
+    });
 
     // ── Feature 6: Payment Method ──
     document.querySelectorAll('.paymethod-btn').forEach(btn => {
@@ -2721,11 +2853,8 @@ ${txRows}
       if (!saved) localStorage.setItem('shift_start_' + (state.storeId || ''), state.shiftStartTime.toISOString());
     }
 
-    // Cek masa aktif: kalau habis, tampilkan halaman perpanjangan dan jangan buka app
-    if (!checkSubscription()) {
-      hideLoadingOverlay();
-      return;
-    }
+    // Freemium: aplikasi tidak pernah dikunci — hanya tampilkan banner pengingat trial
+    checkSubscription();
 
     applyRoleAccess();
     showApp();
@@ -2752,9 +2881,9 @@ ${txRows}
     { keys: ['produk', 'barang', 'tambah produk', 'input', 'kategori'], a: 'Untuk menambah produk: buka menu Inventori → klik "+ Tambah Produk". Kode produk dibuat otomatis, kamu juga bisa scan barcode dengan tombol 📷. Isi nama, harga jual, harga modal, dan stok, lalu Simpan.' },
     { keys: ['scan', 'barcode', 'kamera'], a: 'Scanner barcode ada di 2 tempat: (1) halaman Kasir — tombol "Scan Barcode" untuk memanggil produk ke keranjang, (2) form Tambah Produk — tombol 📷 untuk mengisi kode otomatis. Izinkan akses kamera saat diminta browser.' },
     { keys: ['struk', 'cetak', 'print', 'printer', 'bluetooth', 'thermal'], a: 'Setelah pembayaran, struk muncul otomatis. Pilihan cetak: 📶 Cetak Bluetooth (printer thermal Bluetooth Android, butuh aplikasi gratis RawBT dari Play Store), 🖨 Cetak Thermal (printer USB/WiFi), atau Cetak Biasa. Ukuran kertas 58/80mm diatur di Pengaturan.' },
-    { keys: ['qris', 'qr', 'dana', 'pembayaran digital'], a: 'Upload gambar QRIS statis tokomu di menu Pengaturan. Saat pelanggan memilih bayar QRIS di kasir, QR akan tampil otomatis untuk di-scan pelanggan. Konfirmasi manual setelah uang masuk.' },
+    { keys: ['qris', 'qr', 'dana', 'pembayaran digital', 'dinamis'], a: 'Upload gambar QRIS tokomu di menu Pengaturan — QR tampil otomatis saat pelanggan bayar QRIS. Pengguna Premium dapat QRIS Dinamis 👑: nominal belanja otomatis tertanam di QR, pelanggan tidak perlu ketik nominal lagi. Konfirmasi manual setelah notifikasi uang masuk.' },
     { keys: ['kasir', 'pin', 'operator', 'karyawan', 'pegawai'], a: 'Tambahkan kasir di menu Kelola Kasir (khusus admin). Setiap kasir punya PIN sendiri. Kasir dengan role "kasir" hanya bisa membuka halaman Kasir & Riwayat — menu admin otomatis tersembunyi.' },
-    { keys: ['langganan', 'bayar', 'premium', 'trial', 'berlangganan', 'harga'], a: 'Aplikasi gratis penuh 30 hari pertama. Setelahnya Rp25.000/bulan, dibayar via QRIS DANA dari halaman perpanjangan, lalu konfirmasi ke email noreply.absenta@gmail.com — aktivasi diproses maksimal 1x24 jam.' },
+    { keys: ['langganan', 'premium', 'trial', 'berlangganan', 'upgrade', 'gratis'], a: 'Fitur dasar GRATIS selamanya! 🎉 Premium Rp25.000/bulan membuka: QRIS Dinamis (nominal otomatis di QR), export PDF, dan operator kasir tanpa batas. 30 hari pertama otomatis dapat Premium gratis. Bayar via QRIS DANA lalu konfirmasi ke noreply.absenta@gmail.com.' },
     { keys: ['laporan', 'export', 'pdf', 'omset', 'penjualan', 'grafik'], a: 'Laporan ada di Dashboard: grafik penjualan 7 hari, laporan cepat (hari ini / 7 / 30 hari), dan tombol 📄 Export PDF untuk menyimpan/mencetak laporan lengkap.' },
     { keys: ['diskon', 'potongan'], a: 'Di halaman Kasir, sebelum bayar kamu bisa isi diskon nominal (Rp) ATAU persen (%) — salah satu saja. Diskon tercetak di struk.' },
     { keys: ['stok', 'habis', 'minimum'], a: 'Stok berkurang otomatis setiap transaksi. Atur "stok minimum" di tiap produk — produk yang menipis akan diberi tanda peringatan di Inventori. Tambah stok lewat menu Pembelian.' },
