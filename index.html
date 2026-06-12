@@ -561,19 +561,19 @@
           <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-4">
             <label class="block">
               <span class="text-slate-700 font-medium text-sm">Nama Toko</span>
-              <input id="settingStoreName" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Warung Barokah" />
+              <input id="settingStoreName" maxlength="100" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Warung Barokah" />
             </label>
             <label class="block">
               <span class="text-slate-700 font-medium text-sm">Alamat</span>
-              <input id="settingStoreAddress" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Jl. Merdeka No. 10, Jakarta" />
+              <input id="settingStoreAddress" maxlength="200" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Jl. Merdeka No. 10, Jakarta" />
             </label>
             <label class="block">
               <span class="text-slate-700 font-medium text-sm">No. Telepon / WhatsApp</span>
-              <input id="settingStorePhone" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: 08123456789" />
+              <input id="settingStorePhone" maxlength="20" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: 08123456789" />
             </label>
             <label class="block">
               <span class="text-slate-700 font-medium text-sm">Pesan di struk (footer)</span>
-              <input id="settingStoreNote" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Terima kasih, selamat datang kembali!" />
+              <input id="settingStoreNote" maxlength="150" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Terima kasih, selamat datang kembali!" />
             </label>
             <label class="block">
               <span class="text-slate-700 font-medium text-sm">Ukuran Kertas Struk</span>
@@ -701,7 +701,7 @@
         <input type="hidden" id="cashierFormId" />
         <label class="block">
           <span class="text-slate-700 font-medium text-sm">Nama Kasir</span>
-          <input id="cashierFormName" required
+          <input id="cashierFormName" required maxlength="60"
             class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none"
             placeholder="contoh: Budi Santoso" />
         </label>
@@ -893,7 +893,7 @@
           </label>
           <label class="block">
             <span class="text-slate-700 font-medium text-sm">Nama Produk <span class="text-red-500">*</span></span>
-            <input id="productName" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Indomie Goreng" />
+            <input id="productName" required maxlength="120" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Indomie Goreng" />
           </label>
         </div>
         <div class="grid gap-4 sm:grid-cols-3">
@@ -936,7 +936,7 @@
           <div class="flex gap-2 items-end">
             <label class="block flex-1">
               <span class="text-slate-700 font-medium text-sm">Barcode Produk</span>
-              <input id="productBarcode" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="Scan atau ketik" />
+              <input id="productBarcode" maxlength="50" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="Scan atau ketik" />
             </label>
             <button type="button" id="inventoryScanButton" class="mb-0.5 rounded-2xl bg-sky-600 px-4 py-3 text-white hover:bg-sky-700 transition whitespace-nowrap">📷</button>
           </div>

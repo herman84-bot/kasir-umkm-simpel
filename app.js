@@ -1,4 +1,9 @@
 const App = (() => {
+  // Escape HTML untuk mencegah XSS di semua innerHTML yang memakai data dari DB/user
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
   const STORAGE = {
     products: 'pos_products',
     transactions: 'pos_transactions',
@@ -764,7 +769,7 @@ const App = (() => {
 
   const renderCashierSelect = () => {
     dom.cashierSelect.innerHTML = state.cashiers.map(item => `
-      <option value="${item.id}">${item.name}</option>
+      <option value="${esc(item.id)}">${esc(item.name)}</option>
     `).join('');
     if (!state.cashiers.some(item => item.id === state.selectedCashierId)) {
       state.selectedCashierId = state.cashiers[0]?.id || '';
@@ -790,7 +795,7 @@ const App = (() => {
     dom.cashierGrid.innerHTML = state.cashiers.map(c => {
       const isAdmin = c.role === 'admin';
       const isSelf = c.id === activeId;
-      const initial = c.name.charAt(0).toUpperCase();
+      const initial = esc(c.name.charAt(0).toUpperCase());
       const roleLabel = isAdmin ? '👑 Admin' : '🧾 Kasir';
       const roleBg = isAdmin ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600';
       const avatarBg = isAdmin ? 'bg-sky-600' : 'bg-slate-500';
@@ -800,7 +805,7 @@ const App = (() => {
             <div class="w-14 h-14 rounded-full ${avatarBg} flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">${initial}</div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <p class="font-semibold text-slate-900 truncate">${c.name}</p>
+                <p class="font-semibold text-slate-900 truncate">${esc(c.name)}</p>
                 ${isSelf ? '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Anda</span>' : ''}
               </div>
               <span class="text-xs px-2 py-0.5 rounded-full ${roleBg} font-medium mt-1 inline-block">${roleLabel}</span>
@@ -1102,11 +1107,11 @@ const App = (() => {
       return `
         <tr class="border-b border-slate-200">
           <td class="p-3">${time}</td>
-          <td class="p-3">#${order.id}</td>
-          <td class="p-3">${order.supplier}</td>
+          <td class="p-3">#${esc(order.id)}</td>
+          <td class="p-3">${esc(order.supplier)}</td>
           <td class="p-3 font-semibold">${formatCurrency(order.total)}</td>
-          <td class="p-3">${order.items.length} produk</td>
-          <td class="p-3">${order.status}</td>
+          <td class="p-3">${esc(order.items.length)} produk</td>
+          <td class="p-3">${esc(order.status)}</td>
         </tr>
       `;
     }).join('') || '<tr><td colspan="6" class="p-8 text-center text-slate-500">Belum ada data pembelian.</td></tr>';
@@ -1549,15 +1554,15 @@ const App = (() => {
     dom.productGrid.innerHTML = filtered.map(product => {
       const isCritical = product.stock <= (product.minStock || 5);
       return `
-        <article data-id="${product.id}" class="group cursor-pointer overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-          <img src="${product.image}" alt="${product.name}" class="h-44 w-full object-cover" />
+        <article data-id="${esc(product.id)}" class="group cursor-pointer overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+          <img src="${esc(product.image)}" alt="${esc(product.name)}" class="h-44 w-full object-cover" />
           <div class="p-5">
             <div class="flex items-center justify-between gap-3">
               <div>
-                <h4 class="text-lg font-semibold">${product.name}</h4>
-                <p class="text-slate-500 text-sm">${product.category}</p>
+                <h4 class="text-lg font-semibold">${esc(product.name)}</h4>
+                <p class="text-slate-500 text-sm">${esc(product.category)}</p>
               </div>
-              <span class="rounded-2xl bg-slate-100 px-3 py-1 text-xs text-slate-700">Stok: ${product.stock}${isCritical ? ' ⚠️' : ''}</span>
+              <span class="rounded-2xl bg-slate-100 px-3 py-1 text-xs text-slate-700">Stok: ${esc(product.stock)}${isCritical ? ' ⚠️' : ''}</span>
             </div>
             <div class="mt-4 flex items-center justify-between">
               <span class="text-xl font-semibold text-slate-900">${formatCurrency(product.price)}</span>
@@ -1611,15 +1616,15 @@ const App = (() => {
       <div class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h4 class="font-semibold text-slate-900">${item.name}</h4>
-            <p class="text-slate-500 text-sm">${formatCurrency(item.price)} x ${item.qty}</p>
+            <h4 class="font-semibold text-slate-900">${esc(item.name)}</h4>
+            <p class="text-slate-500 text-sm">${formatCurrency(item.price)} x ${esc(item.qty)}</p>
           </div>
-          <button data-remove="${item.id}" class="rounded-full bg-rose-100 px-3 py-2 text-rose-700">Hapus</button>
+          <button data-remove="${esc(item.id)}" class="rounded-full bg-rose-100 px-3 py-2 text-rose-700">Hapus</button>
         </div>
         <div class="mt-3 flex items-center gap-2 text-sm text-slate-700">
-          <button data-decrease="${item.id}" class="rounded-2xl border border-slate-300 bg-white px-3 py-2">−</button>
-          <span class="font-semibold">${item.qty}</span>
-          <button data-increase="${item.id}" class="rounded-2xl border border-slate-300 bg-white px-3 py-2">+</button>
+          <button data-decrease="${esc(item.id)}" class="rounded-2xl border border-slate-300 bg-white px-3 py-2">−</button>
+          <span class="font-semibold">${esc(item.qty)}</span>
+          <button data-increase="${esc(item.id)}" class="rounded-2xl border border-slate-300 bg-white px-3 py-2">+</button>
           <span class="ml-auto font-semibold text-slate-900">${formatCurrency(item.price * item.qty)}</span>
         </div>
       </div>
@@ -1697,14 +1702,14 @@ const App = (() => {
       return `
         <tr class="border-b border-slate-200">
           <td class="p-3">${time}</td>
-          <td class="p-3">#${tx.id}</td>
-          <td class="p-3">${tx.cashier || '-'}</td>
+          <td class="p-3">#${esc(tx.id)}</td>
+          <td class="p-3">${esc(tx.cashier || '-')}</td>
           <td class="p-3 font-semibold">${formatCurrency(tx.total)}</td>
-          <td class="p-3">${productCount} item</td>
-          <td class="p-3"><span class="rounded-full px-2 py-0.5 text-xs font-medium ${tx.paymentMethod === 'Tunai' ? 'bg-green-100 text-green-700' : tx.paymentMethod === 'QRIS' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">${tx.paymentMethod || 'Tunai'}</span></td>
+          <td class="p-3">${esc(productCount)} item</td>
+          <td class="p-3"><span class="rounded-full px-2 py-0.5 text-xs font-medium ${tx.paymentMethod === 'Tunai' ? 'bg-green-100 text-green-700' : tx.paymentMethod === 'QRIS' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">${esc(tx.paymentMethod || 'Tunai')}</span></td>
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.cash) : '-'}</td>
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.change) : '-'}</td>
-          <td class="p-3"><button data-reprint="${tx.id}" class="rounded-2xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 transition whitespace-nowrap">🖨 Struk</button></td>
+          <td class="p-3"><button data-reprint="${esc(tx.id)}" class="rounded-2xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 transition whitespace-nowrap">🖨 Struk</button></td>
         </tr>
       `;
     }).join('') || '<tr><td colspan="9" class="p-8 text-center text-slate-500">Belum ada transaksi.</td></tr>';
