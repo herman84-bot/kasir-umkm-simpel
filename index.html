@@ -1086,14 +1086,17 @@
 
   <input type="file" id="backupFileInput" accept="application/json" class="hidden" />
   <!-- Chat Bantuan -->
-  <button id="helpChatFab" class="hidden fixed bottom-20 md:bottom-6 right-4 z-[90] h-14 w-14 rounded-full bg-sky-600 text-white text-2xl shadow-xl hover:bg-sky-700 transition flex items-center justify-center no-print">💬</button>
+  <button id="helpChatFab" class="hidden fixed bottom-20 md:bottom-6 right-4 z-[90] h-14 w-14 rounded-full bg-gradient-to-br from-teal-400 to-sky-600 text-3xl shadow-xl hover:scale-110 transition-transform flex items-center justify-center no-print" title="Tanya Aisyah">🧕</button>
   <div id="helpChatPanel" class="hidden fixed bottom-36 md:bottom-24 right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm rounded-3xl bg-white border border-slate-200 shadow-2xl flex flex-col overflow-hidden no-print" style="height:28rem">
-    <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
-      <div>
-        <p class="font-semibold text-sm">Asisten Kasir 🤖</p>
-        <p class="text-xs text-slate-300">Tanya apa saja seputar aplikasi</p>
+    <div class="bg-gradient-to-r from-teal-600 to-sky-700 text-white px-5 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-2xl">🧕</span>
+        <div>
+          <p class="font-semibold text-sm">Aisyah — Asisten Kasir</p>
+          <p class="text-xs text-teal-100 flex items-center gap-1"><span class="inline-block h-2 w-2 rounded-full bg-green-400"></span> Online — siap membantu</p>
+        </div>
       </div>
-      <button id="helpChatClose" class="text-slate-300 hover:text-white text-xl leading-none">✕</button>
+      <button id="helpChatClose" class="text-teal-100 hover:text-white text-xl leading-none">✕</button>
     </div>
     <div id="helpChatMessages" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50 text-sm"></div>
     <div id="helpChatQuick" class="px-4 pb-2 pt-1 bg-slate-50 flex flex-wrap gap-2"></div>
