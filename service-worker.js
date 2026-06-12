@@ -1,9 +1,11 @@
-const CACHE_NAME = 'kasir-umkm-cache-v2';
+const CACHE_NAME = 'kasir-umkm-cache-v3';
 const ASSETS = [
   '.',
   'index.html',
   'app.js',
-  'manifest.json'
+  'manifest.json',
+  'icons/icon-192.png',
+  'icons/icon-512.png'
 ];
 
 self.addEventListener('install', event => {
