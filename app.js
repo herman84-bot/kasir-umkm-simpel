@@ -2887,6 +2887,84 @@ ${txRows}
     setPaymentMethod('Tunai');
   };
 
+  // ── Scanner Barcode Fisik (Bluetooth/USB, mode HID "keyboard wedge") ─────
+  // Scanner portabel mengetik kode + Enter sangat cepat. Listener global ini
+  // menangkap ketikan cepat itu dari mana saja tanpa perlu fokus ke kolom input.
+  const initHardwareScanner = () => {
+    let buffer = '';
+    let lastKeyTime = 0;
+    const MAX_INTERVAL = 50;  // ms antar karakter — manusia tidak bisa secepat ini
+    const MIN_LENGTH = 4;
+
+    const showScanToast = (text, ok) => {
+      let toast = document.getElementById('hwScanToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'hwScanToast';
+        toast.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-[300] rounded-2xl px-5 py-3 text-white text-sm font-semibold shadow-2xl transition-opacity duration-300 no-print';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = text;
+      toast.style.background = ok ? '#059669' : '#e11d48';
+      toast.style.opacity = '1';
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2000);
+    };
+
+    const processScan = code => {
+      // Form produk terbuka → isi kolom barcode produk
+      const inventoryModal = document.getElementById('inventoryModal');
+      if (inventoryModal && !inventoryModal.classList.contains('hidden')) {
+        const barcodeField = document.getElementById('productBarcode');
+        if (barcodeField) {
+          barcodeField.value = code;
+          showScanToast(`📷 Barcode terisi: ${code}`, true);
+        }
+        return;
+      }
+      // Selain itu → cari produk dan masukkan keranjang
+      const product = state.products.find(p =>
+        p.barcode === code || p.code === code || p.id === code
+      );
+      if (product) {
+        if (product.stock <= 0) {
+          showScanToast(`⚠️ ${product.name} — stok habis!`, false);
+          return;
+        }
+        addToCart(product.id);
+        showScanToast(`✅ ${product.name} → keranjang`, true);
+        // Pastikan kasir melihat keranjang: pindah ke layar kasir jika sedang di layar lain
+        const kasirScreen = document.getElementById('kasir');
+        if (kasirScreen && kasirScreen.classList.contains('hidden')) showScreen('kasir');
+      } else {
+        showScanToast(`❌ Kode ${code} tidak ditemukan`, false);
+        if (dom.searchInput) { state.searchQuery = code; dom.searchInput.value = code; renderProducts(); }
+      }
+    };
+
+    document.addEventListener('keydown', e => {
+      // Saat user mengetik di kolom input, jangan ganggu (kolom punya handler sendiri)
+      const tag = (document.activeElement?.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      // Hanya aktif setelah login
+      if (!state.storeId && !state.cashiers.length) return;
+
+      const now = Date.now();
+      if (now - lastKeyTime > MAX_INTERVAL) buffer = ''; // jeda lama = bukan scanner
+      lastKeyTime = now;
+
+      if (e.key === 'Enter') {
+        if (buffer.length >= MIN_LENGTH) {
+          e.preventDefault();
+          processScan(buffer.trim());
+        }
+        buffer = '';
+      } else if (e.key.length === 1) {
+        buffer += e.key;
+      }
+    });
+  };
+
   // ── Chat Bantuan (asisten pintar berbasis kata kunci, tanpa biaya API) ────
   const HELP_TOPICS = [
     { keys: ['halo', 'hai', 'hello', 'assalamualaikum', 'selamat pagi', 'selamat siang', 'selamat sore', 'selamat malam'], a: 'Waalaikumsalam, halo juga! 😊 Saya Aisyah, asisten Kasir UMKM. Ada yang bisa saya bantu? Kamu bisa tanya soal produk, transaksi, struk, QRIS, langganan, atau fitur lainnya.' },
@@ -2903,7 +2981,8 @@ ${txRows}
     { keys: ['error', 'tidak bisa', 'gagal', 'masalah', 'lemot', 'macet', 'blank'], a: 'Coba langkah ini dulu: (1) refresh halaman 2x, (2) pastikan internet stabil, (3) logout lalu login lagi. Kalau masih bermasalah, kirim detailnya (screenshot kalau bisa) ke noreply.absenta@gmail.com — kami bantu cek.' },
     { keys: ['kontak', 'customer service', 'hubungi admin', 'komplain', 'saran', 'kritik'], a: 'Untuk bantuan lebih lanjut, saran, atau komplain, hubungi kami via email: noreply.absenta@gmail.com — dibalas maksimal 1x24 jam di hari kerja. 😊' },
     { keys: ['produk', 'barang', 'tambah produk', 'input', 'kategori'], a: 'Untuk menambah produk: buka menu Inventori → klik "+ Tambah Produk". Kode produk dibuat otomatis, kamu juga bisa scan barcode dengan tombol 📷. Isi nama, harga jual, harga modal, dan stok, lalu Simpan.' },
-    { keys: ['scan', 'barcode', 'kamera'], a: 'Scanner barcode ada di 2 tempat: (1) halaman Kasir — tombol "Scan Barcode" untuk memanggil produk ke keranjang, (2) form Tambah Produk — tombol 📷 untuk mengisi kode otomatis. Izinkan akses kamera saat diminta browser.' },
+    { keys: ['scan', 'barcode', 'kamera'], a: 'Scanner barcode ada di 2 tempat: (1) halaman Kasir — tombol "Scan Barcode" untuk memanggil produk ke keranjang, (2) form Tambah Produk — tombol 📷 untuk mengisi kode otomatis. Izinkan akses kamera saat diminta browser. Scanner fisik Bluetooth/USB juga didukung!' },
+    { keys: ['scanner fisik', 'scanner portabel', 'scanner bluetooth', 'scanner usb', 'alat scan', 'tembak'], a: 'Scanner portabel (Bluetooth/USB) langsung didukung! Pair scanner ke HP/laptop (mode HID/keyboard), buka halaman Kasir, lalu tembak barcode — produk otomatis masuk keranjang dengan notifikasi hijau. Di form Tambah Produk, hasil scan otomatis mengisi kolom barcode. Tidak perlu pengaturan apa pun.' },
     { keys: ['struk', 'cetak', 'print', 'printer', 'bluetooth', 'thermal'], a: 'Setelah pembayaran, struk muncul otomatis. Pilihan cetak: 📶 Cetak Bluetooth (printer thermal Bluetooth Android, butuh aplikasi gratis RawBT dari Play Store), 🖨 Cetak Thermal (printer USB/WiFi), atau Cetak Biasa. Ukuran kertas 58/80mm diatur di Pengaturan.' },
     { keys: ['qris', 'qr', 'dana', 'pembayaran digital', 'dinamis'], a: 'Upload gambar QRIS tokomu di menu Pengaturan — QR tampil otomatis saat pelanggan bayar QRIS. Pengguna Premium dapat QRIS Dinamis 👑: nominal belanja otomatis tertanam di QR, pelanggan tidak perlu ketik nominal lagi. Konfirmasi manual setelah notifikasi uang masuk.' },
     { keys: ['kasir', 'pin', 'operator', 'karyawan', 'pegawai'], a: 'Tambahkan kasir di menu Kelola Kasir (khusus admin). Setiap kasir punya PIN sendiri. Kasir dengan role "kasir" hanya bisa membuka halaman Kasir & Riwayat — menu admin otomatis tersembunyi.' },
@@ -2988,6 +3067,7 @@ ${txRows}
     loadLocalSettings();
     bindEvents();
     initHelpChat();
+    initHardwareScanner();
     registerServiceWorker();
 
     // Cek sesi Supabase yang masih aktif
