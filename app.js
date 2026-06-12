@@ -2736,7 +2736,20 @@ ${txRows}
 
   // ── Chat Bantuan (asisten pintar berbasis kata kunci, tanpa biaya API) ────
   const HELP_TOPICS = [
-    { keys: ['produk', 'barang', 'tambah produk', 'input'], a: 'Untuk menambah produk: buka menu Inventori → klik "+ Tambah Produk". Kode produk dibuat otomatis, kamu juga bisa scan barcode dengan tombol 📷. Isi nama, harga jual, harga modal, dan stok, lalu Simpan.' },
+    { keys: ['halo', 'hai', 'hello', 'assalamualaikum', 'selamat pagi', 'selamat siang', 'selamat sore', 'selamat malam'], a: 'Waalaikumsalam, halo juga! 😊 Saya Aisyah, asisten Kasir UMKM. Ada yang bisa saya bantu? Kamu bisa tanya soal produk, transaksi, struk, QRIS, langganan, atau fitur lainnya.' },
+    { keys: ['terima kasih', 'makasih', 'thanks', 'mantap', 'sip '], a: 'Sama-sama! 🤗 Senang bisa membantu. Kalau ada pertanyaan lain, tanya saja kapan pun ya.' },
+    { keys: ['siapa kamu', 'kamu siapa', 'nama kamu', 'namamu'], a: 'Saya Aisyah 🧕, asisten virtual Kasir UMKM Simpel. Tugas saya membantu kamu memakai aplikasi ini — dari input produk, transaksi, cetak struk, sampai urusan langganan.' },
+    { keys: ['cara pakai', 'mulai dari mana', 'panduan', 'tutorial', 'bingung', 'cara menggunakan'], a: 'Alur singkatnya: (1) Tambah produk di menu Inventori, (2) Buka halaman Kasir → pilih/scan produk → masuk keranjang, (3) Pilih metode bayar → Bayar, (4) Struk muncul otomatis, tinggal cetak. Coba tanya hal spesifik, misalnya "cara tambah produk" atau "cara cetak struk".' },
+    { keys: ['transaksi', 'jualan', 'keranjang', 'checkout', 'kembalian', 'cara jual'], a: 'Di halaman Kasir: klik produk atau scan barcode untuk memasukkannya ke keranjang. Atur jumlah, isi diskon kalau ada, pilih metode bayar (Tunai/QRIS/Transfer), masukkan uang yang diterima — kembalian dihitung otomatis — lalu klik Bayar. Struk langsung muncul.' },
+    { keys: ['riwayat', 'history', 'transaksi kemarin', 'cetak ulang'], a: 'Menu Riwayat menampilkan semua transaksi. Ada kolom pencarian, dan tiap baris punya tombol 🖨 Struk untuk mencetak ulang struk transaksi lama.' },
+    { keys: ['untung', 'laba', 'profit', 'margin', 'keuntungan', 'modal'], a: 'Saat menambah produk, isi harga modal dan harga jual. Aplikasi otomatis menghitung keuntungan: lihat laba hari ini dan persentase laba di Dashboard, serta estimasi keuntungan di laporan PDF.' },
+    { keys: ['pembelian', 'supplier', 'kulakan', 'restok', 'belanja stok'], a: 'Menu Pembelian dipakai untuk mencatat belanja stok dari supplier. Pilih produk, isi jumlah dan harga beli — stok produk otomatis bertambah setelah pembelian disimpan.' },
+    { keys: ['install', 'pasang aplikasi', 'unduh', 'download', 'layar utama', 'home screen'], a: 'Aplikasi ini bisa di-install langsung dari browser: buka di Chrome Android → menu ⋮ → "Tambahkan ke layar utama". Ikonnya muncul seperti aplikasi biasa dan bisa dibuka tanpa mengetik alamat lagi.' },
+    { keys: ['hp lain', 'perangkat lain', 'laptop', 'komputer', 'multi device', 'dua hp'], a: 'Bisa! Data tersimpan di cloud, jadi kamu bisa login dengan akun yang sama dari HP lain, tablet, atau laptop — data toko langsung tersinkron.' },
+    { keys: ['aman', 'keamanan', 'data hilang', 'backup', 'bocor'], a: 'Data toko kamu tersimpan aman di cloud dengan isolasi per-toko — pemilik toko lain tidak bisa melihat data kamu. Koneksi terenkripsi HTTPS, dan kami tidak pernah menjual data pengguna.' },
+    { keys: ['error', 'tidak bisa', 'gagal', 'masalah', 'lemot', 'macet', 'blank'], a: 'Coba langkah ini dulu: (1) refresh halaman 2x, (2) pastikan internet stabil, (3) logout lalu login lagi. Kalau masih bermasalah, kirim detailnya (screenshot kalau bisa) ke noreply.absenta@gmail.com — kami bantu cek.' },
+    { keys: ['kontak', 'customer service', 'hubungi admin', 'komplain', 'saran', 'kritik'], a: 'Untuk bantuan lebih lanjut, saran, atau komplain, hubungi kami via email: noreply.absenta@gmail.com — dibalas maksimal 1x24 jam di hari kerja. 😊' },
+    { keys: ['produk', 'barang', 'tambah produk', 'input', 'kategori'], a: 'Untuk menambah produk: buka menu Inventori → klik "+ Tambah Produk". Kode produk dibuat otomatis, kamu juga bisa scan barcode dengan tombol 📷. Isi nama, harga jual, harga modal, dan stok, lalu Simpan.' },
     { keys: ['scan', 'barcode', 'kamera'], a: 'Scanner barcode ada di 2 tempat: (1) halaman Kasir — tombol "Scan Barcode" untuk memanggil produk ke keranjang, (2) form Tambah Produk — tombol 📷 untuk mengisi kode otomatis. Izinkan akses kamera saat diminta browser.' },
     { keys: ['struk', 'cetak', 'print', 'printer', 'bluetooth', 'thermal'], a: 'Setelah pembayaran, struk muncul otomatis. Pilihan cetak: 📶 Cetak Bluetooth (printer thermal Bluetooth Android, butuh aplikasi gratis RawBT dari Play Store), 🖨 Cetak Thermal (printer USB/WiFi), atau Cetak Biasa. Ukuran kertas 58/80mm diatur di Pengaturan.' },
     { keys: ['qris', 'qr', 'dana', 'pembayaran digital'], a: 'Upload gambar QRIS statis tokomu di menu Pengaturan. Saat pelanggan memilih bayar QRIS di kasir, QR akan tampil otomatis untuk di-scan pelanggan. Konfirmasi manual setelah uang masuk.' },
@@ -2760,7 +2773,7 @@ ${txRows}
       if (score > bestScore) { bestScore = score; best = t; }
     });
     if (best) return best.a;
-    return 'Maaf, saya belum paham pertanyaan itu 🙏 Coba kata kunci seperti: produk, scan, struk, QRIS, kasir, langganan, laporan, diskon, stok. Atau hubungi kami: noreply.absenta@gmail.com';
+    return 'Maaf, saya belum paham pertanyaan itu 🙏 Coba kata kunci seperti: produk, scan, struk, QRIS, kasir, langganan, laporan, diskon, stok, printer, install, atau backup. Atau hubungi kami langsung: noreply.absenta@gmail.com';
   };
 
   const initHelpChat = () => {
@@ -2801,7 +2814,7 @@ ${txRows}
     fab.addEventListener('click', () => {
       panel.classList.toggle('hidden');
       if (!panel.classList.contains('hidden') && !messages.childElementCount) {
-        addMsg('Halo! 👋 Saya asisten Kasir UMKM. Tanya apa saja: cara pakai fitur, langganan, printer, dan lainnya.', 'bot');
+        addMsg('Assalamualaikum! 🧕 Saya Aisyah, asisten Kasir UMKM. Tanya apa saja ya: cara pakai fitur, printer, QRIS, langganan, dan lainnya. Insya Allah saya bantu! 😊', 'bot');
       }
     });
     closeBtn.addEventListener('click', () => panel.classList.add('hidden'));
