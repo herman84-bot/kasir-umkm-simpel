@@ -1,5 +1,5 @@
 {
-  "id": "/kasir-umkm-simpel/",
+  "id": "com.umkm.idn",
   "name": "Kasir UMKM Simpel",
   "short_name": "Kasir UMKM",
   "description": "Aplikasi kasir dan manajemen stok untuk UMKM: transaksi, barcode scanner, struk thermal, laporan harian, dan multi-kasir.",
