@@ -154,7 +154,8 @@ const App = (() => {
   const fromDbCashier = c => ({
     id: String(c.id),
     name: c.name,
-    password: c.password || '1234'
+    password: c.password || '1234',
+    role: c.role || 'kasir'
   });
 
   // Supabase row → app purchase object
@@ -271,23 +272,31 @@ const App = (() => {
   };
 
   // Setelah login: pemilik toko selalu admin (akses penuh)
+  const ADMIN_SCREENS = ['dashboard', 'inventory', 'pembelian', 'kelolaKasir', 'pengaturan'];
+
+  // Hak akses mengikuti OPERATOR yang sedang aktif (admin = semua menu, kasir = terbatas)
   const applyRoleAccess = () => {
-    const owner = state.cashiers.find(c => c.role === 'admin') || state.cashiers[0];
-    const name = owner?.name || state.store?.name || 'Pemilik';
+    const active = state.cashiers.find(c => c.id === state.selectedCashierId)
+      || state.cashiers.find(c => c.role === 'admin') || state.cashiers[0];
+    const isAdmin = !active || active.role === 'admin';
+    const name = active?.name || state.store?.name || 'Pemilik';
     const nameEl = document.getElementById('sidebarUserName');
     const roleEl = document.getElementById('sidebarUserRole');
     const avatar = document.getElementById('userAvatar');
     if (nameEl) nameEl.textContent = name;
     if (roleEl) {
-      roleEl.textContent = '👑 Admin Toko';
-      roleEl.className = 'text-xs px-2 py-0.5 rounded-full bg-sky-700 text-sky-100';
+      roleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
+      roleEl.className = isAdmin
+        ? 'text-xs px-2 py-0.5 rounded-full bg-sky-700 text-sky-100'
+        : 'text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300';
     }
     if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
-    // Pemilik authenticated → semua menu tampil (sidebar + bottom nav)
-    document.querySelectorAll('[data-role="admin"]').forEach(el => { el.style.display = ''; });
+    // Sidebar + bottom nav: menu admin disembunyikan untuk operator kasir
+    document.querySelectorAll('[data-role="admin"]').forEach(el => {
+      el.style.display = isAdmin ? '' : 'none';
+    });
     const wrapper = document.getElementById('cashierSelectWrapper');
     if (wrapper) wrapper.style.display = '';
-    if (owner) state.selectedCashierId = owner.id;
   };
 
   const logout = async () => {
@@ -582,7 +591,13 @@ const App = (() => {
       const { data: cashiers } = await db
         .from('cashiers').select('*').order('id', { ascending: true });
       state.cashiers = cashiers ? cashiers.map(fromDbCashier) : [];
-      state.selectedCashierId = (state.cashiers.find(c => c.role === 'admin') || state.cashiers[0])?.id || '';
+      // Pengaman data lama: minimal harus ada satu admin agar pemilik tidak terkunci
+      if (state.cashiers.length && !state.cashiers.some(c => c.role === 'admin')) {
+        state.cashiers[0].role = 'admin';
+      }
+      // Pulihkan operator terakhir (agar kasir tidak naik jadi admin hanya dengan reload)
+      const savedOp = state.cashiers.find(c => c.id === state.selectedCashierId);
+      state.selectedCashierId = (savedOp || state.cashiers.find(c => c.role === 'admin') || state.cashiers[0])?.id || '';
       state.activeUserId = state.selectedCashierId;
 
       setLoadingStatus('Memuat transaksi...', 70);
@@ -999,6 +1014,12 @@ const App = (() => {
     renderCashierSelect();
     syncStorage();
     hideLoginModal();
+    // Terapkan hak akses operator baru; kasir tidak boleh tetap di layar admin
+    applyRoleAccess();
+    const currentScreen = document.querySelector('main section.screen:not(.hidden)')?.id;
+    if (user.role !== 'admin' && ADMIN_SCREENS.includes(currentScreen)) {
+      showScreen('kasir');
+    }
     return true;
   };
 
@@ -1335,7 +1356,7 @@ const App = (() => {
     const discountFromPercent = Math.round(subtotal * discountPercent / 100);
     const discount = discountNominal > 0 ? Math.min(discountNominal, subtotal) : discountFromPercent;
     const taxable = Math.max(0, subtotal - discount);
-    const tax = Math.round(taxable * 0.11);
+    const tax = 0; // UMKM umumnya non-PKP: tidak memungut PPN
     const total = Math.max(0, taxable + tax);
     const cash = Math.max(0, Number(state.cashAmount) || 0);
     const change = Math.max(0, cash - total);
@@ -1346,8 +1367,11 @@ const App = (() => {
     const today = new Date().toISOString().slice(0, 10);
     const todayTransactions = state.transactions.filter(tx => tx.date.slice(0, 10) === today);
     const totalSalesToday = todayTransactions.reduce((sum, tx) => sum + tx.total, 0);
-    const totalProductsSold = state.transactions.reduce((sum, tx) => sum + tx.items.reduce((qtySum, item) => qtySum + item.qty, 0), 0);
-    const totalProfit = state.transactions.reduce((sum, tx) => sum + tx.items.reduce((itemSum, item) => itemSum + item.qty * (item.price - item.cost), 0) - tx.tax, 0);
+    // Statistik dihitung dari transaksi HARI INI saja, laba pakai harga modal produk
+    const productCost = id => state.products.find(p => p.id === id)?.cost || 0;
+    const totalProductsSold = todayTransactions.reduce((sum, tx) => sum + tx.items.reduce((qtySum, item) => qtySum + item.qty, 0), 0);
+    const totalProfit = todayTransactions.reduce((sum, tx) =>
+      sum + tx.items.reduce((itemSum, item) => itemSum + item.qty * (item.price - (item.cost || productCost(item.id))), 0) - (tx.discount || 0), 0);
 
     dom.statSalesToday.textContent = formatCurrency(totalSalesToday);
     dom.statProductsSold.textContent = totalProductsSold;
@@ -1503,9 +1527,11 @@ const App = (() => {
     dom.cartTax.textContent = formatCurrency(totals.tax);
     dom.cartTotal.textContent = formatCurrency(totals.total);
     dom.cashChange.textContent = formatCurrency(totals.change);
-    dom.discountPercent.value = state.discountPercent;
-    dom.discountNominal.value = state.discountNominal;
-    dom.cashInput.value = state.cashAmount;
+    // Jangan timpa input yang sedang diketik user
+    const active = document.activeElement;
+    if (active !== dom.discountPercent) dom.discountPercent.value = state.discountPercent;
+    if (active !== dom.discountNominal) dom.discountNominal.value = state.discountNominal;
+    if (active !== dom.cashInput) dom.cashInput.value = state.cashAmount;
   };
 
   const renderInventory = () => {
@@ -1557,14 +1583,32 @@ const App = (() => {
           <td class="p-3 font-semibold">${formatCurrency(tx.total)}</td>
           <td class="p-3">${productCount} item</td>
           <td class="p-3"><span class="rounded-full px-2 py-0.5 text-xs font-medium ${tx.paymentMethod === 'Tunai' ? 'bg-green-100 text-green-700' : tx.paymentMethod === 'QRIS' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">${tx.paymentMethod || 'Tunai'}</span></td>
-          <td class="p-3">${formatCurrency(tx.cash)}</td>
-          <td class="p-3">${formatCurrency(tx.change)}</td>
+          <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.cash) : '-'}</td>
+          <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.change) : '-'}</td>
+          <td class="p-3"><button data-reprint="${tx.id}" class="rounded-2xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 transition whitespace-nowrap">🖨 Struk</button></td>
         </tr>
       `;
-    }).join('') || '<tr><td colspan="8" class="p-8 text-center text-slate-500">Belum ada transaksi.</td></tr>';
+    }).join('') || '<tr><td colspan="9" class="p-8 text-center text-slate-500">Belum ada transaksi.</td></tr>';
+
+    // Cetak ulang struk dari riwayat
+    dom.historyTable.querySelectorAll('[data-reprint]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tx = state.transactions.find(t => t.id === btn.dataset.reprint);
+        if (!tx) return;
+        populateReceipt(tx);
+        if (dom.printThermalBtn) dom.printThermalBtn._receiptData = tx;
+        dom.receiptModal.classList.remove('hidden');
+        dom.receiptModal.style.display = 'flex';
+      });
+    });
   };
 
   const showScreen = screenId => {
+    // Operator kasir tidak boleh membuka layar khusus admin
+    const activeOp = state.cashiers.find(c => c.id === state.selectedCashierId);
+    if (activeOp && activeOp.role !== 'admin' && ADMIN_SCREENS.includes(screenId)) {
+      screenId = 'kasir';
+    }
     dom.screens.forEach(screen => {
       screen.classList.toggle('hidden', screen.id !== screenId);
     });
@@ -1716,9 +1760,17 @@ const App = (() => {
       alert('Total transaksi tidak valid. Periksa diskon dan jumlah produk.');
       return;
     }
-    if (state.paymentMethod === 'Tunai' && totals.cash < totals.total) {
-      alert('Jumlah tunai belum cukup. Mohon masukkan nominal yang sesuai.');
-      return;
+    if (state.paymentMethod === 'Tunai') {
+      if (totals.cash < totals.total) {
+        alert('Jumlah tunai belum cukup. Mohon masukkan nominal yang sesuai.');
+        return;
+      }
+    } else {
+      // QRIS/Transfer: nominal bayar otomatis = total, tanpa kembalian
+      if (!confirm(`Pastikan pembayaran ${state.paymentMethod} sebesar ${formatCurrency(totals.total)} sudah DITERIMA (cek notifikasi/mutasi).\n\nLanjutkan simpan transaksi?`)) return;
+      state.cashAmount = totals.total;
+      totals.cash = totals.total;
+      totals.change = 0;
     }
 
     const cashier = getSelectedCashier();
@@ -1797,7 +1849,12 @@ const App = (() => {
     renderHistory();
     updateDashboard();
     renderSalesChart();
-    alert('Transaksi berhasil disimpan. Anda dapat mencetak struk sekarang.');
+    setPaymentMethod('Tunai'); // kembalikan default untuk transaksi berikutnya
+    // Langsung tampilkan struk agar kasir tinggal klik cetak
+    populateReceipt(transaction);
+    if (dom.printThermalBtn) dom.printThermalBtn._receiptData = transaction;
+    dom.receiptModal.classList.remove('hidden');
+    dom.receiptModal.style.display = 'flex';
   };
 
   const openReceipt = () => {
@@ -2081,13 +2138,14 @@ ${txRows}
   const resetShift = () => {
     if (!confirm('Tutup dan reset shift ini? Shift baru akan dimulai sekarang.')) return;
     state.shiftStartTime = new Date();
+    localStorage.setItem('shift_start_' + (state.storeId || ''), state.shiftStartTime.toISOString());
     closeShiftModal();
     alert('Shift berhasil direset. Shift baru dimulai sekarang.');
   };
 
   // ── Feature: Onboarding ──────────────────────────────────────────────────
   const showOnboarding = (storeName) => {
-    if (localStorage.getItem('onboardingDone')) return;
+    if (localStorage.getItem('onboardingDone_' + (state.storeId || ''))) return;
     const overlay = dom.onboardingOverlay;
     if (!overlay) return;
     const welcomeText = document.getElementById('onboardingWelcomeText');
@@ -2097,7 +2155,7 @@ ${txRows}
   };
 
   const hideOnboarding = (goToInventory = false) => {
-    localStorage.setItem('onboardingDone', '1');
+    localStorage.setItem('onboardingDone_' + (state.storeId || ''), '1');
     const overlay = dom.onboardingOverlay;
     if (overlay) { overlay.classList.add('hidden'); overlay.style.display = ''; }
     if (goToInventory) showScreen('inventory');
@@ -2139,6 +2197,12 @@ ${txRows}
       state.cashAmount = totals.total;
     }
     if (method === 'QRIS') {
+      const totalsCheck = calculateCart();
+      if (totalsCheck.total <= 0) {
+        alert('Keranjang masih kosong. Tambahkan produk dulu sebelum memilih QRIS.');
+        setPaymentMethod('Tunai');
+        return;
+      }
       const qrisImg = getQrisImage();
       if (qrisImg) {
         const totals = calculateCart();
@@ -2197,8 +2261,16 @@ ${txRows}
     });
 
     dom.cashierSelect.addEventListener('change', event => {
-      state.selectedCashierId = event.target.value;
-      syncStorage();
+      const targetId = event.target.value;
+      if (targetId === state.selectedCashierId) return;
+      // Ganti operator wajib verifikasi PIN
+      const target = state.cashiers.find(c => c.id === targetId);
+      dom.cashierSelect.value = state.selectedCashierId; // tahan dulu sampai PIN benar
+      if (!target) return;
+      dom.loginName.value = target.name;
+      dom.loginPassword.value = '';
+      showLoginModal();
+      setTimeout(() => dom.loginPassword.focus(), 100);
     });
 
     // Kelola Kasir
@@ -2373,7 +2445,7 @@ ${txRows}
       const regStoreName2 = document.getElementById('regStoreName')?.value || 'Toko';
       await enterAppAfterAuth();
       // Show onboarding for new registrations
-      if (!localStorage.getItem('onboardingDone')) {
+      if (!localStorage.getItem('onboardingDone_' + (state.storeId || ''))) {
         showOnboarding(regStoreName2);
       }
     });
@@ -2571,7 +2643,12 @@ ${txRows}
       }
     }
 
-    if (!state.shiftStartTime) state.shiftStartTime = new Date();
+    // Pulihkan waktu mulai shift dari penyimpanan agar tidak hilang saat reload
+    if (!state.shiftStartTime) {
+      const saved = localStorage.getItem('shift_start_' + (state.storeId || ''));
+      state.shiftStartTime = saved ? new Date(saved) : new Date();
+      if (!saved) localStorage.setItem('shift_start_' + (state.storeId || ''), state.shiftStartTime.toISOString());
+    }
 
     // Cek masa aktif: kalau habis, tampilkan halaman perpanjangan dan jangan buka app
     if (!checkSubscription()) {

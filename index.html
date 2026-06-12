@@ -303,12 +303,12 @@
           <article class="rounded-3xl bg-white p-6 shadow-xl border border-slate-200">
             <h3 class="text-sm uppercase tracking-[0.2em] text-slate-500">Produk Terjual</h3>
             <p class="mt-4 text-4xl font-semibold text-slate-900" id="statProductsSold">0</p>
-            <p class="mt-2 text-slate-500">Jumlah unit produk yang terjual.</p>
+            <p class="mt-2 text-slate-500">Unit produk terjual hari ini.</p>
           </article>
           <article class="rounded-3xl bg-white p-6 shadow-xl border border-slate-200">
             <h3 class="text-sm uppercase tracking-[0.2em] text-slate-500">Estimasi Keuntungan Bersih</h3>
             <p class="mt-4 text-4xl font-semibold text-slate-900" id="statProfit">Rp0</p>
-            <p class="mt-2 text-slate-500">Pendapatan setelah biaya dan pajak.</p>
+            <p class="mt-2 text-slate-500">Laba hari ini (harga jual − modal − diskon).</p>
           </article>
         </div>
         <div class="rounded-3xl bg-white p-6 shadow-xl border border-slate-200 mb-6">
@@ -424,8 +424,8 @@
                   <input id="discountNominal" type="number" min="0" value="0" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" />
                 </label>
               </div>
-              <div class="flex items-center justify-between text-sm text-slate-600">
-                <span>Pajak 11%</span><span id="cartTax">Rp0</span>
+              <div class="hidden items-center justify-between text-sm text-slate-600">
+                <span>Pajak</span><span id="cartTax">Rp0</span>
               </div>
               <div class="flex items-center justify-between text-lg font-semibold">
                 <span>Total Akhir</span><span id="cartTotal">Rp0</span>
@@ -536,6 +536,7 @@
                 <th class="p-3">Metode</th>
                 <th class="p-3">Tunai</th>
                 <th class="p-3">Kembalian</th>
+                <th class="p-3">Aksi</th>
               </tr>
             </thead>
             <tbody id="historyTable"></tbody>
