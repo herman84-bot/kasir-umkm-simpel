@@ -863,7 +863,8 @@
           <p class="text-center text-xs" id="receiptStoreNote">Terima kasih!</p>
         </div>
       </div>
-      <div class="flex gap-3 border-t border-slate-200 p-4 no-print">
+      <div class="flex flex-wrap gap-3 border-t border-slate-200 p-4 no-print">
+        <button id="printBluetoothBtn" class="hidden flex-1 rounded-2xl bg-sky-600 px-4 py-3 text-white font-semibold hover:bg-sky-700 transition text-sm whitespace-nowrap">📶 Cetak Bluetooth</button>
         <button id="printThermalBtn" class="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-white font-semibold hover:bg-slate-800 transition text-sm">🖨 Cetak Thermal</button>
         <button id="printReceipt" class="flex-1 rounded-2xl bg-white border border-slate-300 px-4 py-3 text-slate-700 hover:bg-slate-100 transition text-sm">🖨 Cetak Biasa</button>
         <button id="closeReceiptBottom" class="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-700 hover:bg-slate-100 transition text-sm">Tutup</button>
@@ -1084,6 +1085,24 @@
   </div>
 
   <input type="file" id="backupFileInput" accept="application/json" class="hidden" />
+  <!-- Chat Bantuan -->
+  <button id="helpChatFab" class="hidden fixed bottom-20 md:bottom-6 right-4 z-[90] h-14 w-14 rounded-full bg-sky-600 text-white text-2xl shadow-xl hover:bg-sky-700 transition flex items-center justify-center no-print">💬</button>
+  <div id="helpChatPanel" class="hidden fixed bottom-36 md:bottom-24 right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm rounded-3xl bg-white border border-slate-200 shadow-2xl flex flex-col overflow-hidden no-print" style="height:28rem">
+    <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
+      <div>
+        <p class="font-semibold text-sm">Asisten Kasir 🤖</p>
+        <p class="text-xs text-slate-300">Tanya apa saja seputar aplikasi</p>
+      </div>
+      <button id="helpChatClose" class="text-slate-300 hover:text-white text-xl leading-none">✕</button>
+    </div>
+    <div id="helpChatMessages" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50 text-sm"></div>
+    <div id="helpChatQuick" class="px-4 pb-2 pt-1 bg-slate-50 flex flex-wrap gap-2"></div>
+    <form id="helpChatForm" class="flex gap-2 border-t border-slate-200 p-3 bg-white">
+      <input id="helpChatInput" type="text" placeholder="Ketik pertanyaan..." class="flex-1 rounded-2xl border border-slate-300 px-4 py-2.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none" autocomplete="off" />
+      <button type="submit" class="rounded-2xl bg-sky-600 px-4 py-2.5 text-white text-sm font-semibold hover:bg-sky-700 transition">Kirim</button>
+    </form>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
