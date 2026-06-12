@@ -667,8 +667,24 @@ const App = (() => {
     if (data) {
       state.store = data;
       state.storeId = data.id;
+      // Sinkron QRIS dari cloud ke perangkat ini (cloud = sumber utama)
+      if (data.qris_image) {
+        localStorage.setItem('qris_image', data.qris_image);
+        if (data.qris_payload) localStorage.setItem('qris_payload', data.qris_payload);
+        else localStorage.removeItem('qris_payload');
+      }
     }
     return data;
+  };
+
+  // Simpan QRIS ke cloud agar tersinkron antar perangkat (abaikan jika kolom belum ada)
+  const saveQrisToCloud = async (image, payload) => {
+    if (!db || !state.storeId) return;
+    const { error } = await db.from('stores')
+      .update({ qris_image: image || null, qris_payload: payload || null })
+      .eq('id', state.storeId);
+    if (error) console.warn('QRIS tidak tersimpan ke cloud (jalankan 04_final_sync.sql):', error.message);
+    else if (state.store) { state.store.qris_image = image; state.store.qris_payload = payload; }
   };
 
   // Memuat seluruh data toko (dipanggil SETELAH login berhasil)
@@ -2724,6 +2740,8 @@ ${txRows}
         } else {
           alert('Gambar tersimpan, tapi isi QR tidak terbaca — QRIS Dinamis tidak tersedia. Coba upload gambar yang lebih jelas/tidak terpotong jika ingin fitur nominal otomatis.');
         }
+        // Sinkron ke cloud agar perangkat lain ikut dapat
+        await saveQrisToCloud(base64, payload && payload.startsWith('000201') ? payload : null);
       };
       reader.readAsDataURL(file);
     });
@@ -2731,6 +2749,7 @@ ${txRows}
       if (!confirm('Hapus gambar QRIS?')) return;
       localStorage.removeItem('qris_image');
       localStorage.removeItem('qris_payload');
+      saveQrisToCloud(null, null);
       const wrapper = document.getElementById('qrisPreviewWrapper');
       const fileInput = document.getElementById('qrisFileInput');
       if (wrapper) wrapper.classList.add('hidden');
