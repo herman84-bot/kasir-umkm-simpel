@@ -222,6 +222,7 @@
         <button data-screen="inventory" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📦 Inventory</button>
         <button data-screen="pembelian" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">🛍 Pembelian</button>
         <button data-screen="riwayat" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📋 Riwayat</button>
+        <button data-screen="kasbon" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📒 Kasbon</button>
         <button data-screen="kelolaKasir" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">👥 Kelola Kasir</button>
         <button data-screen="pengaturan" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">⚙️ Pengaturan</button>
         <button data-screen="tentang" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">ℹ️ Tentang</button>
@@ -262,6 +263,10 @@
       <button data-screen="riwayat" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">📋</span>
         <span class="text-[10px] mt-0.5 leading-tight">Riwayat</span>
+      </button>
+      <button data-screen="kasbon" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+        <span class="text-xl leading-none">📒</span>
+        <span class="text-[10px] mt-0.5 leading-tight">Kasbon</span>
       </button>
       <button data-screen="kelolaKasir" data-role="admin" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">👥</span>
@@ -549,6 +554,29 @@
             <tbody id="historyTable"></tbody>
           </table>
         </div>
+      </section>
+
+      <!-- Kasbon / Hutang Pelanggan -->
+      <section id="kasbon" class="screen hidden">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div>
+            <h3 class="text-2xl font-semibold">📒 Kasbon Pelanggan</h3>
+            <p class="text-slate-500">Catat hutang pelanggan dan tandai saat lunas. <span class="text-amber-600 font-medium">Gratis: maks. 5 kasbon aktif — Premium: tanpa batas 👑</span></p>
+          </div>
+          <button id="addDebtBtn" class="rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition whitespace-nowrap">+ Catat Kasbon</button>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-6">
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-5">
+            <p class="text-sm uppercase tracking-[0.2em] text-slate-500">Total Piutang</p>
+            <p class="mt-2 text-2xl font-bold text-rose-600" id="debtTotalAmount">Rp0</p>
+          </div>
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-5">
+            <p class="text-sm uppercase tracking-[0.2em] text-slate-500">Belum Lunas</p>
+            <p class="mt-2 text-2xl font-bold text-slate-900" id="debtActiveCount">0</p>
+          </div>
+        </div>
+        <input id="debtSearchInput" type="search" placeholder="Cari nama pelanggan..." class="mb-4 w-full sm:w-80 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+        <div id="debtList" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"></div>
       </section>
 
       <!-- Pengaturan Toko (Admin Only) -->
@@ -865,6 +893,7 @@
         </div>
       </div>
       <div class="flex flex-wrap gap-3 border-t border-slate-200 p-4 no-print">
+        <button id="waReceiptBtn" class="flex-1 rounded-2xl bg-green-600 px-4 py-3 text-white font-semibold hover:bg-green-700 transition text-sm whitespace-nowrap">💬 Kirim via WA</button>
         <button id="printBluetoothBtn" class="hidden flex-1 rounded-2xl bg-sky-600 px-4 py-3 text-white font-semibold hover:bg-sky-700 transition text-sm whitespace-nowrap">📶 Cetak Bluetooth</button>
         <button id="printThermalBtn" class="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-white font-semibold hover:bg-slate-800 transition text-sm">🖨 Cetak Thermal</button>
         <button id="printReceipt" class="flex-1 rounded-2xl bg-white border border-slate-300 px-4 py-3 text-slate-700 hover:bg-slate-100 transition text-sm">🖨 Cetak Biasa</button>
@@ -1093,6 +1122,36 @@
   </div>
 
   <input type="file" id="backupFileInput" accept="application/json" class="hidden" />
+  <!-- Modal Kasbon -->
+  <div id="debtModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 py-6">
+    <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+        <h3 class="text-lg font-bold">Catat Kasbon Baru</h3>
+        <button id="closeDebtModal" type="button" class="rounded-full bg-slate-100 p-2 hover:bg-slate-200 text-xl leading-none">×</button>
+      </div>
+      <form id="debtForm" class="space-y-4 p-6">
+        <p id="debtFormError" class="hidden rounded-2xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-600"></p>
+        <label class="block">
+          <span class="text-slate-700 font-medium text-sm">Nama Pelanggan</span>
+          <input id="debtFormName" required maxlength="80" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Bu Siti" />
+        </label>
+        <label class="block">
+          <span class="text-slate-700 font-medium text-sm">No. WhatsApp <span class="text-slate-400">(opsional, untuk tagih)</span></span>
+          <input id="debtFormPhone" maxlength="20" inputmode="numeric" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: 08123456789" />
+        </label>
+        <label class="block">
+          <span class="text-slate-700 font-medium text-sm">Jumlah Hutang (Rp)</span>
+          <input id="debtFormAmount" required type="number" min="1" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: 35000" />
+        </label>
+        <label class="block">
+          <span class="text-slate-700 font-medium text-sm">Catatan <span class="text-slate-400">(opsional)</span></span>
+          <input id="debtFormNote" maxlength="150" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: beras 5kg + minyak" />
+        </label>
+        <button type="submit" class="w-full rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition">💾 Simpan Kasbon</button>
+      </form>
+    </div>
+  </div>
+
   <!-- Chat Bantuan -->
   <button id="helpChatFab" class="hidden fixed bottom-20 md:bottom-6 right-4 z-[90] h-14 w-14 rounded-full bg-gradient-to-br from-teal-400 to-sky-600 text-3xl shadow-xl hover:scale-110 transition-transform flex items-center justify-center no-print" title="Tanya Aisyah">🧕</button>
   <div id="helpChatPanel" class="hidden fixed bottom-36 md:bottom-24 right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm rounded-3xl bg-white border border-slate-200 shadow-2xl flex flex-col overflow-hidden no-print" style="height:28rem">

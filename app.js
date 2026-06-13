@@ -464,6 +464,7 @@ const App = (() => {
     reportRange: '7',
     selectedCashierId: '',
     activeUserId: '',
+    debts: [],
     darkMode: false,
     currentTransaction: null,
     draftPurchase: { supplier: '', invoice: '', items: [] },
@@ -704,6 +705,10 @@ const App = (() => {
       return;
     }
 
+    // Kirim transaksi offline yang tertunda SEBELUM memuat data,
+    // agar stok & riwayat yang dimuat sudah termasuk transaksi tersebut
+    await flushOfflineQueue();
+
     try {
       setLoadingStatus('Memuat produk...', 40);
       const { data: products, error: pErr } = await db
@@ -736,6 +741,16 @@ const App = (() => {
         .from('purchases').select('*, purchase_items(*)')
         .order('created_at', { ascending: false });
       state.purchases = purchases ? purchases.map(fromDbPurchase) : [];
+
+      // Kasbon (tabel bisa belum ada jika 05_kasbon.sql belum dijalankan)
+      const { data: debts, error: dErr } = await db
+        .from('debts').select('*').order('created_at', { ascending: false });
+      if (dErr) {
+        console.warn('Kasbon belum aktif (jalankan supabase/05_kasbon.sql):', dErr.message);
+        try { state.debts = JSON.parse(localStorage.getItem('pos_debts') || '[]'); } catch { state.debts = []; }
+      } else {
+        state.debts = debts || [];
+      }
 
       setLoadingStatus('Siap!', 100);
     } catch (err) {
@@ -1749,6 +1764,7 @@ const App = (() => {
     });
     if (screenId === 'kelolaKasir') renderCashierManagement();
     if (screenId === 'pengaturan') renderSettings();
+    if (screenId === 'kasbon') renderKasbon();
   };
 
   const showInventoryModal = (title = 'Tambah Produk') => {
@@ -1873,6 +1889,90 @@ const App = (() => {
     hideInventoryModal();
   };
 
+  // ── Antrean transaksi offline: simpan lokal saat gagal, sinkron saat online ─
+  const OFFLINE_QUEUE_KEY = 'offline_tx_queue';
+  const getOfflineQueue = () => {
+    try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); } catch { return []; }
+  };
+  const queueOfflineTransaction = entry => {
+    const q = getOfflineQueue();
+    q.push(entry);
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q));
+  };
+  const flushOfflineQueue = async () => {
+    if (!db || !navigator.onLine || !state.storeId) return 0;
+    const q = getOfflineQueue();
+    if (!q.length) return 0;
+    const remaining = [];
+    let synced = 0;
+    for (const entry of q) {
+      try {
+        const { data: tx, error: txErr } = await db.from('transactions').insert({
+          store_id: state.storeId,
+          cashier_name: entry.cashier,
+          total_amount: entry.total,
+          payment_amount: entry.cash,
+          change_amount: entry.change,
+          discount_amount: entry.discount || 0,
+          payment_method: entry.paymentMethod || 'Tunai',
+          created_at: entry.date
+        }).select().single();
+        if (txErr) throw txErr;
+        const itemRows = entry.items.map(item => ({
+          transaction_id: tx.id,
+          product_id: parseInt(item.id) || null,
+          product_name: item.name,
+          quantity: item.qty,
+          price_at_sale: item.price,
+          subtotal: item.qty * item.price
+        }));
+        const { error: itemsErr } = await db.from('transaction_items').insert(itemRows);
+        if (itemsErr) throw itemsErr;
+        // Kurangi stok di cloud sesuai qty yang terjual offline
+        for (const item of entry.items) {
+          const numId = parseInt(item.id);
+          if (isNaN(numId)) continue;
+          const { data: prod } = await db.from('products').select('stock').eq('id', numId).maybeSingle();
+          if (prod) await db.from('products').update({ stock: Math.max(0, prod.stock - item.qty) }).eq('id', numId);
+        }
+        synced++;
+      } catch (e) {
+        remaining.push(entry); // gagal lagi → coba lain kali
+      }
+    }
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
+    if (synced > 0) console.log(`✅ ${synced} transaksi offline tersinkron ke cloud.`);
+    return synced;
+  };
+
+  // ── Kirim struk via WhatsApp (gratis — sekaligus promosi aplikasi) ────────
+  const sendReceiptWhatsApp = data => {
+    const store = getStoreSettings();
+    const rp = n => 'Rp' + Number(n || 0).toLocaleString('id-ID');
+    const lines = [];
+    lines.push(`*${store.name}*`);
+    if (store.address) lines.push(store.address);
+    lines.push('--------------------------------');
+    lines.push(`No: ${data.id || '-'}`);
+    lines.push(`Tgl: ${new Date(data.date).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`);
+    lines.push(`Kasir: ${data.cashier || '-'}`);
+    lines.push('--------------------------------');
+    data.items.forEach(item => {
+      lines.push(`${item.name}`);
+      lines.push(`  ${item.qty} x ${rp(item.price)} = ${rp(item.qty * item.price)}`);
+    });
+    lines.push('--------------------------------');
+    if (data.discount > 0) lines.push(`Diskon: -${rp(data.discount)}`);
+    lines.push(`*TOTAL: ${rp(data.total)}*`);
+    lines.push(`${data.paymentMethod || 'Tunai'}: ${rp(data.cash)}`);
+    lines.push(`Kembali: ${rp(data.change)}`);
+    lines.push('--------------------------------');
+    lines.push(store.note || 'Terima kasih!');
+    lines.push('');
+    lines.push('_Struk digital dari Kasir UMKM Simpel_');
+    window.open('https://wa.me/?text=' + encodeURIComponent(lines.join('\n')), '_blank');
+  };
+
   const handlePayment = async () => {
     const cartItems = getCartItems();
     if (!cartItems.length) {
@@ -1938,8 +2038,19 @@ const App = (() => {
           }
         }
       } catch (err) {
-        alert('Gagal menyimpan transaksi ke database: ' + err.message);
-        return;
+        // Internet putus / server bermasalah → simpan ke antrean offline,
+        // transaksi tetap jalan dan akan otomatis tersinkron saat online.
+        queueOfflineTransaction({
+          cashier: cashier.name,
+          total: totals.total,
+          cash: totals.cash,
+          change: totals.change,
+          discount: totals.discount || 0,
+          paymentMethod: state.paymentMethod || 'Tunai',
+          items: cartItems.map(item => ({ id: item.id, name: item.name, qty: item.qty, price: item.price })),
+          date: new Date().toISOString()
+        });
+        alert('⚠️ Koneksi bermasalah — transaksi DISIMPAN OFFLINE dan akan otomatis tersinkron saat internet kembali. Struk tetap bisa dicetak.');
       }
     }
 
@@ -2820,6 +2931,21 @@ ${txRows}
 
     // ── Feature 7: Onboarding ──
     bindOnboarding();
+
+    // ── Kasbon ──
+    document.getElementById('addDebtBtn')?.addEventListener('click', openDebtModal);
+    document.getElementById('closeDebtModal')?.addEventListener('click', closeDebtModal);
+    document.getElementById('debtForm')?.addEventListener('submit', saveDebt);
+    document.getElementById('debtSearchInput')?.addEventListener('input', renderKasbon);
+
+    // ── Struk WhatsApp ──
+    document.getElementById('waReceiptBtn')?.addEventListener('click', () => {
+      const data = dom.printThermalBtn?._receiptData;
+      if (data) sendReceiptWhatsApp(data);
+    });
+
+    // ── Offline auto-sync ──
+    window.addEventListener('online', () => flushOfflineQueue());
   };
 
   const renderAll = () => {
@@ -2885,6 +3011,135 @@ ${txRows}
     showScreen('dashboard');
     renderAll();
     setPaymentMethod('Tunai');
+  };
+
+  // ── Kasbon / Hutang Pelanggan (Premium: tanpa batas; Gratis: maks 5 aktif) ─
+  const saveDebtsLocal = () => localStorage.setItem('pos_debts', JSON.stringify(state.debts || []));
+
+  const renderKasbon = () => {
+    const list = document.getElementById('debtList');
+    if (!list) return;
+    const debts = state.debts || [];
+    const search = (document.getElementById('debtSearchInput')?.value || '').toLowerCase();
+    const active = debts.filter(d => d.status !== 'lunas');
+    const totalAmount = active.reduce((s, d) => s + Number(d.amount || 0), 0);
+
+    const elTotal = document.getElementById('debtTotalAmount');
+    const elCount = document.getElementById('debtActiveCount');
+    if (elTotal) elTotal.textContent = formatCurrency(totalAmount);
+    if (elCount) elCount.textContent = active.length;
+
+    const filtered = debts.filter(d => !search || (d.customer_name || '').toLowerCase().includes(search));
+    // Belum lunas dulu, lalu yang lunas (maks 20 terakhir agar tidak penuh)
+    const sorted = [...filtered.filter(d => d.status !== 'lunas'), ...filtered.filter(d => d.status === 'lunas').slice(0, 20)];
+
+    list.innerHTML = sorted.map(d => {
+      const isPaid = d.status === 'lunas';
+      const date = new Date(d.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+      const tagBtn = (!isPaid && d.phone) ? `<button data-debt-wa="${esc(d.id)}" class="flex-1 rounded-2xl bg-green-600 px-3 py-2 text-xs text-white font-semibold hover:bg-green-700 transition">💬 Tagih</button>` : '';
+      return `
+        <div class="rounded-3xl bg-white border ${isPaid ? 'border-slate-200 opacity-60' : 'border-amber-200'} shadow-sm p-5 space-y-3">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="font-semibold text-slate-900 truncate">${esc(d.customer_name)}</p>
+              <p class="text-xs text-slate-400">${date}${d.note ? ' — ' + esc(d.note) : ''}</p>
+            </div>
+            <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
+          </div>
+          <p class="text-2xl font-bold ${isPaid ? 'text-slate-400 line-through' : 'text-rose-600'}">${formatCurrency(d.amount)}</p>
+          <div class="flex gap-2">
+            ${tagBtn}
+            ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-2xl bg-sky-600 px-3 py-2 text-xs text-white font-semibold hover:bg-sky-700 transition">✅ Tandai Lunas</button>` : ''}
+            <button data-debt-delete="${esc(d.id)}" class="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 hover:bg-rose-100 transition">🗑</button>
+          </div>
+        </div>`;
+    }).join('') || '<div class="col-span-full rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">Belum ada catatan kasbon. Klik "+ Catat Kasbon" untuk mulai.</div>';
+
+    list.querySelectorAll('[data-debt-paid]').forEach(btn =>
+      btn.addEventListener('click', () => markDebtPaid(btn.dataset.debtPaid)));
+    list.querySelectorAll('[data-debt-delete]').forEach(btn =>
+      btn.addEventListener('click', () => deleteDebt(btn.dataset.debtDelete)));
+    list.querySelectorAll('[data-debt-wa]').forEach(btn =>
+      btn.addEventListener('click', () => sendDebtReminder(btn.dataset.debtWa)));
+  };
+
+  const openDebtModal = () => {
+    // Gerbang premium: gratis maksimal 5 kasbon aktif
+    const activeCount = (state.debts || []).filter(d => d.status !== 'lunas').length;
+    if (activeCount >= 5 && !requirePremium('Kasbon lebih dari 5 catatan aktif')) return;
+    const m = document.getElementById('debtModal');
+    document.getElementById('debtForm')?.reset();
+    document.getElementById('debtFormError')?.classList.add('hidden');
+    if (m) { m.classList.remove('hidden'); m.style.display = 'flex'; }
+    document.getElementById('debtFormName')?.focus();
+  };
+
+  const closeDebtModal = () => {
+    const m = document.getElementById('debtModal');
+    if (m) { m.classList.add('hidden'); m.style.display = ''; }
+  };
+
+  const saveDebt = async e => {
+    e.preventDefault();
+    const name = document.getElementById('debtFormName').value.trim();
+    const phone = document.getElementById('debtFormPhone').value.trim();
+    const amount = Number(document.getElementById('debtFormAmount').value);
+    const note = document.getElementById('debtFormNote').value.trim();
+    const errEl = document.getElementById('debtFormError');
+    if (!name || !amount || amount <= 0) {
+      if (errEl) { errEl.textContent = 'Nama dan jumlah hutang wajib diisi.'; errEl.classList.remove('hidden'); }
+      return;
+    }
+    let record = { customer_name: name, phone, amount, note, status: 'belum', created_at: new Date().toISOString() };
+    if (db && state.storeId) {
+      const { data, error } = await db.from('debts')
+        .insert({ ...record, store_id: state.storeId }).select().single();
+      if (error) {
+        // Tabel belum ada → simpan lokal saja
+        record.id = 'D' + Date.now();
+      } else {
+        record = data;
+      }
+    } else {
+      record.id = 'D' + Date.now();
+    }
+    state.debts = state.debts || [];
+    state.debts.unshift(record);
+    saveDebtsLocal();
+    closeDebtModal();
+    renderKasbon();
+  };
+
+  const markDebtPaid = async id => {
+    const debt = (state.debts || []).find(d => String(d.id) === String(id));
+    if (!debt) return;
+    debt.status = 'lunas';
+    debt.paid_at = new Date().toISOString();
+    if (db && !isNaN(parseInt(id))) {
+      await db.from('debts').update({ status: 'lunas', paid_at: debt.paid_at }).eq('id', parseInt(id));
+    }
+    saveDebtsLocal();
+    renderKasbon();
+  };
+
+  const deleteDebt = async id => {
+    if (!confirm('Hapus catatan kasbon ini?')) return;
+    state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
+    if (db && !isNaN(parseInt(id))) {
+      await db.from('debts').delete().eq('id', parseInt(id));
+    }
+    saveDebtsLocal();
+    renderKasbon();
+  };
+
+  const sendDebtReminder = id => {
+    const debt = (state.debts || []).find(d => String(d.id) === String(id));
+    if (!debt || !debt.phone) return;
+    const store = getStoreSettings();
+    // 08xxx → 628xxx untuk wa.me
+    const phone = debt.phone.replace(/[^0-9]/g, '').replace(/^0/, '62');
+    const msg = `Halo ${debt.customer_name} 🙏\n\nMengingatkan kasbon di *${store.name}*:\nJumlah: *${formatCurrency(debt.amount)}*${debt.note ? '\nKeterangan: ' + debt.note : ''}\nTanggal: ${new Date(debt.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}\n\nMohon konfirmasinya ya. Terima kasih! 😊`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   // ── Scanner Barcode Fisik (Bluetooth/USB, mode HID "keyboard wedge") ─────
