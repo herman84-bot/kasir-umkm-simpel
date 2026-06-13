@@ -943,6 +943,11 @@ const App = (() => {
     if ((state.stores || []).length <= 1) { alert('Tidak bisa menghapus cabang terakhir.'); return; }
     const s = (state.stores || []).find(x => String(x.id) === String(id));
     if (!s) return;
+    // Toko utama (pusat) = penambat langganan. Mencegah hapus agar status langganan tidak berubah.
+    if (String(id) === String(primaryStore()?.id)) {
+      alert('Toko Utama (Pusat) tidak bisa dihapus karena menjadi acuan langganan. Hapus/ganti cabang lain terlebih dahulu.');
+      return;
+    }
     if (!confirm('Hapus cabang "' + (s.name || '') + '" beserta SEMUA produk, transaksi, dan datanya? Tindakan ini tidak bisa dibatalkan.')) return;
     const { error } = await db.from('stores').delete().eq('id', id);
     if (error) { alert('Gagal menghapus: ' + error.message); return; }
@@ -960,8 +965,10 @@ const App = (() => {
     const list = document.getElementById('branchList');
     if (!list) return;
     const stores = state.stores || [];
+    const primaryId = String(primaryStore()?.id);
     list.innerHTML = stores.map(s => {
       const isActive = String(s.id) === String(state.storeId);
+      const isPrimary = String(s.id) === primaryId;
       return `<div class="flex items-center justify-between gap-3 rounded-2xl border ${isActive ? 'border-sky-400 bg-sky-50' : 'border-slate-200 bg-white'} px-4 py-3">
         <div class="min-w-0">
           <p class="font-semibold truncate">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-sky-600">(Pusat)</span>' : ''}${isActive ? ' <span class="text-xs text-emerald-600">• aktif</span>' : ''}</p>
@@ -969,7 +976,7 @@ const App = (() => {
         <div class="flex gap-1 shrink-0">
           ${isActive ? '' : `<button data-branch-switch="${esc(s.id)}" class="rounded-lg bg-sky-600 px-2.5 py-1.5 text-white text-xs hover:bg-sky-700">Buka</button>`}
           <button data-branch-rename="${esc(s.id)}" class="rounded-lg bg-slate-200 px-2.5 py-1.5 text-slate-700 text-xs hover:bg-slate-300">Nama</button>
-          ${stores.length > 1 ? `<button data-branch-delete="${esc(s.id)}" class="rounded-lg bg-rose-100 px-2.5 py-1.5 text-rose-700 text-xs hover:bg-rose-200">Hapus</button>` : ''}
+          ${(stores.length > 1 && !isPrimary) ? `<button data-branch-delete="${esc(s.id)}" class="rounded-lg bg-rose-100 px-2.5 py-1.5 text-rose-700 text-xs hover:bg-rose-200">Hapus</button>` : ''}
         </div>
       </div>`;
     }).join('');
