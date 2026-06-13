@@ -71,12 +71,16 @@ const App = (() => {
   const SUBS_EMAIL = 'noreply.absenta@gmail.com';
 
   // Hitung sisa hari masa aktif (trial atau premium, ambil yang paling lama)
-  const getSubscriptionDaysLeft = () => {
-    const s = state.store;
+  // Toko utama (pusat) = penambat langganan. Semua cabang berbagi langganan ini.
+  const primaryStore = () =>
+    (state.stores || []).find(s => s.is_main) || (state.stores || [])[0] || state.store;
+
+  // Hitung sisa hari berdasarkan kolom langganan tertentu pada TOKO UTAMA.
+  const daysLeftFor = cols => {
+    const s = primaryStore();
     if (!s) return null; // belum ada data toko → jangan blokir
-    const candidates = [s.trial_ends_at, s.premium_until]
-      .filter(Boolean).map(d => new Date(d).getTime());
-    // Kolom belum ada (SQL belum dijalankan) → fallback 30 hari dari created_at
+    const candidates = cols.map(c => s[c]).filter(Boolean).map(d => new Date(d).getTime());
+    // Kolom belum ada (SQL belum dijalankan) → fallback 30 hari dari created_at (trial)
     if (!candidates.length) {
       if (!s.created_at) return null;
       candidates.push(new Date(s.created_at).getTime() + 30 * 24 * 3600 * 1000);
@@ -84,6 +88,11 @@ const App = (() => {
     const expiry = Math.max(...candidates);
     return Math.ceil((expiry - Date.now()) / (24 * 3600 * 1000));
   };
+
+  // Premium aktif jika trial / premium_until / (atau Bisnis, karena Bisnis mencakup Premium).
+  const getSubscriptionDaysLeft = () => daysLeftFor(['trial_ends_at', 'premium_until', 'business_until']);
+  // Bisnis aktif jika trial / business_until.
+  const getBusinessDaysLeft = () => daysLeftFor(['trial_ends_at', 'business_until']);
 
   const renderSubsQr = () => {
     const el = document.getElementById('subsQrCode');
@@ -97,14 +106,15 @@ const App = (() => {
     }
   };
 
-  const showSubsOverlay = () => {
+  const showSubsOverlay = (plan = null) => {
     const overlay = document.getElementById('subsOverlay');
     if (!overlay) return;
     renderSubsQr();
     const emailBtn = document.getElementById('subsEmailBtn');
     if (emailBtn) {
-      const subject = encodeURIComponent('Konfirmasi Pembayaran Langganan Kasir UMKM Simpel');
-      const body = encodeURIComponent(`Halo, saya sudah membayar langganan Kasir UMKM Simpel.\n\nEmail akun: ${state.authUser?.email || '-'}\nNama toko: ${state.store?.name || '-'}\n\n(Lampirkan screenshot bukti pembayaran di email ini)`);
+      const pkg = plan ? `${plan.label} (${plan.price}/bulan)` : 'Premium';
+      const subject = encodeURIComponent(`Konfirmasi Pembayaran Langganan ${pkg} - Kasir UMKM Simpel`);
+      const body = encodeURIComponent(`Halo, saya sudah membayar langganan paket ${pkg} Kasir UMKM Simpel.\n\nEmail akun: ${state.authUser?.email || '-'}\nNama toko: ${state.store?.name || '-'}\n\n(Lampirkan screenshot bukti pembayaran di email ini)`);
       emailBtn.href = `mailto:${SUBS_EMAIL}?subject=${subject}&body=${body}`;
     }
     overlay.classList.remove('hidden');
@@ -116,21 +126,69 @@ const App = (() => {
     if (overlay) { overlay.classList.add('hidden'); overlay.style.display = ''; }
   };
 
-  // ── Model FREEMIUM: aplikasi dasar gratis selamanya. ──
-  // Premium aktif jika trial (30 hari pertama) atau premium_until masih berlaku.
+  // ── Model FREEMIUM bertingkat: aplikasi dasar gratis selamanya. ──
+  //  Gratis → Premium (Rp25.000) → Bisnis (Rp50.000, mencakup Premium + Multi-Cabang)
   const isPremiumActive = () => {
-    const daysLeft = getSubscriptionDaysLeft();
-    return daysLeft === null ? true : daysLeft > 0;
+    const d = getSubscriptionDaysLeft();
+    return d === null ? true : d > 0;
+  };
+  const isBusinessActive = () => {
+    const d = getBusinessDaysLeft();
+    return d === null ? true : d > 0;
   };
 
-  // Gerbang fitur premium: true jika boleh lanjut, false + tampilkan upgrade jika tidak
-  const requirePremium = featureName => {
-    if (isPremiumActive()) return true;
+  const PLANS = {
+    premium: {
+      title: '👑 Upgrade ke Premium',
+      label: 'Premium',
+      price: 'Rp25.000',
+      features: [
+        'QRIS Dinamis — nominal otomatis tertanam di QR',
+        'Export laporan PDF',
+        'Operator kasir tanpa batas',
+        'Kasbon tanpa batas',
+        'Dukungan prioritas via email'
+      ]
+    },
+    business: {
+      title: '🏢 Upgrade ke Bisnis',
+      label: 'Bisnis',
+      price: 'Rp50.000',
+      features: [
+        'Semua fitur Premium',
+        'Multi-Cabang tanpa batas',
+        'Dashboard Pusat — pantau semua cabang',
+        'Stok & transaksi terpisah per cabang',
+        'Dukungan prioritas via email'
+      ]
+    }
+  };
+
+  const showUpgradeOverlay = (tier, featureName) => {
+    const p = PLANS[tier] || PLANS.premium;
     const title = document.getElementById('subsOverlayTitle');
     const desc = document.getElementById('subsOverlayDesc');
-    if (title) title.textContent = '👑 Fitur Premium';
-    if (desc) desc.textContent = `${featureName} adalah fitur Premium. Berlangganan untuk membukanya — aplikasi dasar tetap gratis selamanya.`;
-    showSubsOverlay();
+    const price = document.getElementById('subsOverlayPrice');
+    const feats = document.getElementById('subsOverlayFeatures');
+    if (title) title.textContent = p.title;
+    if (desc) desc.textContent = featureName
+      ? `${featureName} termasuk paket ${p.label}. Aplikasi dasar tetap gratis selamanya.`
+      : 'Fitur dasar tetap gratis selamanya.';
+    if (price) price.innerHTML = `${esc(p.price)}<span class="text-base font-medium text-sky-500">/bulan</span>`;
+    if (feats) feats.innerHTML = p.features.map(f => `<p>✅ ${esc(f)}</p>`).join('');
+    showSubsOverlay(p);
+  };
+
+  // Gerbang fitur Premium: true jika boleh lanjut, false + tampilkan upgrade jika tidak
+  const requirePremium = featureName => {
+    if (isPremiumActive()) return true;
+    showUpgradeOverlay('premium', featureName);
+    return false;
+  };
+  // Gerbang fitur Bisnis (Multi-Cabang)
+  const requireBusiness = featureName => {
+    if (isBusinessActive()) return true;
+    showUpgradeOverlay('business', featureName);
     return false;
   };
 
@@ -683,7 +741,12 @@ const App = (() => {
 
     // Pilih cabang aktif: yang terakhir dipilih (jika masih ada) atau cabang pertama
     const savedId = localStorage.getItem(activeStoreKey());
-    const active = state.stores.find(s => String(s.id) === String(savedId)) || state.stores[0];
+    let active = state.stores.find(s => String(s.id) === String(savedId)) || state.stores[0];
+    // Jika paket Bisnis tidak aktif, kunci ke toko utama (cabang lain tidak bisa dibuka)
+    const primary = state.stores.find(s => s.is_main) || state.stores[0];
+    if (!isBusinessActive() && String(active.id) !== String(primary.id)) {
+      active = primary;
+    }
     state.store = active;
     state.storeId = active.id;
     localStorage.setItem(activeStoreKey(), String(active.id));
@@ -822,6 +885,14 @@ const App = (() => {
     if (String(id) === String(state.storeId)) return;
     const target = (state.stores || []).find(s => String(s.id) === String(id));
     if (!target) return;
+    // Kunci cabang non-utama jika paket Bisnis tidak aktif (trial habis & belum bayar)
+    const primaryId = String(primaryStore()?.id);
+    if (String(id) !== primaryId && !isBusinessActive()) {
+      const sel = document.getElementById('storeSwitcher');
+      if (sel) sel.value = String(state.storeId); // kembalikan pilihan dropdown
+      requireBusiness('Mengakses cabang selain toko utama');
+      return;
+    }
     localStorage.setItem(activeStoreKey(), String(id));
     state.cart = {}; state.cashAmount = 0; // keranjang tidak boleh terbawa antar cabang
     setLoadingStatus && setLoadingStatus('Memuat cabang ' + (target.name || '') + '...', 10);
@@ -835,7 +906,7 @@ const App = (() => {
 
   // Tambah cabang baru (Premium). Gratis dibatasi 1 toko.
   const addBranch = async () => {
-    if ((state.stores || []).length >= 1 && !requirePremium('Multi-cabang (lebih dari 1 toko)')) return;
+    if ((state.stores || []).length >= 1 && !requireBusiness('Multi-cabang (lebih dari 1 toko)')) return;
     const name = (prompt('Nama cabang baru:') || '').trim();
     if (!name) return;
     if (!db || !state.authUser) { alert('Fitur cabang membutuhkan koneksi & login.'); return; }
@@ -3004,7 +3075,7 @@ ${txRows}
     });
 
     // ── Langganan ──
-    document.getElementById('subsBannerBtn')?.addEventListener('click', showSubsOverlay);
+    document.getElementById('subsBannerBtn')?.addEventListener('click', () => showUpgradeOverlay('premium'));
     document.getElementById('subsRecheckBtn')?.addEventListener('click', async () => {
       const btn = document.getElementById('subsRecheckBtn');
       btn.textContent = 'Memeriksa...';
@@ -3435,13 +3506,13 @@ ${txRows}
     { keys: ['struk', 'cetak', 'print', 'printer', 'bluetooth', 'thermal'], a: 'Setelah pembayaran, struk muncul otomatis. Pilihan cetak: 📶 Cetak Bluetooth (printer thermal Bluetooth Android, butuh aplikasi gratis RawBT dari Play Store), 🖨 Cetak Thermal (printer USB/WiFi), atau Cetak Biasa. Ukuran kertas 58/80mm diatur di Pengaturan.' },
     { keys: ['qris', 'qr', 'dana', 'pembayaran digital', 'dinamis'], a: 'Upload gambar QRIS tokomu di menu Pengaturan — QR tampil otomatis saat pelanggan bayar QRIS. Pengguna Premium dapat QRIS Dinamis 👑: nominal belanja otomatis tertanam di QR, pelanggan tidak perlu ketik nominal lagi. Konfirmasi manual setelah notifikasi uang masuk.' },
     { keys: ['kasir', 'pin', 'operator', 'karyawan', 'pegawai'], a: 'Tambahkan kasir di menu Kelola Kasir (khusus admin). Setiap kasir punya PIN sendiri. Kasir dengan role "kasir" hanya bisa membuka halaman Kasir & Riwayat — menu admin otomatis tersembunyi.' },
-    { keys: ['langganan', 'premium', 'trial', 'berlangganan', 'upgrade', 'gratis'], a: 'Fitur dasar GRATIS selamanya! 🎉 Premium Rp25.000/bulan membuka: QRIS Dinamis (nominal otomatis di QR), export PDF, dan operator kasir tanpa batas. 30 hari pertama otomatis dapat Premium gratis. Bayar via QRIS DANA lalu konfirmasi ke noreply.absenta@gmail.com.' },
+    { keys: ['langganan', 'premium', 'trial', 'berlangganan', 'upgrade', 'gratis', 'harga', 'paket'], a: 'Fitur dasar GRATIS selamanya! 🎉 Ada 2 paket berbayar: (1) Premium Rp25.000/bulan — QRIS Dinamis, export PDF, operator & kasbon tanpa batas. (2) Bisnis Rp50.000/bulan 🏢 — semua Premium + Multi-Cabang tanpa batas & Dashboard Pusat. 30 hari pertama semua fitur terbuka gratis. Bayar via QRIS lalu konfirmasi ke noreply.absenta@gmail.com.' },
     { keys: ['laporan', 'export', 'pdf', 'omset', 'penjualan', 'grafik'], a: 'Laporan ada di Dashboard: grafik penjualan 7 hari, laporan cepat (hari ini / 7 / 30 hari), dan tombol 📄 Export PDF untuk menyimpan/mencetak laporan lengkap.' },
     { keys: ['diskon', 'potongan'], a: 'Di halaman Kasir, sebelum bayar kamu bisa isi diskon nominal (Rp) ATAU persen (%) — salah satu saja. Diskon tercetak di struk.' },
     { keys: ['stok', 'habis', 'minimum'], a: 'Stok berkurang otomatis setiap transaksi. Atur "stok minimum" di tiap produk — produk yang menipis akan diberi tanda peringatan di Inventori. Tambah stok lewat menu Pembelian.' },
     { keys: ['shift', 'tutup kasir'], a: 'Gunakan tombol Shift/Tutup Kasir di halaman Kasir untuk melihat ringkasan penjualan selama shift berjalan dan mencetaknya saat pergantian operator.' },
     { keys: ['offline', 'internet', 'sinyal'], a: 'Aplikasi tetap bisa dibuka saat offline (PWA). Namun sinkronisasi data ke cloud butuh internet — pastikan online secara berkala agar data tersimpan aman.' },
-    { keys: ['cabang', 'multi cabang', 'banyak toko', 'outlet'], a: 'Fitur Multi-Cabang (Premium): satu akun bisa punya banyak cabang. Buka Pengaturan → Cabang Toko → Tambah Cabang. Tiap cabang punya stok & transaksi sendiri. Ganti cabang lewat dropdown 🏪 Cabang di pojok kanan atas. Rekap omzet semua cabang muncul di Dashboard Pusat.' },
+    { keys: ['cabang', 'multi cabang', 'banyak toko', 'outlet', 'bisnis'], a: 'Multi-Cabang ada di paket Bisnis (Rp50.000/bulan) 🏢 — satu akun bisa punya banyak cabang. Buka Pengaturan → Cabang Toko → Tambah Cabang. Tiap cabang punya stok & transaksi sendiri. Ganti cabang lewat dropdown 🏪 Cabang di pojok kanan atas. Rekap omzet semua cabang muncul di Dashboard Pusat. Selama 30 hari trial fitur ini terbuka gratis.' },
     { keys: ['password', 'lupa', 'reset'], a: 'Lupa password? Di halaman login klik "Lupa password", masukkan email toko — link reset akan dikirim ke email tersebut.' },
     { keys: ['hapus akun', 'hapus data'], a: 'Untuk menghapus akun dan seluruh data toko secara permanen, kirim permintaan ke noreply.absenta@gmail.com. Diproses maksimal 30 hari.' },
     { keys: ['rokok', 'tembakau', 'vape'], a: 'Produk rokok, tembakau, dan vape diblokir permanen dan tidak bisa diinput ke aplikasi ini.' }
