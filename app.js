@@ -927,13 +927,13 @@ const App = (() => {
     const startIso = today + 'T00:00:00';
     // Ambil transaksi hari ini SEMUA cabang sekaligus (tanpa filter store_id → RLS membatasi ke milik owner)
     const { data: txs, error } = await db.from('transactions')
-      .select('store_id,total,created_at').gte('created_at', startIso);
+      .select('store_id,total_amount').gte('created_at', startIso);
     if (error) { body.innerHTML = `<p class="text-slate-500 text-sm p-4">Gagal memuat rekap: ${esc(error.message)}</p>`; return; }
     const byStore = {};
     (txs || []).forEach(t => {
       const k = String(t.store_id);
       if (!byStore[k]) byStore[k] = { total: 0, count: 0 };
-      byStore[k].total += Number(t.total || 0);
+      byStore[k].total += Number(t.total_amount || 0);
       byStore[k].count += 1;
     });
     let grandTotal = 0, grandCount = 0;
