@@ -714,6 +714,18 @@ const App = (() => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value);
   };
 
+  // Tanggal "YYYY-MM-DD" menurut ZONA WAKTU LOKAL perangkat (bukan UTC),
+  // agar penjualan dini hari (mis. 00:00–07:00 WIB) tidak terhitung ke hari kemarin.
+  const localDay = d => {
+    const x = (d instanceof Date) ? d : new Date(d);
+    const y = x.getFullYear();
+    const m = String(x.getMonth() + 1).padStart(2, '0');
+    const day = String(x.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  // Awal hari ini (00:00) waktu lokal, sebagai objek Date.
+  const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+
   const loadLocalSettings = () => {
     const settingsData = localStorage.getItem(STORAGE.settings);
     const settings = settingsData ? JSON.parse(settingsData) : {};
@@ -1001,8 +1013,8 @@ const App = (() => {
       return;
     }
     panel.classList.remove('hidden');
-    const today = new Date().toISOString().slice(0, 10);
-    const startIso = today + 'T00:00:00';
+    // Awal hari ini waktu lokal, dikonversi ke instant UTC untuk query created_at (timestamptz)
+    const startIso = startOfToday().toISOString();
     // Ambil transaksi hari ini SEMUA cabang sekaligus (tanpa filter store_id → RLS membatasi ke milik owner)
     const { data: txs, error } = await db.from('transactions')
       .select('store_id,total_amount').gte('created_at', startIso);
@@ -1346,6 +1358,7 @@ const App = (() => {
     const days = Number(state.reportRange) || 7;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - (days - 1));
+    cutoff.setHours(0, 0, 0, 0); // mulai dari awal hari (lokal) agar penjualan pagi ikut terhitung
     const filtered = state.transactions.filter(tx => new Date(tx.date) >= cutoff);
     const totalSales = filtered.reduce((sum, tx) => sum + tx.total, 0);
     const totalTrans = filtered.length;
@@ -1767,8 +1780,8 @@ const App = (() => {
   };
 
   const updateDashboard = () => {
-    const today = new Date().toISOString().slice(0, 10);
-    const todayTransactions = state.transactions.filter(tx => tx.date.slice(0, 10) === today);
+    const today = localDay(new Date());
+    const todayTransactions = state.transactions.filter(tx => localDay(tx.date) === today);
     const totalSalesToday = todayTransactions.reduce((sum, tx) => sum + tx.total, 0);
     // Statistik dihitung dari transaksi HARI INI saja, laba pakai harga modal produk
     const productCost = id => state.products.find(p => p.id === id)?.cost || 0;
@@ -1787,10 +1800,10 @@ const App = (() => {
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      const isoDate = date.toISOString().slice(0, 10);
+      const isoDate = localDay(date);
       dates.push(date.toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'short' }));
       const dayTotal = state.transactions
-        .filter(tx => tx.date.slice(0, 10) === isoDate)
+        .filter(tx => localDay(tx.date) === isoDate)
         .reduce((sum, tx) => sum + tx.total, 0);
       amounts.push(dayTotal);
     }
@@ -2570,6 +2583,7 @@ ${discountHtml}${taxHtml}
     const days = Number(state.reportRange) || 7;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - (days - 1));
+    cutoff.setHours(0, 0, 0, 0); // mulai dari awal hari (lokal) agar penjualan pagi ikut terhitung
     const filtered = state.transactions.filter(tx => new Date(tx.date) >= cutoff);
     const totalSales = filtered.reduce((sum, tx) => sum + tx.total, 0);
     const totalTrans = filtered.length;
