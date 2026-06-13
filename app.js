@@ -57,6 +57,9 @@ const App = (() => {
         state.store = { ...state.store, name: settings.name, address: settings.address,
           phone: settings.phone, note: settings.note, paper_size: settings.paperSize };
       }
+      // Sinkronkan nama ke daftar cabang agar switcher/daftar ikut ter-update
+      const inList = (state.stores || []).find(s => String(s.id) === String(state.storeId));
+      if (inList) inList.name = settings.name;
     }
     return {};
   };
@@ -405,6 +408,7 @@ const App = (() => {
     });
     const wrapper = document.getElementById('cashierSelectWrapper');
     if (wrapper) wrapper.style.display = '';
+    renderStoreSwitcher();
   };
 
   const logout = async () => {
@@ -476,6 +480,7 @@ const App = (() => {
     authUser: null,
     store: null,
     storeId: null,
+    stores: [],
     paymentMethod: 'Tunai',
     shiftStartTime: null
   };
@@ -666,21 +671,33 @@ const App = (() => {
     state.activeUserId = settings.activeUserId || state.selectedCashierId;
   };
 
-  // Memuat record toko milik user yang login
+  // Kunci localStorage untuk menyimpan cabang aktif terakhir (per akun)
+  const activeStoreKey = () => 'active_store_' + (state.authUser?.id || '');
+
+  // Memuat SELURUH toko/cabang milik user, lalu menetapkan cabang aktif
   const loadStore = async () => {
-    const { data, error } = await db.from('stores').select('*').limit(1).maybeSingle();
+    const { data, error } = await db.from('stores').select('*').order('created_at', { ascending: true });
     if (error) { console.warn('loadStore error:', error); return null; }
-    if (data) {
-      state.store = data;
-      state.storeId = data.id;
-      // Sinkron QRIS dari cloud ke perangkat ini (cloud = sumber utama)
-      if (data.qris_image) {
-        localStorage.setItem('qris_image', data.qris_image);
-        if (data.qris_payload) localStorage.setItem('qris_payload', data.qris_payload);
-        else localStorage.removeItem('qris_payload');
-      }
+    state.stores = data || [];
+    if (!state.stores.length) { state.store = null; state.storeId = null; return null; }
+
+    // Pilih cabang aktif: yang terakhir dipilih (jika masih ada) atau cabang pertama
+    const savedId = localStorage.getItem(activeStoreKey());
+    const active = state.stores.find(s => String(s.id) === String(savedId)) || state.stores[0];
+    state.store = active;
+    state.storeId = active.id;
+    localStorage.setItem(activeStoreKey(), String(active.id));
+
+    // Sinkron QRIS dari cloud ke perangkat ini (cloud = sumber utama), per cabang aktif
+    if (active.qris_image) {
+      localStorage.setItem('qris_image', active.qris_image);
+      if (active.qris_payload) localStorage.setItem('qris_payload', active.qris_payload);
+      else localStorage.removeItem('qris_payload');
+    } else {
+      localStorage.removeItem('qris_image');
+      localStorage.removeItem('qris_payload');
     }
-    return data;
+    return active;
   };
 
   // Simpan QRIS ke cloud agar tersinkron antar perangkat (abaikan jika kolom belum ada)
@@ -712,13 +729,13 @@ const App = (() => {
     try {
       setLoadingStatus('Memuat produk...', 40);
       const { data: products, error: pErr } = await db
-        .from('products').select('*').order('id', { ascending: true });
+        .from('products').select('*').eq('store_id', state.storeId).order('id', { ascending: true });
       if (pErr) throw pErr;
       state.products = products ? products.map(fromDbProduct) : [];
 
       setLoadingStatus('Memuat kasir...', 55);
       const { data: cashiers } = await db
-        .from('cashiers').select('*').order('id', { ascending: true });
+        .from('cashiers').select('*').eq('store_id', state.storeId).order('id', { ascending: true });
       state.cashiers = cashiers ? cashiers.map(fromDbCashier) : [];
       // Pengaman data lama: minimal harus ada satu admin agar pemilik tidak terkunci
       if (state.cashiers.length && !state.cashiers.some(c => c.role === 'admin')) {
@@ -732,6 +749,7 @@ const App = (() => {
       setLoadingStatus('Memuat transaksi...', 70);
       const { data: transactions, error: tErr } = await db
         .from('transactions').select('*, transaction_items(*)')
+        .eq('store_id', state.storeId)
         .order('created_at', { ascending: false }).limit(500);
       if (tErr) throw tErr;
       state.transactions = transactions ? transactions.map(fromDbTransaction) : [];
@@ -739,12 +757,13 @@ const App = (() => {
       setLoadingStatus('Memuat pembelian...', 85);
       const { data: purchases } = await db
         .from('purchases').select('*, purchase_items(*)')
+        .eq('store_id', state.storeId)
         .order('created_at', { ascending: false });
       state.purchases = purchases ? purchases.map(fromDbPurchase) : [];
 
       // Kasbon (tabel bisa belum ada jika 05_kasbon.sql belum dijalankan)
       const { data: debts, error: dErr } = await db
-        .from('debts').select('*').order('created_at', { ascending: false });
+        .from('debts').select('*').eq('store_id', state.storeId).order('created_at', { ascending: false });
       if (dErr) {
         console.warn('Kasbon belum aktif (jalankan supabase/05_kasbon.sql):', dErr.message);
         try { state.debts = JSON.parse(localStorage.getItem('pos_debts') || '[]'); } catch { state.debts = []; }
@@ -777,6 +796,173 @@ const App = (() => {
       historySearch: state.historySearch
     }));
   };
+
+  // ── Multi-Cabang (Premium) ───────────────────────────────────────────────
+  // Render dropdown pemilih cabang di header. Hanya tampil bila punya >1 toko.
+  const renderStoreSwitcher = () => {
+    const wrap = document.getElementById('storeSwitcherWrapper');
+    const sel = document.getElementById('storeSwitcher');
+    if (!wrap || !sel) return;
+    const active = state.cashiers.find(c => c.id === state.selectedCashierId);
+    const isAdmin = !active || active.role === 'admin';
+    // Switcher hanya berguna untuk pemilik/admin dan saat ada lebih dari satu cabang
+    if (!isAdmin || (state.stores || []).length < 2) {
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = '';
+    sel.innerHTML = state.stores.map(s =>
+      `<option value="${esc(s.id)}">${esc(s.name || 'Toko')}${s.is_main ? ' (Pusat)' : ''}</option>`
+    ).join('');
+    sel.value = String(state.storeId);
+  };
+
+  // Pindah cabang aktif: simpan pilihan, muat ulang data cabang tsb, render ulang
+  const switchStore = async id => {
+    if (String(id) === String(state.storeId)) return;
+    const target = (state.stores || []).find(s => String(s.id) === String(id));
+    if (!target) return;
+    localStorage.setItem(activeStoreKey(), String(id));
+    state.cart = {}; state.cashAmount = 0; // keranjang tidak boleh terbawa antar cabang
+    setLoadingStatus && setLoadingStatus('Memuat cabang ' + (target.name || '') + '...', 10);
+    await loadData();
+    applyRoleAccess();
+    renderAll();
+    renderStoreSwitcher();
+    const dash = document.getElementById('dashboard');
+    if (dash && !dash.classList.contains('hidden')) renderDashboardPusat();
+  };
+
+  // Tambah cabang baru (Premium). Gratis dibatasi 1 toko.
+  const addBranch = async () => {
+    if ((state.stores || []).length >= 1 && !requirePremium('Multi-cabang (lebih dari 1 toko)')) return;
+    const name = (prompt('Nama cabang baru:') || '').trim();
+    if (!name) return;
+    if (!db || !state.authUser) { alert('Fitur cabang membutuhkan koneksi & login.'); return; }
+    const { data: store, error } = await db.from('stores')
+      .insert({ owner_id: state.authUser.id, name }).select().single();
+    if (error || !store) { alert('Gagal membuat cabang: ' + (error?.message || '')); return; }
+    // Buat admin default untuk cabang baru agar langsung bisa dipakai (PIN 1234)
+    await db.from('cashiers').insert({
+      store_id: store.id, name: 'Pemilik', password: '1234', role: 'admin'
+    });
+    state.stores.push(store);
+    alert('Cabang "' + name + '" dibuat. PIN admin default: 1234');
+    await switchStore(store.id);
+    renderBranchList();
+  };
+
+  // Ganti nama cabang
+  const renameBranch = async id => {
+    const s = (state.stores || []).find(x => String(x.id) === String(id));
+    if (!s) return;
+    const name = (prompt('Nama baru cabang:', s.name || '') || '').trim();
+    if (!name || name === s.name) return;
+    const { error } = await db.from('stores').update({ name }).eq('id', id);
+    if (error) { alert('Gagal mengubah nama: ' + error.message); return; }
+    s.name = name;
+    if (String(id) === String(state.storeId) && state.store) state.store.name = name;
+    renderBranchList();
+    renderStoreSwitcher();
+    renderSettings();
+  };
+
+  // Hapus cabang (beserta seluruh datanya). Cabang terakhir tidak boleh dihapus.
+  const deleteBranch = async id => {
+    if ((state.stores || []).length <= 1) { alert('Tidak bisa menghapus cabang terakhir.'); return; }
+    const s = (state.stores || []).find(x => String(x.id) === String(id));
+    if (!s) return;
+    if (!confirm('Hapus cabang "' + (s.name || '') + '" beserta SEMUA produk, transaksi, dan datanya? Tindakan ini tidak bisa dibatalkan.')) return;
+    const { error } = await db.from('stores').delete().eq('id', id);
+    if (error) { alert('Gagal menghapus: ' + error.message); return; }
+    state.stores = state.stores.filter(x => String(x.id) !== String(id));
+    if (String(id) === String(state.storeId)) {
+      localStorage.setItem(activeStoreKey(), String(state.stores[0].id));
+      await switchStore(state.stores[0].id);
+    }
+    renderBranchList();
+    renderStoreSwitcher();
+  };
+
+  // Daftar cabang di halaman Pengaturan
+  const renderBranchList = () => {
+    const list = document.getElementById('branchList');
+    if (!list) return;
+    const stores = state.stores || [];
+    list.innerHTML = stores.map(s => {
+      const isActive = String(s.id) === String(state.storeId);
+      return `<div class="flex items-center justify-between gap-3 rounded-2xl border ${isActive ? 'border-sky-400 bg-sky-50' : 'border-slate-200 bg-white'} px-4 py-3">
+        <div class="min-w-0">
+          <p class="font-semibold truncate">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-sky-600">(Pusat)</span>' : ''}${isActive ? ' <span class="text-xs text-emerald-600">• aktif</span>' : ''}</p>
+        </div>
+        <div class="flex gap-1 shrink-0">
+          ${isActive ? '' : `<button data-branch-switch="${esc(s.id)}" class="rounded-lg bg-sky-600 px-2.5 py-1.5 text-white text-xs hover:bg-sky-700">Buka</button>`}
+          <button data-branch-rename="${esc(s.id)}" class="rounded-lg bg-slate-200 px-2.5 py-1.5 text-slate-700 text-xs hover:bg-slate-300">Nama</button>
+          ${stores.length > 1 ? `<button data-branch-delete="${esc(s.id)}" class="rounded-lg bg-rose-100 px-2.5 py-1.5 text-rose-700 text-xs hover:bg-rose-200">Hapus</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('[data-branch-switch]').forEach(b =>
+      b.addEventListener('click', () => switchStore(b.dataset.branchSwitch)));
+    list.querySelectorAll('[data-branch-rename]').forEach(b =>
+      b.addEventListener('click', () => renameBranch(b.dataset.branchRename)));
+    list.querySelectorAll('[data-branch-delete]').forEach(b =>
+      b.addEventListener('click', () => deleteBranch(b.dataset.branchDelete)));
+  };
+
+  // Dashboard Pusat: rekap omzet & transaksi seluruh cabang hari ini.
+  // Query lintas-cabang (RLS mengizinkan semua toko milik owner), dikelompokkan di sisi klien.
+  const renderDashboardPusat = async () => {
+    const panel = document.getElementById('dashboardPusat');
+    const body = document.getElementById('dashboardPusatBody');
+    if (!panel || !body) return;
+    const active = state.cashiers.find(c => c.id === state.selectedCashierId);
+    const isAdmin = !active || active.role === 'admin';
+    if (!db || !isAdmin || (state.stores || []).length < 2) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    const today = new Date().toISOString().slice(0, 10);
+    const startIso = today + 'T00:00:00';
+    // Ambil transaksi hari ini SEMUA cabang sekaligus (tanpa filter store_id → RLS membatasi ke milik owner)
+    const { data: txs, error } = await db.from('transactions')
+      .select('store_id,total,created_at').gte('created_at', startIso);
+    if (error) { body.innerHTML = `<p class="text-slate-500 text-sm p-4">Gagal memuat rekap: ${esc(error.message)}</p>`; return; }
+    const byStore = {};
+    (txs || []).forEach(t => {
+      const k = String(t.store_id);
+      if (!byStore[k]) byStore[k] = { total: 0, count: 0 };
+      byStore[k].total += Number(t.total || 0);
+      byStore[k].count += 1;
+    });
+    let grandTotal = 0, grandCount = 0;
+    const rows = (state.stores || []).map(s => {
+      const d = byStore[String(s.id)] || { total: 0, count: 0 };
+      grandTotal += d.total; grandCount += d.count;
+      const isActive = String(s.id) === String(state.storeId);
+      return `<tr class="${isActive ? 'bg-sky-50' : ''}">
+        <td class="px-4 py-3 font-medium">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-sky-600">(Pusat)</span>' : ''}</td>
+        <td class="px-4 py-3 text-right">${formatCurrency(d.total)}</td>
+        <td class="px-4 py-3 text-right">${d.count}</td>
+      </tr>`;
+    }).join('');
+    body.innerHTML = `
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-slate-500 border-b border-slate-200">
+          <th class="px-4 py-2 font-medium">Cabang</th>
+          <th class="px-4 py-2 font-medium text-right">Omzet Hari Ini</th>
+          <th class="px-4 py-2 font-medium text-right">Transaksi</th>
+        </tr></thead>
+        <tbody class="divide-y divide-slate-100">${rows}</tbody>
+        <tfoot><tr class="border-t-2 border-slate-300 font-semibold">
+          <td class="px-4 py-3">TOTAL Semua Cabang</td>
+          <td class="px-4 py-3 text-right text-sky-700">${formatCurrency(grandTotal)}</td>
+          <td class="px-4 py-3 text-right">${grandCount}</td>
+        </tr></tfoot>
+      </table>`;
+  };
+  // ──────────────────────────────────────────────────────────────────────────
 
   const getSelectedCashier = () => {
     return state.cashiers.find(item => item.id === state.selectedCashierId) || state.cashiers[0] || { id: 'C000', name: 'Kasir' };
@@ -1765,6 +1951,7 @@ const App = (() => {
     if (screenId === 'kelolaKasir') renderCashierManagement();
     if (screenId === 'pengaturan') renderSettings();
     if (screenId === 'kasbon') renderKasbon();
+    if (screenId === 'dashboard') renderDashboardPusat();
   };
 
   const showInventoryModal = (title = 'Tambah Produk') => {
@@ -1908,7 +2095,7 @@ const App = (() => {
     for (const entry of q) {
       try {
         const { data: tx, error: txErr } = await db.from('transactions').insert({
-          store_id: state.storeId,
+          store_id: entry.store_id || state.storeId,
           cashier_name: entry.cashier,
           total_amount: entry.total,
           payment_amount: entry.cash,
@@ -2041,6 +2228,7 @@ const App = (() => {
         // Internet putus / server bermasalah → simpan ke antrean offline,
         // transaksi tetap jalan dan akan otomatis tersinkron saat online.
         queueOfflineTransaction({
+          store_id: state.storeId,
           cashier: cashier.name,
           total: totals.total,
           cash: totals.cash,
@@ -2264,6 +2452,7 @@ ${discountHtml}${taxHtml}
 
   // ── Pengaturan Toko ───────────────────────────────────────────────────────
   const renderSettings = () => {
+    renderBranchList();
     const store = getStoreSettings();
     if (dom.settingStoreName) dom.settingStoreName.value = store.name;
     if (dom.settingStoreAddress) dom.settingStoreAddress.value = store.address;
@@ -2946,10 +3135,15 @@ ${txRows}
 
     // ── Offline auto-sync ──
     window.addEventListener('online', () => flushOfflineQueue());
+
+    // ── Multi-Cabang ──
+    document.getElementById('storeSwitcher')?.addEventListener('change', e => switchStore(e.target.value));
+    document.getElementById('addBranchBtn')?.addEventListener('click', addBranch);
   };
 
   const renderAll = () => {
     dom.todayDate.textContent = '📅 ' + new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    renderStoreSwitcher();
     renderCashierSelect();
     renderCashierManagement();
     applyTheme();
@@ -3247,6 +3441,7 @@ ${txRows}
     { keys: ['stok', 'habis', 'minimum'], a: 'Stok berkurang otomatis setiap transaksi. Atur "stok minimum" di tiap produk — produk yang menipis akan diberi tanda peringatan di Inventori. Tambah stok lewat menu Pembelian.' },
     { keys: ['shift', 'tutup kasir'], a: 'Gunakan tombol Shift/Tutup Kasir di halaman Kasir untuk melihat ringkasan penjualan selama shift berjalan dan mencetaknya saat pergantian operator.' },
     { keys: ['offline', 'internet', 'sinyal'], a: 'Aplikasi tetap bisa dibuka saat offline (PWA). Namun sinkronisasi data ke cloud butuh internet — pastikan online secara berkala agar data tersimpan aman.' },
+    { keys: ['cabang', 'multi cabang', 'banyak toko', 'outlet'], a: 'Fitur Multi-Cabang (Premium): satu akun bisa punya banyak cabang. Buka Pengaturan → Cabang Toko → Tambah Cabang. Tiap cabang punya stok & transaksi sendiri. Ganti cabang lewat dropdown 🏪 Cabang di pojok kanan atas. Rekap omzet semua cabang muncul di Dashboard Pusat.' },
     { keys: ['password', 'lupa', 'reset'], a: 'Lupa password? Di halaman login klik "Lupa password", masukkan email toko — link reset akan dikirim ke email tersebut.' },
     { keys: ['hapus akun', 'hapus data'], a: 'Untuk menghapus akun dan seluruh data toko secara permanen, kirim permintaan ke noreply.absenta@gmail.com. Diproses maksimal 30 hari.' },
     { keys: ['rokok', 'tembakau', 'vape'], a: 'Produk rokok, tembakau, dan vape diblokir permanen dan tidak bisa diinput ke aplikasi ini.' }
