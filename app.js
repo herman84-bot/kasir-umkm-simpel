@@ -67,8 +67,28 @@ const App = (() => {
   const getQrisImage = () => localStorage.getItem('qris_image') || '';
 
   // ── Langganan / masa aktif ────────────────────────────────────────────────
-  const SUBS_QRIS_PAYLOAD = '00020101021126570011ID.DANA.WWW011893600915303246671402090324667140303UMI51440014ID.CO.QRIS.WWW0215ID10265311627370303UMI5204899953033605802ID5916Absenta solution6014Kota Tangerang6105151166304797F';
-  const SUBS_EMAIL = 'noreply.absenta@gmail.com';
+  // Pembayaran langganan diproses oleh payment gateway Pakasir (app.pakasir.com).
+  // Integrasi via URL: user diarahkan ke halaman bayar Pakasir (QRIS/VA), lalu
+  // kembali ke aplikasi. Admin mengaktifkan langganan dari dashboard Pakasir.
+  const PAKASIR_BASE = 'https://app.pakasir.com';
+  const PAKASIR_SLUG = 'kasir-umkm-simpel';
+  const SUBS_EMAIL = 'noreply.absenta@gmail.com'; // kontak bantuan/konfirmasi
+
+  // Order ID unik per transaksi langganan (prefix KUS- agar tak tabrakan
+  // dengan proyek Pakasir lain). Format: KUS-<6digit storeId>-<timestamp>.
+  const makeSubsOrderId = () => {
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    const ts = `${String(d.getFullYear()).slice(2)}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+    const sid = String(state.storeId || 'x').slice(-6);
+    return `KUS-${sid}-${ts}`;
+  };
+
+  // URL halaman pembayaran Pakasir. Setelah bayar, user diarahkan balik ke app.
+  const buildPakasirUrl = (amount, orderId) => {
+    const redirect = encodeURIComponent(location.origin + location.pathname);
+    return `${PAKASIR_BASE}/pay/${PAKASIR_SLUG}/${amount}?order_id=${orderId}&redirect=${redirect}`;
+  };
 
   // Hitung sisa hari masa aktif (trial atau premium, ambil yang paling lama)
   // Toko utama (pusat) = penambat langganan. Semua cabang berbagi langganan ini.
@@ -94,29 +114,13 @@ const App = (() => {
   // Bisnis aktif jika trial / business_until.
   const getBusinessDaysLeft = () => daysLeftFor(['trial_ends_at', 'business_until']);
 
-  const renderSubsQr = () => {
-    const el = document.getElementById('subsQrCode');
-    if (!el || el.dataset.rendered) return;
-    el.innerHTML = '';
-    if (window.QRCode) {
-      new QRCode(el, { text: SUBS_QRIS_PAYLOAD, width: 192, height: 192, correctLevel: QRCode.CorrectLevel.M });
-      el.dataset.rendered = '1';
-    } else {
-      el.textContent = 'Gagal memuat QR. Periksa koneksi internet.';
-    }
-  };
+  // Paket langganan yang sedang ditampilkan di overlay (untuk tombol Bayar).
+  let currentSubsPlan = null;
 
   const showSubsOverlay = (plan = null) => {
     const overlay = document.getElementById('subsOverlay');
     if (!overlay) return;
-    renderSubsQr();
-    const emailBtn = document.getElementById('subsEmailBtn');
-    if (emailBtn) {
-      const pkg = plan ? `${plan.label} (${plan.price}/bulan)` : 'Premium';
-      const subject = encodeURIComponent(`Konfirmasi Pembayaran Langganan ${pkg} - Kasir UMKM Simpel`);
-      const body = encodeURIComponent(`Halo, saya sudah membayar langganan paket ${pkg} Kasir UMKM Simpel.\n\nEmail akun: ${state.authUser?.email || '-'}\nNama toko: ${state.store?.name || '-'}\n\n(Lampirkan screenshot bukti pembayaran di email ini)`);
-      emailBtn.href = `mailto:${SUBS_EMAIL}?subject=${subject}&body=${body}`;
-    }
+    currentSubsPlan = plan || PLANS.premium;
     overlay.classList.remove('hidden');
     overlay.style.display = 'flex';
   };
@@ -124,6 +128,84 @@ const App = (() => {
   const hideSubsOverlay = () => {
     const overlay = document.getElementById('subsOverlay');
     if (overlay) { overlay.classList.add('hidden'); overlay.style.display = ''; }
+  };
+
+  // ── Pembayaran langganan via Pakasir ──────────────────────────────────────
+  // 1) Catat order (pending) di Supabase → 2) arahkan ke halaman bayar Pakasir.
+  // Pakasir mengirim webhook ke Supabase Edge Function yang mengaktifkan
+  // premium_until / business_until secara OTOMATIS. Aplikasi memantau status.
+  const startPakasirPayment = async () => {
+    const plan = currentSubsPlan || PLANS.premium;
+    const tier = plan === PLANS.business ? 'business' : 'premium';
+    const amount = plan.amount;
+    const orderId = makeSubsOrderId();
+    const store = primaryStore();
+    if (!store) { alert('Data toko belum siap. Coba lagi sebentar.'); return; }
+
+    const payBtn = document.getElementById('subsPayBtn');
+    if (payBtn) { payBtn.textContent = 'Menyiapkan pembayaran...'; payBtn.style.pointerEvents = 'none'; }
+
+    // Catat order langganan agar webhook bisa memetakan order_id → toko + paket.
+    const { error } = await db.from('subscription_orders').insert({
+      order_id: orderId,
+      store_id: store.id,
+      tier,
+      amount,
+      status: 'pending'
+    });
+    if (error) {
+      console.error('Gagal membuat order langganan:', error.message);
+      alert('Gagal menyiapkan pembayaran. Pastikan SQL 08_pakasir.sql sudah dijalankan, lalu coba lagi.');
+      if (payBtn) { payBtn.textContent = '💳 Bayar Sekarang via Pakasir'; payBtn.style.pointerEvents = ''; }
+      return;
+    }
+
+    // Simpan jejak agar saat kembali dari Pakasir bisa dipantau otomatis.
+    localStorage.setItem('pending_subs_order', JSON.stringify({ orderId, tier }));
+    window.location.href = buildPakasirUrl(amount, orderId);
+  };
+
+  // Cek status order langganan ke Supabase (diisi oleh webhook Pakasir).
+  // Mengembalikan true jika sudah aktif.
+  const checkSubscriptionStatus = async () => {
+    const raw = localStorage.getItem('pending_subs_order');
+    if (!raw) return false;
+    let pending;
+    try { pending = JSON.parse(raw); } catch { localStorage.removeItem('pending_subs_order'); return false; }
+
+    const { data, error } = await db
+      .from('subscription_orders')
+      .select('status')
+      .eq('order_id', pending.orderId)
+      .maybeSingle();
+    if (error) { console.warn('Cek status langganan gagal:', error.message); return false; }
+
+    if (data && data.status === 'completed') {
+      localStorage.removeItem('pending_subs_order');
+      await loadStore(); // tarik premium_until/business_until terbaru
+      const banner = document.getElementById('subsBanner');
+      if (banner) { banner.classList.add('hidden'); document.body.style.paddingTop = ''; }
+      return true;
+    }
+    return false;
+  };
+
+  // Pantau otomatis setelah kembali dari Pakasir (polling singkat ~1 menit).
+  const watchPendingSubscription = async () => {
+    if (!localStorage.getItem('pending_subs_order')) return;
+    const ok = await checkSubscriptionStatus();
+    if (ok) { hideSubsOverlay(); alert('Pembayaran berhasil! 🎉 Langganan Anda sudah aktif.'); return; }
+    let tries = 0;
+    const timer = setInterval(async () => {
+      tries++;
+      if (await checkSubscriptionStatus()) {
+        clearInterval(timer);
+        hideSubsOverlay();
+        alert('Pembayaran berhasil! 🎉 Langganan Anda sudah aktif.');
+      } else if (tries >= 20) {
+        clearInterval(timer); // berhenti setelah ~1 menit; tombol cek manual tetap ada
+      }
+    }, 3000);
   };
 
   // ── Model FREEMIUM bertingkat: aplikasi dasar gratis selamanya. ──
@@ -142,6 +224,7 @@ const App = (() => {
       title: '👑 Upgrade ke Premium',
       label: 'Premium',
       price: 'Rp25.000',
+      amount: 25000,
       features: [
         'QRIS Dinamis — nominal otomatis tertanam di QR',
         'Export laporan PDF',
@@ -154,6 +237,7 @@ const App = (() => {
       title: '🏢 Upgrade ke Bisnis',
       label: 'Bisnis',
       price: 'Rp50.000',
+      amount: 50000,
       features: [
         'Semua fitur Premium',
         'Multi-Cabang tanpa batas',
@@ -3097,19 +3181,25 @@ ${txRows}
 
     // ── Langganan ──
     document.getElementById('subsBannerBtn')?.addEventListener('click', () => showUpgradeOverlay('premium'));
+    document.getElementById('subsPayBtn')?.addEventListener('click', e => {
+      e.preventDefault();
+      startPakasirPayment();
+    });
     document.getElementById('subsRecheckBtn')?.addEventListener('click', async () => {
       const btn = document.getElementById('subsRecheckBtn');
       btn.textContent = 'Memeriksa...';
-      await loadStore();
-      btn.textContent = '🔄 Saya sudah diaktifkan — cek ulang';
-      const daysLeft = getSubscriptionDaysLeft();
-      if (daysLeft !== null && daysLeft > 0) {
+      // Cek order pending dulu (diisi otomatis oleh webhook Pakasir),
+      // lalu fallback ke status langganan toko.
+      let active = await checkSubscriptionStatus();
+      if (!active) { await loadStore(); active = getSubscriptionDaysLeft() > 0; }
+      btn.textContent = '🔄 Sudah bayar — cek status';
+      if (active) {
         hideSubsOverlay();
         const banner = document.getElementById('subsBanner');
         if (banner) { banner.classList.add('hidden'); document.body.style.paddingTop = ''; }
-        alert('Premium aktif! 👑 Semua fitur premium sudah terbuka.');
+        alert('Langganan aktif! 🎉 Semua fitur sudah terbuka.');
       } else {
-        alert('Belum aktif. Jika sudah membayar, tunggu konfirmasi admin (maks. 1×24 jam).');
+        alert('Pembayaran belum terdeteksi. Jika baru saja membayar, tunggu beberapa detik lalu coba lagi.');
       }
     });
     document.getElementById('subsCloseBtn')?.addEventListener('click', hideSubsOverlay);
@@ -3291,6 +3381,8 @@ ${txRows}
 
     // Freemium: aplikasi tidak pernah dikunci — hanya tampilkan banner pengingat trial
     checkSubscription();
+    // Pantau pembayaran Pakasir yang baru saja dilakukan (jika ada order pending)
+    watchPendingSubscription();
 
     applyRoleAccess();
     showApp();
@@ -3527,7 +3619,7 @@ ${txRows}
     { keys: ['struk', 'cetak', 'print', 'printer', 'bluetooth', 'thermal'], a: 'Setelah pembayaran, struk muncul otomatis. Pilihan cetak: 📶 Cetak Bluetooth (printer thermal Bluetooth Android, butuh aplikasi gratis RawBT dari Play Store), 🖨 Cetak Thermal (printer USB/WiFi), atau Cetak Biasa. Ukuran kertas 58/80mm diatur di Pengaturan.' },
     { keys: ['qris', 'qr', 'dana', 'pembayaran digital', 'dinamis'], a: 'Upload gambar QRIS tokomu di menu Pengaturan — QR tampil otomatis saat pelanggan bayar QRIS. Pengguna Premium dapat QRIS Dinamis 👑: nominal belanja otomatis tertanam di QR, pelanggan tidak perlu ketik nominal lagi. Konfirmasi manual setelah notifikasi uang masuk.' },
     { keys: ['kasir', 'pin', 'operator', 'karyawan', 'pegawai'], a: 'Tambahkan kasir di menu Kelola Kasir (khusus admin). Setiap kasir punya PIN sendiri. Kasir dengan role "kasir" hanya bisa membuka halaman Kasir & Riwayat — menu admin otomatis tersembunyi.' },
-    { keys: ['langganan', 'premium', 'trial', 'berlangganan', 'upgrade', 'gratis', 'harga', 'paket'], a: 'Fitur dasar GRATIS selamanya! 🎉 Ada 2 paket berbayar: (1) Premium Rp25.000/bulan — QRIS Dinamis, export PDF, operator & kasbon tanpa batas. (2) Bisnis Rp50.000/bulan 🏢 — semua Premium + Multi-Cabang tanpa batas & Dashboard Pusat. 30 hari pertama semua fitur terbuka gratis. Bayar via QRIS lalu konfirmasi ke noreply.absenta@gmail.com.' },
+    { keys: ['langganan', 'premium', 'trial', 'berlangganan', 'upgrade', 'gratis', 'harga', 'paket'], a: 'Fitur dasar GRATIS selamanya! 🎉 Ada 2 paket berbayar: (1) Premium Rp25.000/bulan — QRIS Dinamis, export PDF, operator & kasbon tanpa batas. (2) Bisnis Rp50.000/bulan 🏢 — semua Premium + Multi-Cabang tanpa batas & Dashboard Pusat. 30 hari pertama semua fitur terbuka gratis. Pembayaran lewat Pakasir (QRIS/Virtual Account) langsung dari aplikasi — langganan aktif otomatis setelah bayar. 💳' },
     { keys: ['laporan', 'export', 'pdf', 'omset', 'penjualan', 'grafik'], a: 'Laporan ada di Dashboard: grafik penjualan 7 hari, laporan cepat (hari ini / 7 / 30 hari), dan tombol 📄 Export PDF untuk menyimpan/mencetak laporan lengkap.' },
     { keys: ['diskon', 'potongan'], a: 'Di halaman Kasir, sebelum bayar kamu bisa isi diskon nominal (Rp) ATAU persen (%) — salah satu saja. Diskon tercetak di struk.' },
     { keys: ['stok', 'habis', 'minimum'], a: 'Stok berkurang otomatis setiap transaksi. Atur "stok minimum" di tiap produk — produk yang menipis akan diberi tanda peringatan di Inventori. Tambah stok lewat menu Pembelian.' },
