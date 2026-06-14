@@ -1,8 +1,9 @@
-const CACHE_NAME = 'kasir-umkm-cache-v15';
+const CACHE_NAME = 'kasir-umkm-cache-v16';
 const ASSETS = [
   '.',
   'index.html',
   'app.js',
+  'tailwind.css',
   'manifest.json',
   'icons/icon-192.png',
   'icons/icon-512.png'
