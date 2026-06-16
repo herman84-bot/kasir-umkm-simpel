@@ -3565,14 +3565,46 @@ ${txRows}
       div.className = who === 'user'
         ? 'ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-sky-600 text-white px-4 py-2.5'
         : 'mr-auto max-w-[85%] rounded-2xl rounded-bl-md bg-white border border-slate-200 text-slate-700 px-4 py-2.5';
+      // Selalu pakai textContent (bukan innerHTML) agar aman dari XSS jawaban LLM/input pengguna
       div.textContent = text;
       messages.appendChild(div);
       messages.scrollTop = messages.scrollHeight;
+      return div;
     };
 
-    const ask = q => {
+    // Riwayat percakapan untuk konteks AI (maksimal 6 pesan terakhir)
+    const history = [];
+    const trimHistory = () => { if (history.length > 6) history.splice(0, history.length - 6); };
+
+    const ask = async q => {
       addMsg(q, 'user');
-      setTimeout(() => addMsg(helpChatAnswer(q), 'bot'), 350);
+      history.push({ role: 'user', content: q });
+      trimHistory();
+
+      // Indikator "sedang mengetik"
+      const typingNode = addMsg('Aisyah sedang mengetik…', 'bot');
+
+      const fallback = () => {
+        const a = helpChatAnswer(q);
+        addMsg(a, 'bot');
+        history.push({ role: 'assistant', content: a });
+        trimHistory();
+      };
+
+      try {
+        const { data, error } = await db.functions.invoke('aisyah-chat', { body: { messages: history } });
+        typingNode.remove();
+        if (error || !data || !data.reply) {
+          fallback();
+        } else {
+          addMsg(data.reply, 'bot');
+          history.push({ role: 'assistant', content: data.reply });
+          trimHistory();
+        }
+      } catch (e) {
+        typingNode.remove();
+        fallback();
+      }
     };
 
     // Tombol pertanyaan cepat

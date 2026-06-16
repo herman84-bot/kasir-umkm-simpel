@@ -594,7 +594,7 @@ git commit -m "test: verify multi-agent pipeline end-to-end"
 
 ## Known Issue
 
-`config.js:4` contains a hardcoded Groq API key (`gsk_7omqy...`). Red Team will flag this as CRITICAL on every pipeline run that touches any file. **This is expected behavior.** To resolve it permanently:
+`config.js:4` contains a hardcoded Groq API key (`gsk_***REDACTED***`). Red Team will flag this as CRITICAL on every pipeline run that touches any file. **This is expected behavior.** To resolve it permanently:
 1. Rotate the key at console.groq.com
 2. Move it to an environment variable or `.env` file
 3. Add `.env` to `.gitignore`
