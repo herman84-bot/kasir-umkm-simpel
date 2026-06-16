@@ -15,3 +15,6 @@ yarn-error.log*
 
 # Local storage dumps
 *.localstorage
+
+# Config dengan API keys (gunakan config.example.js sebagai template)
+config.js
