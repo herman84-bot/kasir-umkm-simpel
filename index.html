@@ -785,6 +785,39 @@
     </div>
   </div>
 
+  <!-- Modal Konfirmasi Pembayaran QRIS/Transfer -->
+  <div id="paymentConfirmModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+        <div>
+          <h3 class="text-xl font-semibold">Konfirmasi Pembayaran</h3>
+          <p class="text-slate-500 text-sm">Pastikan pembayaran sudah diterima sebelum melanjutkan.</p>
+        </div>
+        <button id="closePaymentConfirmModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-2">
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-500">Metode Pembayaran</span>
+            <span id="paymentConfirmMethod" class="font-semibold text-slate-800"></span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-500">Total Tagihan</span>
+            <span id="paymentConfirmTotal" class="font-bold text-lg text-slate-900"></span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-500">Kasir</span>
+            <span id="paymentConfirmCashier" class="font-semibold text-slate-800"></span>
+          </div>
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button id="paymentConfirmOk" class="flex-1 rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">Ya, Konfirmasi Pembayaran</button>
+          <button id="paymentConfirmCancel" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="loginModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
     <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
       <div class="border-b border-slate-200 p-5">

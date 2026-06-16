@@ -70,6 +70,42 @@ const App = (() => {
   const SUBS_QRIS_PAYLOAD = '00020101021126570011ID.DANA.WWW011893600915303246671402090324667140303UMI51440014ID.CO.QRIS.WWW0215ID10265311627370303UMI5204899953033605802ID5916Absenta solution6014Kota Tangerang6105151166304797F';
   const SUBS_EMAIL = 'noreply.absenta@gmail.com';
 
+  // Short-lived in-memory cache for the server-side subscription check (max 60 s).
+  // Stored in a module-level variable — NOT localStorage — so it resets on each page load.
+  let _subsCacheResult = null;
+  let _subsCacheTs = 0;
+  const SUBS_CACHE_TTL_MS = 60 * 1000;
+
+  // Call the check-subscription Edge Function and return { premiumActive, businessActive, daysLeft }.
+  // Returns null on 401 or network error (fail-closed: treat as inactive).
+  const fetchSubscriptionFromServer = async () => {
+    const now = Date.now();
+    if (_subsCacheResult !== null && now - _subsCacheTs < SUBS_CACHE_TTL_MS) {
+      return _subsCacheResult;
+    }
+    try {
+      const { data, error } = await db.functions.invoke('check-subscription', { body: {} });
+      if (error) {
+        _subsCacheResult = null;
+        _subsCacheTs = 0;
+        return null;
+      }
+      _subsCacheResult = data;
+      _subsCacheTs = now;
+      return data;
+    } catch (e) {
+      _subsCacheResult = null;
+      _subsCacheTs = 0;
+      return null;
+    }
+  };
+
+  // Invalidate the server-side subscription cache (called on fresh page load / loadStore).
+  const invalidateSubscriptionCache = () => {
+    _subsCacheResult = null;
+    _subsCacheTs = 0;
+  };
+
   // Hitung sisa hari masa aktif (trial atau premium, ambil yang paling lama)
   // Toko utama (pusat) = penambat langganan. Semua cabang berbagi langganan ini.
   const primaryStore = () =>
@@ -179,15 +215,21 @@ const App = (() => {
     showSubsOverlay(p);
   };
 
-  // Gerbang fitur Premium: true jika boleh lanjut, false + tampilkan upgrade jika tidak
-  const requirePremium = featureName => {
-    if (isPremiumActive()) return true;
+  // Gerbang fitur Premium: true jika boleh lanjut, false + tampilkan upgrade jika tidak.
+  // Uses server-side check to prevent client-side bypass via state.stores manipulation.
+  const requirePremium = async featureName => {
+    const serverResult = db ? await fetchSubscriptionFromServer() : null;
+    // fail-closed: null (401 / network error) → treat as inactive
+    const active = serverResult !== null ? serverResult.premiumActive : false;
+    if (active) return true;
     showUpgradeOverlay('premium', featureName);
     return false;
   };
   // Gerbang fitur Bisnis (Multi-Cabang)
-  const requireBusiness = featureName => {
-    if (isBusinessActive()) return true;
+  const requireBusiness = async featureName => {
+    const serverResult = db ? await fetchSubscriptionFromServer() : null;
+    const active = serverResult !== null ? serverResult.businessActive : false;
+    if (active) return true;
     showUpgradeOverlay('business', featureName);
     return false;
   };
@@ -360,7 +402,9 @@ const App = (() => {
     total: Number(tx.total_amount),
     cash: Number(tx.payment_amount),
     change: Number(tx.change_amount),
-    paymentMethod: tx.payment_method || 'Tunai'
+    paymentMethod: tx.payment_method || 'Tunai',
+    confirmedBy: tx.confirmed_by || null,
+    confirmedAt: tx.confirmed_at || null
   });
 
   // ── Session ───────────────────────────────────────────────────────────────
@@ -705,7 +749,14 @@ const App = (() => {
     forgotPasswordBtn: document.getElementById('forgotPasswordBtn'),
     forgotPasswordForm: document.getElementById('forgotPasswordForm'),
     resetEmail: document.getElementById('resetEmail'),
-    sendResetBtn: document.getElementById('sendResetBtn')
+    sendResetBtn: document.getElementById('sendResetBtn'),
+    paymentConfirmModal: document.getElementById('paymentConfirmModal'),
+    closePaymentConfirmModal: document.getElementById('closePaymentConfirmModal'),
+    paymentConfirmMethod: document.getElementById('paymentConfirmMethod'),
+    paymentConfirmTotal: document.getElementById('paymentConfirmTotal'),
+    paymentConfirmCashier: document.getElementById('paymentConfirmCashier'),
+    paymentConfirmOk: document.getElementById('paymentConfirmOk'),
+    paymentConfirmCancel: document.getElementById('paymentConfirmCancel')
   };
 
   let chartInstance = null;
@@ -746,6 +797,9 @@ const App = (() => {
 
   // Memuat SELURUH toko/cabang milik user, lalu menetapkan cabang aktif
   const loadStore = async () => {
+    // Invalidate server-side subscription cache so the next requirePremium/requireBusiness
+    // call always fetches fresh data from the Edge Function.
+    invalidateSubscriptionCache();
     const { data, error } = await db.from('stores').select('*').order('created_at', { ascending: true });
     if (error) { console.warn('loadStore error:', error); return null; }
     state.stores = data || [];
@@ -756,7 +810,11 @@ const App = (() => {
     let active = state.stores.find(s => String(s.id) === String(savedId)) || state.stores[0];
     // Jika paket Bisnis tidak aktif, kunci ke toko utama (cabang lain tidak bisa dibuka)
     const primary = state.stores.find(s => s.is_main) || state.stores[0];
-    if (!isBusinessActive() && String(active.id) !== String(primary.id)) {
+    // Cek bisnis langsung dari data primary yang baru di-fetch (hindari dead-code via cache yang sudah diinvalidasi)
+    const _now = Date.now();
+    const _bizExpiries = ['trial_ends_at', 'business_until'].map(c => primary[c]).filter(Boolean).map(d => new Date(d).getTime());
+    const bizActiveForLoad = _bizExpiries.length === 0 ? true : Math.max(..._bizExpiries) > _now;
+    if (!bizActiveForLoad && String(active.id) !== String(primary.id)) {
       active = primary;
     }
     state.store = active;
@@ -899,10 +957,9 @@ const App = (() => {
     if (!target) return;
     // Kunci cabang non-utama jika paket Bisnis tidak aktif (trial habis & belum bayar)
     const primaryId = String(primaryStore()?.id);
-    if (String(id) !== primaryId && !isBusinessActive()) {
+    if (String(id) !== primaryId && !await requireBusiness('Mengakses cabang selain toko utama')) {
       const sel = document.getElementById('storeSwitcher');
       if (sel) sel.value = String(state.storeId); // kembalikan pilihan dropdown
-      requireBusiness('Mengakses cabang selain toko utama');
       return;
     }
     localStorage.setItem(activeStoreKey(), String(id));
@@ -918,7 +975,7 @@ const App = (() => {
 
   // Tambah cabang baru (Premium). Gratis dibatasi 1 toko.
   const addBranch = async () => {
-    if ((state.stores || []).length >= 1 && !requireBusiness('Multi-cabang (lebih dari 1 toko)')) return;
+    if ((state.stores || []).length >= 1 && !await requireBusiness('Multi-cabang (lebih dari 1 toko)')) return;
     const name = (prompt('Nama cabang baru:') || '').trim();
     if (!name) return;
     if (!db || !state.authUser) { alert('Fitur cabang membutuhkan koneksi & login.'); return; }
@@ -1422,6 +1479,19 @@ const App = (() => {
     dom.loginForm.reset();
   };
 
+  const showPaymentConfirmModal = (method, total, cashierName) => {
+    dom.paymentConfirmMethod.textContent = method;
+    dom.paymentConfirmTotal.textContent = formatCurrency(total);
+    dom.paymentConfirmCashier.textContent = cashierName;
+    dom.paymentConfirmModal.classList.remove('hidden');
+    dom.paymentConfirmModal.style.display = 'flex';
+  };
+
+  const hidePaymentConfirmModal = () => {
+    dom.paymentConfirmModal.classList.add('hidden');
+    dom.paymentConfirmModal.style.display = '';
+  };
+
   const authenticateUser = (name, password) => {
     const user = state.cashiers.find(item => item.name.toLowerCase() === name.toLowerCase() && item.password === password);
     if (!user) return false;
@@ -1629,7 +1699,7 @@ const App = (() => {
 
   const renderPurchaseOptions = () => {
     dom.purchaseProduct.innerHTML = state.products.map(product => `
-      <option value="${product.id}">${product.name} (${product.stock} stok)</option>
+      <option value="${product.id}">${esc(product.name)} (${product.stock} stok)</option>
     `).join('');
   };
 
@@ -1646,7 +1716,7 @@ const App = (() => {
       return `
         <div class="flex items-center justify-between gap-3 rounded-2xl bg-white p-3 border border-slate-200 mb-3">
           <div>
-            <p class="font-semibold">${item.name}</p>
+            <p class="font-semibold">${esc(item.name)}</p>
             <p class="text-slate-500 text-sm">Qty ${item.qty} x ${formatCurrency(item.price)}</p>
           </div>
           <span class="font-semibold">${formatCurrency(subtotal)}</span>
@@ -1955,7 +2025,7 @@ const App = (() => {
     const cats = ['All', ...new Set(state.products.map(p => p.category).filter(Boolean))];
     const currentCat = dom.categoryFilter.value;
     dom.categoryFilter.innerHTML = cats.map(c =>
-      `<option value="${c}"${c === currentCat ? ' selected' : ''}>${c === 'All' ? 'Semua Kategori' : c}</option>`
+      `<option value="${esc(c)}"${c === currentCat ? ' selected' : ''}>${c === 'All' ? 'Semua Kategori' : esc(c)}</option>`
     ).join('');
 
     dom.inventoryTable.innerHTML = state.products.map(product => {
@@ -1964,10 +2034,10 @@ const App = (() => {
       const rowClass = isLowStock ? 'border-b border-rose-200 bg-rose-50/30' : 'border-b border-slate-200';
       return `
         <tr class="${rowClass}">
-          <td class="p-3 font-semibold">${product.code}</td>
-          <td class="p-3">${product.name}${isLowStock ? ' <span class="text-rose-500 text-xs font-bold">⚠ Stok Rendah</span>' : ''}</td>
-          <td class="p-3 text-xs text-slate-500 font-mono">${product.barcode || '-'}</td>
-          <td class="p-3">${product.category}</td>
+          <td class="p-3 font-semibold">${esc(product.code)}</td>
+          <td class="p-3">${esc(product.name)}${isLowStock ? ' <span class="text-rose-500 text-xs font-bold">⚠ Stok Rendah</span>' : ''}</td>
+          <td class="p-3 text-xs text-slate-500 font-mono">${esc(product.barcode || '-')}</td>
+          <td class="p-3">${esc(product.category)}</td>
           <td class="p-3">${formatCurrency(product.price)}</td>
           <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${criticalClass}">${product.stock} / min ${product.minStock || 5}</span></td>
           <td class="p-3 space-x-2">
@@ -2172,9 +2242,15 @@ const App = (() => {
   const getOfflineQueue = () => {
     try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); } catch { return []; }
   };
+  const generateClientId = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return Date.now() + '-' + Math.random().toString(36).slice(2);
+  };
   const queueOfflineTransaction = entry => {
     const q = getOfflineQueue();
-    q.push(entry);
+    q.push({ ...entry, client_id: generateClientId() });
     localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q));
   };
   const flushOfflineQueue = async () => {
@@ -2184,6 +2260,8 @@ const App = (() => {
     const remaining = [];
     let synced = 0;
     for (const entry of q) {
+      // AC6: legacy entries without client_id get a stable fallback so they are not permanently stuck
+      const clientId = entry.client_id || (entry.date + '-' + entry.total);
       try {
         const { data: tx, error: txErr } = await db.from('transactions').insert({
           store_id: entry.store_id || state.storeId,
@@ -2193,7 +2271,10 @@ const App = (() => {
           change_amount: entry.change,
           discount_amount: entry.discount || 0,
           payment_method: entry.paymentMethod || 'Tunai',
-          created_at: entry.date
+          confirmed_by: entry.confirmedBy || null,
+          confirmed_at: entry.confirmedAt || null,
+          created_at: entry.date,
+          client_id: clientId
         }).select().single();
         if (txErr) throw txErr;
         const itemRows = entry.items.map(item => ({
@@ -2206,15 +2287,18 @@ const App = (() => {
         }));
         const { error: itemsErr } = await db.from('transaction_items').insert(itemRows);
         if (itemsErr) throw itemsErr;
-        // Kurangi stok di cloud sesuai qty yang terjual offline
+        // Kurangi stok di cloud sesuai qty yang terjual offline (atomic — satu statement, tanpa read dulu)
         for (const item of entry.items) {
           const numId = parseInt(item.id);
           if (isNaN(numId)) continue;
-          const { data: prod } = await db.from('products').select('stock').eq('id', numId).maybeSingle();
-          if (prod) await db.from('products').update({ stock: Math.max(0, prod.stock - item.qty) }).eq('id', numId);
+          if (!Number.isFinite(item.qty) || item.qty <= 0) continue;
+          const { error: stockErr } = await db.rpc('decrement_stock', { p_product_id: numId, p_qty: item.qty });
+          if (stockErr) throw stockErr;
         }
         synced++;
       } catch (e) {
+        // AC4: duplicate insert from same store → already synced, drop silently without retry
+        if (e && e.code === '23505') continue;
         remaining.push(entry); // gagal lagi → coba lain kali
       }
     }
@@ -2267,9 +2351,19 @@ const App = (() => {
         alert('Jumlah tunai belum cukup. Mohon masukkan nominal yang sesuai.');
         return;
       }
+      // Cash: proceed directly without modal, confirmed_by/confirmed_at stay null
+      await _executePayment(cartItems, totals, null, null);
     } else {
+      // QRIS/Transfer: show modal so cashier confirms receipt before saving
+      const cashier = getSelectedCashier();
+      showPaymentConfirmModal(state.paymentMethod, totals.total, cashier.name);
+      // Actual save is triggered by paymentConfirmOk click (wired in initEventListeners)
+    }
+  };
+
+  const _executePayment = async (cartItems, totals, confirmedBy, confirmedAt) => {
+    if (state.paymentMethod !== 'Tunai') {
       // QRIS/Transfer: nominal bayar otomatis = total, tanpa kembalian
-      if (!confirm(`Pastikan pembayaran ${state.paymentMethod} sebesar ${formatCurrency(totals.total)} sudah DITERIMA (cek notifikasi/mutasi).\n\nLanjutkan simpan transaksi?`)) return;
       state.cashAmount = totals.total;
       totals.cash = totals.total;
       totals.change = 0;
@@ -2288,7 +2382,9 @@ const App = (() => {
           payment_amount: totals.cash,
           change_amount: totals.change,
           discount_amount: totals.discount || 0,
-          payment_method: state.paymentMethod || 'Tunai'
+          payment_method: state.paymentMethod || 'Tunai',
+          confirmed_by: confirmedBy,
+          confirmed_at: confirmedAt
         }).select().single();
         if (txErr) throw txErr;
 
@@ -2306,14 +2402,13 @@ const App = (() => {
         const { error: itemsErr } = await db.from('transaction_items').insert(itemRows);
         if (itemsErr) throw itemsErr;
 
-        // Update stock in Supabase
+        // Update stock in Supabase (atomic — prevents race condition between concurrent tabs)
         for (const item of cartItems) {
           const numId = parseInt(item.id);
-          const product = state.products.find(p => p.id === item.id);
-          if (!isNaN(numId) && product) {
-            const newStock = Math.max(0, product.stock - item.qty);
-            await db.from('products').update({ stock: newStock }).eq('id', numId);
-          }
+          if (isNaN(numId)) continue;
+          if (!Number.isFinite(item.qty) || item.qty <= 0) continue;
+          const { error: stockErr } = await db.rpc('decrement_stock', { p_product_id: numId, p_qty: item.qty });
+          if (stockErr) throw stockErr;
         }
       } catch (err) {
         // Internet putus / server bermasalah → simpan ke antrean offline,
@@ -2326,6 +2421,8 @@ const App = (() => {
           change: totals.change,
           discount: totals.discount || 0,
           paymentMethod: state.paymentMethod || 'Tunai',
+          confirmedBy: confirmedBy,
+          confirmedAt: confirmedAt,
           items: cartItems.map(item => ({ id: item.id, name: item.name, qty: item.qty, price: item.price })),
           date: new Date().toISOString()
         });
@@ -2344,7 +2441,9 @@ const App = (() => {
       total: totals.total,
       cash: totals.cash,
       change: totals.change,
-      paymentMethod: state.paymentMethod || 'Tunai'
+      paymentMethod: state.paymentMethod || 'Tunai',
+      confirmedBy: confirmedBy,
+      confirmedAt: confirmedAt
     };
 
     state.transactions.unshift(transaction);
@@ -2406,7 +2505,7 @@ const App = (() => {
 
     dom.receiptItems.innerHTML = data.items.map(item => `
       <div>
-        <div class="flex justify-between font-medium">${item.name}<span>${formatCurrency(item.price * item.qty)}</span></div>
+        <div class="flex justify-between font-medium">${esc(item.name)}<span>${formatCurrency(item.price * item.qty)}</span></div>
         <div class="text-slate-500 ml-1">${item.qty} x ${formatCurrency(item.price)}</div>
       </div>
     `).join('');
@@ -2433,7 +2532,7 @@ const App = (() => {
 
     const itemsHtml = data.items.map(item => `
       <div class="row-item">
-        <span class="item-name">${item.name}</span>
+        <span class="item-name">${esc(item.name)}</span>
         <span class="item-total">${formatCurrency(item.price * item.qty)}</span>
       </div>
       <div class="item-detail">${item.qty} x ${formatCurrency(item.price)}</div>
@@ -2454,13 +2553,13 @@ body { width: ${paperWidth}; }
 @media print { @page { size: ${paperWidth} auto; margin: 0; } }
 </style>
 </head><body>
-<p class="center big">${store.name}</p>
-${store.address ? `<p class="center">${store.address}</p>` : ''}
-${store.phone ? `<p class="center">Telp: ${store.phone}</p>` : ''}
+<p class="center big">${esc(store.name)}</p>
+${store.address ? `<p class="center">${esc(store.address)}</p>` : ''}
+${store.phone ? `<p class="center">Telp: ${esc(store.phone)}</p>` : ''}
 <div class="separator"></div>
-<div class="row"><span>No</span><span>${data.id || '-'}</span></div>
+<div class="row"><span>No</span><span>${esc(data.id || '-')}</span></div>
 <div class="row"><span>Tgl</span><span>${new Date(data.date).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></div>
-<div class="row"><span>Kasir</span><span>${data.cashier || cashier.name}</span></div>
+<div class="row"><span>Kasir</span><span>${esc(data.cashier || cashier.name)}</span></div>
 <div class="separator"></div>
 ${itemsHtml}
 <div class="separator"></div>
@@ -2468,10 +2567,10 @@ ${itemsHtml}
 ${discountHtml}${taxHtml}
 <div class="separator-solid"></div>
 <div class="total-row"><span>TOTAL</span><span>${formatCurrency(data.total)}</span></div>
-<div class="row"><span>${data.paymentMethod || 'Tunai'}</span><span>${formatCurrency(data.cash)}</span></div>
+<div class="row"><span>${esc(data.paymentMethod || 'Tunai')}</span><span>${formatCurrency(data.cash)}</span></div>
 <div class="row bold"><span>Kembali</span><span>${formatCurrency(data.change)}</span></div>
 <div class="separator"></div>
-<p class="footer">${store.note || 'Terima kasih!'}</p>
+<p class="footer">${esc(store.note || 'Terima kasih!')}</p>
 <br/><br/>
 </body></html>`;
 
@@ -2594,14 +2693,14 @@ ${discountHtml}${taxHtml}
       const time = new Date(tx.date).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
       return `<tr>
         <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${time}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${tx.id}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${tx.cashier || '-'}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${esc(tx.id)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${esc(tx.cashier || '-')}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right">${formatCurrency(tx.total)}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${tx.paymentMethod || 'Tunai'}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${esc(tx.paymentMethod || 'Tunai')}</td>
       </tr>`;
     }).join('');
 
-    const html = `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Laporan ${store.name}</title>
+    const html = `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Laporan ${esc(store.name)}</title>
 <style>
   body{font-family:Arial,sans-serif;font-size:12px;color:#1e293b;padding:0;margin:0}
   h1{margin:0 0 4px;font-size:20px}
@@ -2616,7 +2715,7 @@ ${discountHtml}${taxHtml}
   @media print{@page{size:A4;margin:15mm}}
 </style></head><body>
 <div class="header">
-  <h1>${store.name}</h1>
+  <h1>${esc(store.name)}</h1>
   <p style="margin:0;opacity:.8;font-size:12px">Laporan ${days === 1 ? 'Hari Ini' : days + ' Hari Terakhir'} — Dicetak: ${new Date().toLocaleDateString('id-ID', {day:'2-digit',month:'long',year:'numeric'})}</p>
 </div>
 <div class="content">
@@ -2682,15 +2781,15 @@ ${discountHtml}${taxHtml}
 
     const txRows = shiftTx.slice(0, 50).map(tx => {
       const time = new Date(tx.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit' });
-      return `<div class="row"><span>${time} ${tx.id.slice(-6)}</span><span>${formatCurrency(tx.total)}</span></div>`;
+      return `<div class="row"><span>${time} ${esc(tx.id.slice(-6))}</span><span>${formatCurrency(tx.total)}</span></div>`;
     }).join('');
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Laporan Shift</title>
 <style>${thermalCSS}</style></head><body>
-<p class="center big">${store.name}</p>
+<p class="center big">${esc(store.name)}</p>
 <p class="center">LAPORAN SHIFT</p>
 <div class="separator"></div>
-<div class="row"><span>Kasir</span><span>${cashier.name}</span></div>
+<div class="row"><span>Kasir</span><span>${esc(cashier.name)}</span></div>
 <div class="row"><span>Cetak</span><span>${new Date().toLocaleString('id-ID', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
 <div class="separator"></div>
 <div class="row"><span>Transaksi</span><span>${shiftTx.length}</span></div>
@@ -2788,7 +2887,8 @@ ${txRows}
 
         // Premium + payload terbaca → QR dinamis bernominal; selain itu gambar statis
         const payload = getQrisPayload();
-        const dynamicPayload = (isPremiumActive() && payload) ? makeDynamicQris(payload, totals.total) : null;
+        const premiumOk = _subsCacheResult !== null ? _subsCacheResult.premiumActive : false;
+        const dynamicPayload = (premiumOk && payload) ? makeDynamicQris(payload, totals.total) : null;
         if (dynamicPayload && window.QRCode && modalQr) {
           modalQr.innerHTML = '';
           new QRCode(modalQr, { text: dynamicPayload, width: 224, height: 224, correctLevel: QRCode.CorrectLevel.M });
@@ -2865,9 +2965,9 @@ ${txRows}
     });
 
     // Kelola Kasir
-    dom.addCashierBtn?.addEventListener('click', () => {
+    dom.addCashierBtn?.addEventListener('click', async () => {
       // Gratis: maksimal 2 operator (1 admin + 1 kasir). Lebih dari itu = Premium.
-      if (state.cashiers.length >= 2 && !requirePremium('Lebih dari 2 operator kasir')) return;
+      if (state.cashiers.length >= 2 && !await requirePremium('Lebih dari 2 operator kasir')) return;
       openCashierModal();
     });
     dom.closeCashierModal?.addEventListener('click', closeCashierModalFn);
@@ -2952,12 +3052,26 @@ ${txRows}
       }
     });
     dom.loginCancel.addEventListener('click', hideLoginModal);
+
+    dom.paymentConfirmCancel.addEventListener('click', hidePaymentConfirmModal);
+    dom.closePaymentConfirmModal.addEventListener('click', hidePaymentConfirmModal);
+    dom.paymentConfirmOk.addEventListener('click', async () => {
+      hidePaymentConfirmModal();
+      const cartItems = getCartItems();
+      const totals = calculateCart();
+      const cashier = getSelectedCashier();
+      const confirmedBy = cashier.name;
+      const confirmedAt = new Date().toISOString();
+      await _executePayment(cartItems, totals, confirmedBy, confirmedAt);
+    });
+
     document.addEventListener('click', event => {
       if (event.target === dom.inventoryModal) hideInventoryModal();
       if (event.target === dom.receiptModal) closeReceipt();
       if (event.target === dom.scannerModal) closeScannerModal();
       if (event.target === dom.purchaseModal) closePurchaseModal();
       if (event.target === dom.loginModal) hideLoginModal();
+      if (event.target === dom.paymentConfirmModal) hidePaymentConfirmModal();
     });
 
     // ── Login / Register (Supabase Auth) ──
@@ -3101,9 +3215,11 @@ ${txRows}
       const btn = document.getElementById('subsRecheckBtn');
       btn.textContent = 'Memeriksa...';
       await loadStore();
+      // loadStore() already invalidated the cache; fetch fresh result from server
+      const serverResult = db ? await fetchSubscriptionFromServer() : null;
       btn.textContent = '🔄 Saya sudah diaktifkan — cek ulang';
-      const daysLeft = getSubscriptionDaysLeft();
-      if (daysLeft !== null && daysLeft > 0) {
+      const premiumActive = serverResult !== null ? serverResult.premiumActive : false;
+      if (premiumActive) {
         hideSubsOverlay();
         const banner = document.getElementById('subsBanner');
         if (banner) { banner.classList.add('hidden'); document.body.style.paddingTop = ''; }
@@ -3200,8 +3316,8 @@ ${txRows}
     });
 
     // ── Feature 4: Export PDF ──
-    dom.exportPdfBtn?.addEventListener('click', () => {
-      if (!requirePremium('Export laporan PDF')) return;
+    dom.exportPdfBtn?.addEventListener('click', async () => {
+      if (!await requirePremium('Export laporan PDF')) return;
       exportReportPDF();
     });
 
@@ -3349,10 +3465,10 @@ ${txRows}
       btn.addEventListener('click', () => sendDebtReminder(btn.dataset.debtWa)));
   };
 
-  const openDebtModal = () => {
+  const openDebtModal = async () => {
     // Gerbang premium: gratis maksimal 5 kasbon aktif
     const activeCount = (state.debts || []).filter(d => d.status !== 'lunas').length;
-    if (activeCount >= 5 && !requirePremium('Kasbon lebih dari 5 catatan aktif')) return;
+    if (activeCount >= 5 && !await requirePremium('Kasbon lebih dari 5 catatan aktif')) return;
     const m = document.getElementById('debtModal');
     document.getElementById('debtForm')?.reset();
     document.getElementById('debtFormError')?.classList.add('hidden');
