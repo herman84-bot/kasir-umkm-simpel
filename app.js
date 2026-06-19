@@ -511,6 +511,7 @@ const App = (() => {
     const wrapper = document.getElementById('cashierSelectWrapper');
     if (wrapper) wrapper.style.display = '';
     renderStoreSwitcher();
+    applySuperAdminVisibility();
   };
 
   const logout = async () => {
@@ -521,6 +522,7 @@ const App = (() => {
     state.storeId = null;
     state.cart = {};
     state.cashAmount = 0;
+    _isSuperAdmin = false;
     showLoginPage();
   };
   // ─────────────────────────────────────────────────────────────────────────
@@ -2090,6 +2092,10 @@ const App = (() => {
   };
 
   const showScreen = screenId => {
+    // Super admin screen hanya boleh dibuka oleh super admin terverifikasi
+    if (screenId === 'screen-superadmin' && !_isSuperAdmin) {
+      screenId = 'dashboard';
+    }
     // Operator kasir tidak boleh membuka layar khusus admin
     const activeOp = state.cashiers.find(c => c.id === state.selectedCashierId);
     if (activeOp && activeOp.role !== 'admin' && ADMIN_SCREENS.includes(screenId)) {
@@ -3347,6 +3353,9 @@ ${txRows}
     // ── Multi-Cabang ──
     document.getElementById('storeSwitcher')?.addEventListener('change', e => switchStore(e.target.value));
     document.getElementById('addBranchBtn')?.addEventListener('click', addBranch);
+
+    // ── Super Admin ──
+    bindSuperAdminEvents();
   };
 
   const renderAll = () => {
@@ -3407,6 +3416,9 @@ ${txRows}
 
     // Freemium: aplikasi tidak pernah dikunci — hanya tampilkan banner pengingat trial
     checkSubscription();
+
+    // Cek apakah user adalah super admin (query ke tabel admin_users)
+    await checkSuperAdmin();
 
     applyRoleAccess();
     showApp();
@@ -3750,6 +3762,216 @@ ${txRows}
   };
 
   const showHelpChatFab = () => document.getElementById('helpChatFab')?.classList.remove('hidden');
+
+  // ── Super Admin Module ───────────────────────────────────────────────────
+  // isSuperAdmin: true setelah berhasil terverifikasi lewat admin_users di Supabase.
+  // Nilai ini di-set saat enterAppAfterAuth dan di-reset saat logout.
+  let _isSuperAdmin = false;
+
+  const checkSuperAdmin = async () => {
+    if (!db || !state.authUser?.email) { _isSuperAdmin = false; return; }
+    try {
+      const { data, error } = await db
+        .from('admin_users')
+        .select('id')
+        .eq('email', state.authUser.email)
+        .maybeSingle();
+      _isSuperAdmin = !error && !!data;
+    } catch {
+      _isSuperAdmin = false;
+    }
+  };
+
+  const applySuperAdminVisibility = () => {
+    const btn = document.getElementById('openSuperAdminBtn');
+    if (btn) {
+      if (_isSuperAdmin) {
+        btn.classList.remove('hidden');
+        btn.style.display = '';
+      } else {
+        btn.classList.add('hidden');
+        btn.style.display = 'none';
+      }
+    }
+  };
+
+  // Kalkulator tanggal berakhir dari pilihan durasi dropdown
+  const computeUntilDate = () => {
+    const duration = document.getElementById('superAdminDuration')?.value;
+    if (duration === 'custom') {
+      const d = document.getElementById('superAdminCustomDate')?.value;
+      return d ? new Date(d).toISOString() : null;
+    }
+    const months = parseInt(duration || '1', 10);
+    const until = new Date();
+    until.setMonth(until.getMonth() + months);
+    return until.toISOString();
+  };
+
+  const superAdminShowMsg = (type, msg) => {
+    const err = document.getElementById('superAdminFormError');
+    const ok  = document.getElementById('superAdminFormSuccess');
+    if (!err || !ok) return;
+    if (type === 'error') {
+      err.textContent = msg; err.classList.remove('hidden');
+      ok.classList.add('hidden');
+    } else {
+      ok.textContent = msg; ok.classList.remove('hidden');
+      err.classList.add('hidden');
+    }
+    setTimeout(() => { err.classList.add('hidden'); ok.classList.add('hidden'); }, 4000);
+  };
+
+  const superAdminStatusLabel = store => {
+    const now = Date.now();
+    const bizMs  = store.business_until ? new Date(store.business_until).getTime() : null;
+    const premMs = store.premium_until  ? new Date(store.premium_until).getTime()  : null;
+    const triMs  = store.trial_ends_at  ? new Date(store.trial_ends_at).getTime()  : null;
+    if (bizMs  && bizMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-xs font-semibold">Bisnis</span>';
+    if (premMs && premMs > now) return '<span class="px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 text-xs font-semibold">Premium</span>';
+    if (triMs  && triMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">Trial</span>';
+    return '<span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs font-semibold">Gratis</span>';
+  };
+
+  const superAdminFmtDate = v => {
+    if (!v) return '<span class="text-slate-300">—</span>';
+    return esc(new Date(v).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }));
+  };
+
+  // Render tabel toko dan isi dropdown pilih toko
+  const superAdminRenderTable = (stores) => {
+    const wrapper = document.getElementById('superAdminTableWrapper');
+    const sel = document.getElementById('superAdminStoreSelect');
+    if (!wrapper || !sel) return;
+
+    // Isi dropdown
+    sel.innerHTML = '<option value="">— Pilih toko —</option>' +
+      stores.map(s =>
+        `<option value="${esc(s.id)}">${esc(s.name || 'Tanpa Nama')} — ${esc(s.owner_email || s.owner_id)}</option>`
+      ).join('');
+
+    if (!stores.length) {
+      wrapper.innerHTML = '<p class="text-slate-400 text-sm">Belum ada toko terdaftar.</p>';
+      return;
+    }
+
+    wrapper.innerHTML = `
+      <table class="w-full text-sm border-collapse">
+        <thead>
+          <tr class="border-b border-slate-200 text-left text-slate-500 text-xs uppercase tracking-wide">
+            <th class="py-2 pr-4 font-medium">Nama Toko</th>
+            <th class="py-2 pr-4 font-medium">Owner ID</th>
+            <th class="py-2 pr-4 font-medium">Email Pemilik</th>
+            <th class="py-2 pr-4 font-medium">Trial</th>
+            <th class="py-2 pr-4 font-medium">Premium s/d</th>
+            <th class="py-2 pr-4 font-medium">Bisnis s/d</th>
+            <th class="py-2 font-medium">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${stores.map(s => `
+            <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+              <td class="py-2 pr-4 font-medium text-slate-900">${esc(s.name || '-')}</td>
+              <td class="py-2 pr-4 text-slate-500 font-mono text-xs">${esc(s.owner_id || '-')}</td>
+              <td class="py-2 pr-4 text-slate-500">${esc(s.owner_email || '-')}</td>
+              <td class="py-2 pr-4">${superAdminFmtDate(s.trial_ends_at)}</td>
+              <td class="py-2 pr-4">${superAdminFmtDate(s.premium_until)}</td>
+              <td class="py-2 pr-4">${superAdminFmtDate(s.business_until)}</td>
+              <td class="py-2">${superAdminStatusLabel(s)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  };
+
+  const superAdminLoadStores = async () => {
+    const wrapper = document.getElementById('superAdminTableWrapper');
+    if (wrapper) wrapper.innerHTML = '<p class="text-slate-400 text-sm">Memuat data...</p>';
+    try {
+      const { data, error } = await db.functions.invoke('admin-subscription', {
+        body: { action: 'list_stores' }
+      });
+      if (error || !data?.stores) {
+        if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat data toko.</p>';
+        return;
+      }
+      superAdminRenderTable(data.stores);
+    } catch (e) {
+      if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Terjadi kesalahan koneksi.</p>';
+    }
+  };
+
+  const bindSuperAdminEvents = () => {
+    // Tombol "Admin Panel" di pengaturan → navigasi ke screen super admin
+    document.getElementById('openSuperAdminBtn')?.addEventListener('click', () => {
+      showScreen('screen-superadmin');
+      superAdminLoadStores();
+    });
+
+    // Refresh
+    document.getElementById('superAdminRefreshBtn')?.addEventListener('click', superAdminLoadStores);
+
+    // Toggle custom date input
+    document.getElementById('superAdminDuration')?.addEventListener('change', e => {
+      const wrap = document.getElementById('superAdminCustomDateWrapper');
+      if (wrap) wrap.classList.toggle('hidden', e.target.value !== 'custom');
+    });
+
+    // Aktifkan langganan
+    document.getElementById('superAdminActivateBtn')?.addEventListener('click', async () => {
+      const storeId = document.getElementById('superAdminStoreSelect')?.value;
+      const pkg     = document.getElementById('superAdminPackage')?.value;
+      const until   = computeUntilDate();
+      if (!storeId) { superAdminShowMsg('error', 'Pilih toko terlebih dahulu.'); return; }
+      if (!until)   { superAdminShowMsg('error', 'Pilih tanggal berakhir terlebih dahulu.'); return; }
+
+      const btn = document.getElementById('superAdminActivateBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Memproses...'; }
+      try {
+        const { data, error } = await db.functions.invoke('admin-subscription', {
+          body: { action: 'activate', store_id: storeId, package: pkg, until }
+        });
+        if (error || !data?.success) {
+          superAdminShowMsg('error', 'Gagal mengaktifkan: ' + (data?.error || error?.message || 'kesalahan tidak dikenal'));
+        } else {
+          superAdminShowMsg('ok', 'Langganan berhasil diaktifkan.');
+          // AC9: invalidasi cache langganan agar status baru langsung terlihat
+          invalidateSubscriptionCache();
+          await superAdminLoadStores();
+        }
+      } catch (e) {
+        superAdminShowMsg('error', 'Terjadi kesalahan koneksi.');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '✅ Aktifkan'; }
+      }
+    });
+
+    // Revokasi langganan
+    document.getElementById('superAdminRevokeBtn')?.addEventListener('click', async () => {
+      const storeId = document.getElementById('superAdminStoreSelect')?.value;
+      if (!storeId) { superAdminShowMsg('error', 'Pilih toko terlebih dahulu.'); return; }
+      if (!confirm('Yakin merevokasi semua langganan toko ini?')) return;
+
+      const btn = document.getElementById('superAdminRevokeBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Memproses...'; }
+      try {
+        const { data, error } = await db.functions.invoke('admin-subscription', {
+          body: { action: 'revoke', store_id: storeId }
+        });
+        if (error || !data?.success) {
+          superAdminShowMsg('error', 'Gagal merevokasi: ' + (data?.error || error?.message || 'kesalahan tidak dikenal'));
+        } else {
+          superAdminShowMsg('ok', 'Langganan berhasil direvokasi.');
+          invalidateSubscriptionCache();
+          await superAdminLoadStores();
+        }
+      } catch (e) {
+        superAdminShowMsg('error', 'Terjadi kesalahan koneksi.');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🗑 Revokasi'; }
+      }
+    });
+  };
+  // ── End Super Admin Module ───────────────────────────────────────────────
 
   const init = async () => {
     setLoadingStatus('Menghubungkan ke database...', 10);
