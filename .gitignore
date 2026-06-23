@@ -18,3 +18,7 @@ yarn-error.log*
 
 # Config dengan API keys (gunakan config.example.js sebagai template)
 config.js
+.vercel
+
+# Supabase temp files (berisi connection string dan project metadata)
+supabase/.temp/

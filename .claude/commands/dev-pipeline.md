@@ -24,6 +24,20 @@ Initialize at pipeline start:
 
 ## Pipeline Steps
 
+### Step 0: Request Classification
+
+Spawn the appropriate specialist agent based on the request type.
+
+```
+If request mentions bug, error, crash, unexpected behavior → spawn `debug-specialist`
+If request mentions deployment, hosting, CI/CD, Docker, Render, Vercel, Cloudflare → spawn `deployment-engineer`
+If request mentions authentication, authorization, Clerk, permissions, security → spawn `security-reviewer`
+If request mentions database, Convex, Supabase, PostgreSQL, schema, migration, indexing → spawn `database-architect`
+Otherwise → set `specialist_report = null`
+```
+
+The specialist agent should be given the raw feature request as context and must output a concise report. Capture the output as `specialist_report`.
+
 ### Step 1: CTO Analysis
 
 Spawn the `cto` agent with this prompt:

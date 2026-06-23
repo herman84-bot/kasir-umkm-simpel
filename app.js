@@ -3705,6 +3705,18 @@ ${txRows}
     const trimHistory = () => { if (history.length > 6) history.splice(0, history.length - 6); };
 
     const ask = async q => {
+      // existing ask for Aisyah chat
+    };
+
+// Simple AI integration call using new edge function
+const askAI = async q => {
+  // Reuse same history sanitization if needed, but send single message
+  const { data, error } = await db.functions.invoke('ai-integration', { body: { messages: [{ role: 'user', content: q }] } });
+  if (error || !data || !data.reply) {
+    return 'Terjadi kesalahan saat memanggil AI.';
+  }
+  return data.reply;
+};
       addMsg(q, 'user');
       history.push({ role: 'user', content: q });
       trimHistory();
