@@ -67,27 +67,56 @@ const App = (() => {
   const getQrisImage = () => localStorage.getItem('qris_image') || '';
 
   // ── Langganan / masa aktif ────────────────────────────────────────────────
-  // Pembayaran langganan diproses oleh payment gateway Pakasir (app.pakasir.com).
-  // Integrasi via URL: user diarahkan ke halaman bayar Pakasir (QRIS/VA), lalu
-  // kembali ke aplikasi. Admin mengaktifkan langganan dari dashboard Pakasir.
+  const SUPPORT_TELEGRAM_URL = 'https://t.me/+veK2jeQuBkQwNzU1';
   const PAKASIR_BASE = 'https://app.pakasir.com';
   const PAKASIR_SLUG = 'kasir-umkm-simpel';
-  const SUBS_EMAIL = 'noreply.absenta@gmail.com'; // kontak bantuan/konfirmasi
 
-  // Order ID unik per transaksi langganan (prefix KUS- agar tak tabrakan
-  // dengan proyek Pakasir lain). Format: KUS-<6digit storeId>-<timestamp>.
   const makeSubsOrderId = () => {
     const d = new Date();
     const p = n => String(n).padStart(2, '0');
-    const ts = `${String(d.getFullYear()).slice(2)}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-    const sid = String(state.storeId || 'x').slice(-6);
-    return `KUS-${sid}-${ts}`;
+    const ts = `${String(d.getFullYear()).slice(2)}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+    return `KUS-${String(state.storeId||'x').slice(-6)}-${ts}`;
   };
 
-  // URL halaman pembayaran Pakasir. Setelah bayar, user diarahkan balik ke app.
   const buildPakasirUrl = (amount, orderId) => {
     const redirect = encodeURIComponent(location.origin + location.pathname);
     return `${PAKASIR_BASE}/pay/${PAKASIR_SLUG}/${amount}?order_id=${orderId}&redirect=${redirect}`;
+  };
+
+  // Short-lived in-memory cache for the server-side subscription check (max 60 s).
+  // Stored in a module-level variable — NOT localStorage — so it resets on each page load.
+  let _subsCacheResult = null;
+  let _subsCacheTs = 0;
+  const SUBS_CACHE_TTL_MS = 60 * 1000;
+
+  // Call the check-subscription Edge Function and return { premiumActive, businessActive, daysLeft }.
+  // Returns null on 401 or network error (fail-closed: treat as inactive).
+  const fetchSubscriptionFromServer = async () => {
+    const now = Date.now();
+    if (_subsCacheResult !== null && now - _subsCacheTs < SUBS_CACHE_TTL_MS) {
+      return _subsCacheResult;
+    }
+    try {
+      const { data, error } = await db.functions.invoke('check-subscription', { body: {} });
+      if (error) {
+        _subsCacheResult = null;
+        _subsCacheTs = 0;
+        return null;
+      }
+      _subsCacheResult = data;
+      _subsCacheTs = now;
+      return data;
+    } catch (e) {
+      _subsCacheResult = null;
+      _subsCacheTs = 0;
+      return null;
+    }
+  };
+
+  // Invalidate the server-side subscription cache (called on fresh page load / loadStore).
+  const invalidateSubscriptionCache = () => {
+    _subsCacheResult = null;
+    _subsCacheTs = 0;
   };
 
   // Hitung sisa hari masa aktif (trial atau premium, ambil yang paling lama)
@@ -114,98 +143,73 @@ const App = (() => {
   // Bisnis aktif jika trial / business_until.
   const getBusinessDaysLeft = () => daysLeftFor(['trial_ends_at', 'business_until']);
 
-  // Paket langganan yang sedang ditampilkan di overlay (untuk tombol Bayar).
-  let currentSubsPlan = null;
+  let _currentSubsPlan = null;
 
   const showSubsOverlay = (plan = null) => {
     const overlay = document.getElementById('subsOverlay');
     if (!overlay) return;
-    currentSubsPlan = plan || PLANS.premium;
+    _currentSubsPlan = plan || PLANS.premium;
     overlay.classList.remove('hidden');
     overlay.style.display = 'flex';
   };
 
-  const hideSubsOverlay = () => {
-    const overlay = document.getElementById('subsOverlay');
-    if (overlay) { overlay.classList.add('hidden'); overlay.style.display = ''; }
-  };
-
-  // ── Pembayaran langganan via Pakasir ──────────────────────────────────────
-  // 1) Catat order (pending) di Supabase → 2) arahkan ke halaman bayar Pakasir.
-  // Pakasir mengirim webhook ke Supabase Edge Function yang mengaktifkan
-  // premium_until / business_until secara OTOMATIS. Aplikasi memantau status.
   const startPakasirPayment = async () => {
-    const plan = currentSubsPlan || PLANS.premium;
-    const tier = plan === PLANS.business ? 'business' : 'premium';
+    const plan = _currentSubsPlan || PLANS.premium;
+    const tier = plan.label === 'Bisnis' ? 'business' : 'premium';
     const amount = plan.amount;
     const orderId = makeSubsOrderId();
     const store = primaryStore();
     if (!store) { alert('Data toko belum siap. Coba lagi sebentar.'); return; }
-
     const payBtn = document.getElementById('subsPayBtn');
-    if (payBtn) { payBtn.textContent = 'Menyiapkan pembayaran...'; payBtn.style.pointerEvents = 'none'; }
-
-    // Catat order langganan agar webhook bisa memetakan order_id → toko + paket.
+    if (payBtn) { payBtn.textContent = 'Menyiapkan...'; payBtn.style.pointerEvents = 'none'; }
     const { error } = await db.from('subscription_orders').insert({
-      order_id: orderId,
-      store_id: store.id,
-      tier,
-      amount,
-      status: 'pending'
+      order_id: orderId, store_id: store.id, tier, amount, status: 'pending'
     });
     if (error) {
-      console.error('Gagal membuat order langganan:', error.message);
-      alert('Gagal menyiapkan pembayaran. Pastikan SQL 08_pakasir.sql sudah dijalankan, lalu coba lagi.');
+      alert('Gagal menyiapkan pembayaran. Pastikan SQL 08_pakasir.sql sudah dijalankan.');
       if (payBtn) { payBtn.textContent = '💳 Bayar Sekarang via Pakasir'; payBtn.style.pointerEvents = ''; }
       return;
     }
-
-    // Simpan jejak agar saat kembali dari Pakasir bisa dipantau otomatis.
     localStorage.setItem('pending_subs_order', JSON.stringify({ orderId, tier }));
     window.location.href = buildPakasirUrl(amount, orderId);
   };
 
-  // Cek status order langganan ke Supabase (diisi oleh webhook Pakasir).
-  // Mengembalikan true jika sudah aktif.
-  const checkSubscriptionStatus = async () => {
+  const checkPakasirOrderStatus = async () => {
     const raw = localStorage.getItem('pending_subs_order');
     if (!raw) return false;
     let pending;
     try { pending = JSON.parse(raw); } catch { localStorage.removeItem('pending_subs_order'); return false; }
-
-    const { data, error } = await db
-      .from('subscription_orders')
-      .select('status')
-      .eq('order_id', pending.orderId)
-      .maybeSingle();
-    if (error) { console.warn('Cek status langganan gagal:', error.message); return false; }
-
-    if (data && data.status === 'completed') {
+    const { data } = await db.from('subscription_orders').select('status').eq('order_id', pending.orderId).maybeSingle();
+    if (data?.status === 'completed') {
       localStorage.removeItem('pending_subs_order');
-      await loadStore(); // tarik premium_until/business_until terbaru
-      const banner = document.getElementById('subsBanner');
-      if (banner) { banner.classList.add('hidden'); document.body.style.paddingTop = ''; }
+      invalidateSubscriptionCache();
+      await loadStore();
       return true;
     }
     return false;
   };
 
-  // Pantau otomatis setelah kembali dari Pakasir (polling singkat ~1 menit).
   const watchPendingSubscription = async () => {
     if (!localStorage.getItem('pending_subs_order')) return;
-    const ok = await checkSubscriptionStatus();
-    if (ok) { hideSubsOverlay(); alert('Pembayaran berhasil! 🎉 Langganan Anda sudah aktif.'); return; }
+    if (await checkPakasirOrderStatus()) {
+      hideSubsOverlay();
+      alert('Pembayaran berhasil! 🎉 Langganan Anda sudah aktif.');
+      return;
+    }
     let tries = 0;
     const timer = setInterval(async () => {
       tries++;
-      if (await checkSubscriptionStatus()) {
+      if (await checkPakasirOrderStatus()) {
         clearInterval(timer);
         hideSubsOverlay();
         alert('Pembayaran berhasil! 🎉 Langganan Anda sudah aktif.');
-      } else if (tries >= 20) {
-        clearInterval(timer); // berhenti setelah ~1 menit; tombol cek manual tetap ada
-      }
+      } else if (tries >= 20) clearInterval(timer);
     }, 3000);
+  };
+
+  const hideSubsOverlay = () => {
+    const overlay = document.getElementById('subsOverlay');
+    if (overlay) { overlay.classList.add('hidden'); overlay.style.display = ''; }
   };
 
   // ── Model FREEMIUM bertingkat: aplikasi dasar gratis selamanya. ──
@@ -230,7 +234,7 @@ const App = (() => {
         'Export laporan PDF',
         'Operator kasir tanpa batas',
         'Kasbon tanpa batas',
-        'Dukungan prioritas via email'
+        'Dukungan prioritas via Telegram'
       ]
     },
     business: {
@@ -243,7 +247,7 @@ const App = (() => {
         'Multi-Cabang tanpa batas',
         'Dashboard Pusat — pantau semua cabang',
         'Stok & transaksi terpisah per cabang',
-        'Dukungan prioritas via email'
+        'Dukungan prioritas via Telegram'
       ]
     }
   };
@@ -263,15 +267,21 @@ const App = (() => {
     showSubsOverlay(p);
   };
 
-  // Gerbang fitur Premium: true jika boleh lanjut, false + tampilkan upgrade jika tidak
-  const requirePremium = featureName => {
-    if (isPremiumActive()) return true;
+  // Gerbang fitur Premium: true jika boleh lanjut, false + tampilkan upgrade jika tidak.
+  // Uses server-side check to prevent client-side bypass via state.stores manipulation.
+  const requirePremium = async featureName => {
+    const serverResult = db ? await fetchSubscriptionFromServer() : null;
+    // fail-closed: null (401 / network error) → treat as inactive
+    const active = serverResult !== null ? serverResult.premiumActive : false;
+    if (active) return true;
     showUpgradeOverlay('premium', featureName);
     return false;
   };
   // Gerbang fitur Bisnis (Multi-Cabang)
-  const requireBusiness = featureName => {
-    if (isBusinessActive()) return true;
+  const requireBusiness = async featureName => {
+    const serverResult = db ? await fetchSubscriptionFromServer() : null;
+    const active = serverResult !== null ? serverResult.businessActive : false;
+    if (active) return true;
     showUpgradeOverlay('business', featureName);
     return false;
   };
@@ -444,7 +454,9 @@ const App = (() => {
     total: Number(tx.total_amount),
     cash: Number(tx.payment_amount),
     change: Number(tx.change_amount),
-    paymentMethod: tx.payment_method || 'Tunai'
+    paymentMethod: tx.payment_method || 'Tunai',
+    confirmedBy: tx.confirmed_by || null,
+    confirmedAt: tx.confirmed_at || null
   });
 
   // ── Session ───────────────────────────────────────────────────────────────
@@ -551,6 +563,7 @@ const App = (() => {
     const wrapper = document.getElementById('cashierSelectWrapper');
     if (wrapper) wrapper.style.display = '';
     renderStoreSwitcher();
+    applySuperAdminVisibility();
   };
 
   const logout = async () => {
@@ -561,6 +574,7 @@ const App = (() => {
     state.storeId = null;
     state.cart = {};
     state.cashAmount = 0;
+    _isSuperAdmin = false;
     showLoginPage();
   };
   // ─────────────────────────────────────────────────────────────────────────
@@ -789,7 +803,14 @@ const App = (() => {
     forgotPasswordBtn: document.getElementById('forgotPasswordBtn'),
     forgotPasswordForm: document.getElementById('forgotPasswordForm'),
     resetEmail: document.getElementById('resetEmail'),
-    sendResetBtn: document.getElementById('sendResetBtn')
+    sendResetBtn: document.getElementById('sendResetBtn'),
+    paymentConfirmModal: document.getElementById('paymentConfirmModal'),
+    closePaymentConfirmModal: document.getElementById('closePaymentConfirmModal'),
+    paymentConfirmMethod: document.getElementById('paymentConfirmMethod'),
+    paymentConfirmTotal: document.getElementById('paymentConfirmTotal'),
+    paymentConfirmCashier: document.getElementById('paymentConfirmCashier'),
+    paymentConfirmOk: document.getElementById('paymentConfirmOk'),
+    paymentConfirmCancel: document.getElementById('paymentConfirmCancel')
   };
 
   let chartInstance = null;
@@ -830,6 +851,9 @@ const App = (() => {
 
   // Memuat SELURUH toko/cabang milik user, lalu menetapkan cabang aktif
   const loadStore = async () => {
+    // Invalidate server-side subscription cache so the next requirePremium/requireBusiness
+    // call always fetches fresh data from the Edge Function.
+    invalidateSubscriptionCache();
     const { data, error } = await db.from('stores').select('*').order('created_at', { ascending: true });
     if (error) { console.warn('loadStore error:', error); return null; }
     state.stores = data || [];
@@ -840,7 +864,11 @@ const App = (() => {
     let active = state.stores.find(s => String(s.id) === String(savedId)) || state.stores[0];
     // Jika paket Bisnis tidak aktif, kunci ke toko utama (cabang lain tidak bisa dibuka)
     const primary = state.stores.find(s => s.is_main) || state.stores[0];
-    if (!isBusinessActive() && String(active.id) !== String(primary.id)) {
+    // Cek bisnis langsung dari data primary yang baru di-fetch (hindari dead-code via cache yang sudah diinvalidasi)
+    const _now = Date.now();
+    const _bizExpiries = ['trial_ends_at', 'business_until'].map(c => primary[c]).filter(Boolean).map(d => new Date(d).getTime());
+    const bizActiveForLoad = _bizExpiries.length === 0 ? true : Math.max(..._bizExpiries) > _now;
+    if (!bizActiveForLoad && String(active.id) !== String(primary.id)) {
       active = primary;
     }
     state.store = active;
@@ -983,10 +1011,9 @@ const App = (() => {
     if (!target) return;
     // Kunci cabang non-utama jika paket Bisnis tidak aktif (trial habis & belum bayar)
     const primaryId = String(primaryStore()?.id);
-    if (String(id) !== primaryId && !isBusinessActive()) {
+    if (String(id) !== primaryId && !await requireBusiness('Mengakses cabang selain toko utama')) {
       const sel = document.getElementById('storeSwitcher');
       if (sel) sel.value = String(state.storeId); // kembalikan pilihan dropdown
-      requireBusiness('Mengakses cabang selain toko utama');
       return;
     }
     localStorage.setItem(activeStoreKey(), String(id));
@@ -1002,7 +1029,7 @@ const App = (() => {
 
   // Tambah cabang baru (Premium). Gratis dibatasi 1 toko.
   const addBranch = async () => {
-    if ((state.stores || []).length >= 1 && !requireBusiness('Multi-cabang (lebih dari 1 toko)')) return;
+    if ((state.stores || []).length >= 1 && !await requireBusiness('Multi-cabang (lebih dari 1 toko)')) return;
     const name = (prompt('Nama cabang baru:') || '').trim();
     if (!name) return;
     if (!db || !state.authUser) { alert('Fitur cabang membutuhkan koneksi & login.'); return; }
@@ -1506,6 +1533,19 @@ const App = (() => {
     dom.loginForm.reset();
   };
 
+  const showPaymentConfirmModal = (method, total, cashierName) => {
+    dom.paymentConfirmMethod.textContent = method;
+    dom.paymentConfirmTotal.textContent = formatCurrency(total);
+    dom.paymentConfirmCashier.textContent = cashierName;
+    dom.paymentConfirmModal.classList.remove('hidden');
+    dom.paymentConfirmModal.style.display = 'flex';
+  };
+
+  const hidePaymentConfirmModal = () => {
+    dom.paymentConfirmModal.classList.add('hidden');
+    dom.paymentConfirmModal.style.display = '';
+  };
+
   const authenticateUser = (name, password) => {
     const user = state.cashiers.find(item => item.name.toLowerCase() === name.toLowerCase() && item.password === password);
     if (!user) return false;
@@ -1713,7 +1753,7 @@ const App = (() => {
 
   const renderPurchaseOptions = () => {
     dom.purchaseProduct.innerHTML = state.products.map(product => `
-      <option value="${product.id}">${product.name} (${product.stock} stok)</option>
+      <option value="${product.id}">${esc(product.name)} (${product.stock} stok)</option>
     `).join('');
   };
 
@@ -1730,7 +1770,7 @@ const App = (() => {
       return `
         <div class="flex items-center justify-between gap-3 rounded-2xl bg-white p-3 border border-slate-200 mb-3">
           <div>
-            <p class="font-semibold">${item.name}</p>
+            <p class="font-semibold">${esc(item.name)}</p>
             <p class="text-slate-500 text-sm">Qty ${item.qty} x ${formatCurrency(item.price)}</p>
           </div>
           <span class="font-semibold">${formatCurrency(subtotal)}</span>
@@ -2039,7 +2079,7 @@ const App = (() => {
     const cats = ['All', ...new Set(state.products.map(p => p.category).filter(Boolean))];
     const currentCat = dom.categoryFilter.value;
     dom.categoryFilter.innerHTML = cats.map(c =>
-      `<option value="${c}"${c === currentCat ? ' selected' : ''}>${c === 'All' ? 'Semua Kategori' : c}</option>`
+      `<option value="${esc(c)}"${c === currentCat ? ' selected' : ''}>${c === 'All' ? 'Semua Kategori' : esc(c)}</option>`
     ).join('');
 
     dom.inventoryTable.innerHTML = state.products.map(product => {
@@ -2048,10 +2088,10 @@ const App = (() => {
       const rowClass = isLowStock ? 'border-b border-rose-200 bg-rose-50/30' : 'border-b border-slate-200';
       return `
         <tr class="${rowClass}">
-          <td class="p-3 font-semibold">${product.code}</td>
-          <td class="p-3">${product.name}${isLowStock ? ' <span class="text-rose-500 text-xs font-bold">⚠ Stok Rendah</span>' : ''}</td>
-          <td class="p-3 text-xs text-slate-500 font-mono">${product.barcode || '-'}</td>
-          <td class="p-3">${product.category}</td>
+          <td class="p-3 font-semibold">${esc(product.code)}</td>
+          <td class="p-3">${esc(product.name)}${isLowStock ? ' <span class="text-rose-500 text-xs font-bold">⚠ Stok Rendah</span>' : ''}</td>
+          <td class="p-3 text-xs text-slate-500 font-mono">${esc(product.barcode || '-')}</td>
+          <td class="p-3">${esc(product.category)}</td>
           <td class="p-3">${formatCurrency(product.price)}</td>
           <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${criticalClass}">${product.stock} / min ${product.minStock || 5}</span></td>
           <td class="p-3 space-x-2">
@@ -2104,6 +2144,10 @@ const App = (() => {
   };
 
   const showScreen = screenId => {
+    // Super admin screen hanya boleh dibuka oleh super admin terverifikasi
+    if (screenId === 'screen-superadmin' && !_isSuperAdmin) {
+      screenId = 'dashboard';
+    }
     // Operator kasir tidak boleh membuka layar khusus admin
     const activeOp = state.cashiers.find(c => c.id === state.selectedCashierId);
     if (activeOp && activeOp.role !== 'admin' && ADMIN_SCREENS.includes(screenId)) {
@@ -2256,9 +2300,15 @@ const App = (() => {
   const getOfflineQueue = () => {
     try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); } catch { return []; }
   };
+  const generateClientId = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return Date.now() + '-' + Math.random().toString(36).slice(2);
+  };
   const queueOfflineTransaction = entry => {
     const q = getOfflineQueue();
-    q.push(entry);
+    q.push({ ...entry, client_id: generateClientId() });
     localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q));
   };
   const flushOfflineQueue = async () => {
@@ -2268,6 +2318,8 @@ const App = (() => {
     const remaining = [];
     let synced = 0;
     for (const entry of q) {
+      // AC6: legacy entries without client_id get a stable fallback so they are not permanently stuck
+      const clientId = entry.client_id || (entry.date + '-' + entry.total);
       try {
         const { data: tx, error: txErr } = await db.from('transactions').insert({
           store_id: entry.store_id || state.storeId,
@@ -2277,7 +2329,10 @@ const App = (() => {
           change_amount: entry.change,
           discount_amount: entry.discount || 0,
           payment_method: entry.paymentMethod || 'Tunai',
-          created_at: entry.date
+          confirmed_by: entry.confirmedBy || null,
+          confirmed_at: entry.confirmedAt || null,
+          created_at: entry.date,
+          client_id: clientId
         }).select().single();
         if (txErr) throw txErr;
         const itemRows = entry.items.map(item => ({
@@ -2290,15 +2345,18 @@ const App = (() => {
         }));
         const { error: itemsErr } = await db.from('transaction_items').insert(itemRows);
         if (itemsErr) throw itemsErr;
-        // Kurangi stok di cloud sesuai qty yang terjual offline
+        // Kurangi stok di cloud sesuai qty yang terjual offline (atomic — satu statement, tanpa read dulu)
         for (const item of entry.items) {
           const numId = parseInt(item.id);
           if (isNaN(numId)) continue;
-          const { data: prod } = await db.from('products').select('stock').eq('id', numId).maybeSingle();
-          if (prod) await db.from('products').update({ stock: Math.max(0, prod.stock - item.qty) }).eq('id', numId);
+          if (!Number.isFinite(item.qty) || item.qty <= 0) continue;
+          const { error: stockErr } = await db.rpc('decrement_stock', { p_product_id: numId, p_qty: item.qty });
+          if (stockErr) throw stockErr;
         }
         synced++;
       } catch (e) {
+        // AC4: duplicate insert from same store → already synced, drop silently without retry
+        if (e && e.code === '23505') continue;
         remaining.push(entry); // gagal lagi → coba lain kali
       }
     }
@@ -2351,9 +2409,19 @@ const App = (() => {
         alert('Jumlah tunai belum cukup. Mohon masukkan nominal yang sesuai.');
         return;
       }
+      // Cash: proceed directly without modal, confirmed_by/confirmed_at stay null
+      await _executePayment(cartItems, totals, null, null);
     } else {
+      // QRIS/Transfer: show modal so cashier confirms receipt before saving
+      const cashier = getSelectedCashier();
+      showPaymentConfirmModal(state.paymentMethod, totals.total, cashier.name);
+      // Actual save is triggered by paymentConfirmOk click (wired in initEventListeners)
+    }
+  };
+
+  const _executePayment = async (cartItems, totals, confirmedBy, confirmedAt) => {
+    if (state.paymentMethod !== 'Tunai') {
       // QRIS/Transfer: nominal bayar otomatis = total, tanpa kembalian
-      if (!confirm(`Pastikan pembayaran ${state.paymentMethod} sebesar ${formatCurrency(totals.total)} sudah DITERIMA (cek notifikasi/mutasi).\n\nLanjutkan simpan transaksi?`)) return;
       state.cashAmount = totals.total;
       totals.cash = totals.total;
       totals.change = 0;
@@ -2372,7 +2440,9 @@ const App = (() => {
           payment_amount: totals.cash,
           change_amount: totals.change,
           discount_amount: totals.discount || 0,
-          payment_method: state.paymentMethod || 'Tunai'
+          payment_method: state.paymentMethod || 'Tunai',
+          confirmed_by: confirmedBy,
+          confirmed_at: confirmedAt
         }).select().single();
         if (txErr) throw txErr;
 
@@ -2390,14 +2460,13 @@ const App = (() => {
         const { error: itemsErr } = await db.from('transaction_items').insert(itemRows);
         if (itemsErr) throw itemsErr;
 
-        // Update stock in Supabase
+        // Update stock in Supabase (atomic — prevents race condition between concurrent tabs)
         for (const item of cartItems) {
           const numId = parseInt(item.id);
-          const product = state.products.find(p => p.id === item.id);
-          if (!isNaN(numId) && product) {
-            const newStock = Math.max(0, product.stock - item.qty);
-            await db.from('products').update({ stock: newStock }).eq('id', numId);
-          }
+          if (isNaN(numId)) continue;
+          if (!Number.isFinite(item.qty) || item.qty <= 0) continue;
+          const { error: stockErr } = await db.rpc('decrement_stock', { p_product_id: numId, p_qty: item.qty });
+          if (stockErr) throw stockErr;
         }
       } catch (err) {
         // Internet putus / server bermasalah → simpan ke antrean offline,
@@ -2410,6 +2479,8 @@ const App = (() => {
           change: totals.change,
           discount: totals.discount || 0,
           paymentMethod: state.paymentMethod || 'Tunai',
+          confirmedBy: confirmedBy,
+          confirmedAt: confirmedAt,
           items: cartItems.map(item => ({ id: item.id, name: item.name, qty: item.qty, price: item.price })),
           date: new Date().toISOString()
         });
@@ -2428,7 +2499,9 @@ const App = (() => {
       total: totals.total,
       cash: totals.cash,
       change: totals.change,
-      paymentMethod: state.paymentMethod || 'Tunai'
+      paymentMethod: state.paymentMethod || 'Tunai',
+      confirmedBy: confirmedBy,
+      confirmedAt: confirmedAt
     };
 
     state.transactions.unshift(transaction);
@@ -2490,7 +2563,7 @@ const App = (() => {
 
     dom.receiptItems.innerHTML = data.items.map(item => `
       <div>
-        <div class="flex justify-between font-medium">${item.name}<span>${formatCurrency(item.price * item.qty)}</span></div>
+        <div class="flex justify-between font-medium">${esc(item.name)}<span>${formatCurrency(item.price * item.qty)}</span></div>
         <div class="text-slate-500 ml-1">${item.qty} x ${formatCurrency(item.price)}</div>
       </div>
     `).join('');
@@ -2517,7 +2590,7 @@ const App = (() => {
 
     const itemsHtml = data.items.map(item => `
       <div class="row-item">
-        <span class="item-name">${item.name}</span>
+        <span class="item-name">${esc(item.name)}</span>
         <span class="item-total">${formatCurrency(item.price * item.qty)}</span>
       </div>
       <div class="item-detail">${item.qty} x ${formatCurrency(item.price)}</div>
@@ -2538,13 +2611,13 @@ body { width: ${paperWidth}; }
 @media print { @page { size: ${paperWidth} auto; margin: 0; } }
 </style>
 </head><body>
-<p class="center big">${store.name}</p>
-${store.address ? `<p class="center">${store.address}</p>` : ''}
-${store.phone ? `<p class="center">Telp: ${store.phone}</p>` : ''}
+<p class="center big">${esc(store.name)}</p>
+${store.address ? `<p class="center">${esc(store.address)}</p>` : ''}
+${store.phone ? `<p class="center">Telp: ${esc(store.phone)}</p>` : ''}
 <div class="separator"></div>
-<div class="row"><span>No</span><span>${data.id || '-'}</span></div>
+<div class="row"><span>No</span><span>${esc(data.id || '-')}</span></div>
 <div class="row"><span>Tgl</span><span>${new Date(data.date).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></div>
-<div class="row"><span>Kasir</span><span>${data.cashier || cashier.name}</span></div>
+<div class="row"><span>Kasir</span><span>${esc(data.cashier || cashier.name)}</span></div>
 <div class="separator"></div>
 ${itemsHtml}
 <div class="separator"></div>
@@ -2552,10 +2625,10 @@ ${itemsHtml}
 ${discountHtml}${taxHtml}
 <div class="separator-solid"></div>
 <div class="total-row"><span>TOTAL</span><span>${formatCurrency(data.total)}</span></div>
-<div class="row"><span>${data.paymentMethod || 'Tunai'}</span><span>${formatCurrency(data.cash)}</span></div>
+<div class="row"><span>${esc(data.paymentMethod || 'Tunai')}</span><span>${formatCurrency(data.cash)}</span></div>
 <div class="row bold"><span>Kembali</span><span>${formatCurrency(data.change)}</span></div>
 <div class="separator"></div>
-<p class="footer">${store.note || 'Terima kasih!'}</p>
+<p class="footer">${esc(store.note || 'Terima kasih!')}</p>
 <br/><br/>
 </body></html>`;
 
@@ -2678,14 +2751,14 @@ ${discountHtml}${taxHtml}
       const time = new Date(tx.date).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
       return `<tr>
         <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${time}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${tx.id}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${tx.cashier || '-'}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${esc(tx.id)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${esc(tx.cashier || '-')}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right">${formatCurrency(tx.total)}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${tx.paymentMethod || 'Tunai'}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${esc(tx.paymentMethod || 'Tunai')}</td>
       </tr>`;
     }).join('');
 
-    const html = `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Laporan ${store.name}</title>
+    const html = `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Laporan ${esc(store.name)}</title>
 <style>
   body{font-family:Arial,sans-serif;font-size:12px;color:#1e293b;padding:0;margin:0}
   h1{margin:0 0 4px;font-size:20px}
@@ -2700,7 +2773,7 @@ ${discountHtml}${taxHtml}
   @media print{@page{size:A4;margin:15mm}}
 </style></head><body>
 <div class="header">
-  <h1>${store.name}</h1>
+  <h1>${esc(store.name)}</h1>
   <p style="margin:0;opacity:.8;font-size:12px">Laporan ${days === 1 ? 'Hari Ini' : days + ' Hari Terakhir'} — Dicetak: ${new Date().toLocaleDateString('id-ID', {day:'2-digit',month:'long',year:'numeric'})}</p>
 </div>
 <div class="content">
@@ -2766,15 +2839,15 @@ ${discountHtml}${taxHtml}
 
     const txRows = shiftTx.slice(0, 50).map(tx => {
       const time = new Date(tx.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit' });
-      return `<div class="row"><span>${time} ${tx.id.slice(-6)}</span><span>${formatCurrency(tx.total)}</span></div>`;
+      return `<div class="row"><span>${time} ${esc(tx.id.slice(-6))}</span><span>${formatCurrency(tx.total)}</span></div>`;
     }).join('');
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Laporan Shift</title>
 <style>${thermalCSS}</style></head><body>
-<p class="center big">${store.name}</p>
+<p class="center big">${esc(store.name)}</p>
 <p class="center">LAPORAN SHIFT</p>
 <div class="separator"></div>
-<div class="row"><span>Kasir</span><span>${cashier.name}</span></div>
+<div class="row"><span>Kasir</span><span>${esc(cashier.name)}</span></div>
 <div class="row"><span>Cetak</span><span>${new Date().toLocaleString('id-ID', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
 <div class="separator"></div>
 <div class="row"><span>Transaksi</span><span>${shiftTx.length}</span></div>
@@ -2872,7 +2945,8 @@ ${txRows}
 
         // Premium + payload terbaca → QR dinamis bernominal; selain itu gambar statis
         const payload = getQrisPayload();
-        const dynamicPayload = (isPremiumActive() && payload) ? makeDynamicQris(payload, totals.total) : null;
+        const premiumOk = _subsCacheResult !== null ? _subsCacheResult.premiumActive : false;
+        const dynamicPayload = (premiumOk && payload) ? makeDynamicQris(payload, totals.total) : null;
         if (dynamicPayload && window.QRCode && modalQr) {
           modalQr.innerHTML = '';
           new QRCode(modalQr, { text: dynamicPayload, width: 224, height: 224, correctLevel: QRCode.CorrectLevel.M });
@@ -2949,9 +3023,9 @@ ${txRows}
     });
 
     // Kelola Kasir
-    dom.addCashierBtn?.addEventListener('click', () => {
+    dom.addCashierBtn?.addEventListener('click', async () => {
       // Gratis: maksimal 2 operator (1 admin + 1 kasir). Lebih dari itu = Premium.
-      if (state.cashiers.length >= 2 && !requirePremium('Lebih dari 2 operator kasir')) return;
+      if (state.cashiers.length >= 2 && !await requirePremium('Lebih dari 2 operator kasir')) return;
       openCashierModal();
     });
     dom.closeCashierModal?.addEventListener('click', closeCashierModalFn);
@@ -3036,12 +3110,26 @@ ${txRows}
       }
     });
     dom.loginCancel.addEventListener('click', hideLoginModal);
+
+    dom.paymentConfirmCancel.addEventListener('click', hidePaymentConfirmModal);
+    dom.closePaymentConfirmModal.addEventListener('click', hidePaymentConfirmModal);
+    dom.paymentConfirmOk.addEventListener('click', async () => {
+      hidePaymentConfirmModal();
+      const cartItems = getCartItems();
+      const totals = calculateCart();
+      const cashier = getSelectedCashier();
+      const confirmedBy = cashier.name;
+      const confirmedAt = new Date().toISOString();
+      await _executePayment(cartItems, totals, confirmedBy, confirmedAt);
+    });
+
     document.addEventListener('click', event => {
       if (event.target === dom.inventoryModal) hideInventoryModal();
       if (event.target === dom.receiptModal) closeReceipt();
       if (event.target === dom.scannerModal) closeScannerModal();
       if (event.target === dom.purchaseModal) closePurchaseModal();
       if (event.target === dom.loginModal) hideLoginModal();
+      if (event.target === dom.paymentConfirmModal) hidePaymentConfirmModal();
     });
 
     // ── Login / Register (Supabase Auth) ──
@@ -3181,17 +3269,16 @@ ${txRows}
 
     // ── Langganan ──
     document.getElementById('subsBannerBtn')?.addEventListener('click', () => showUpgradeOverlay('premium'));
-    document.getElementById('subsPayBtn')?.addEventListener('click', e => {
-      e.preventDefault();
-      startPakasirPayment();
-    });
+    document.getElementById('subsPayBtn')?.addEventListener('click', e => { e.preventDefault(); startPakasirPayment(); });
     document.getElementById('subsRecheckBtn')?.addEventListener('click', async () => {
       const btn = document.getElementById('subsRecheckBtn');
       btn.textContent = 'Memeriksa...';
-      // Cek order pending dulu (diisi otomatis oleh webhook Pakasir),
-      // lalu fallback ke status langganan toko.
-      let active = await checkSubscriptionStatus();
-      if (!active) { await loadStore(); active = getSubscriptionDaysLeft() > 0; }
+      let active = await checkPakasirOrderStatus();
+      if (!active) {
+        await loadStore();
+        const serverResult = db ? await fetchSubscriptionFromServer() : null;
+        active = serverResult !== null ? serverResult.premiumActive : false;
+      }
       btn.textContent = '🔄 Sudah bayar — cek status';
       if (active) {
         hideSubsOverlay();
@@ -3290,8 +3377,8 @@ ${txRows}
     });
 
     // ── Feature 4: Export PDF ──
-    dom.exportPdfBtn?.addEventListener('click', () => {
-      if (!requirePremium('Export laporan PDF')) return;
+    dom.exportPdfBtn?.addEventListener('click', async () => {
+      if (!await requirePremium('Export laporan PDF')) return;
       exportReportPDF();
     });
 
@@ -3321,6 +3408,9 @@ ${txRows}
     // ── Multi-Cabang ──
     document.getElementById('storeSwitcher')?.addEventListener('change', e => switchStore(e.target.value));
     document.getElementById('addBranchBtn')?.addEventListener('click', addBranch);
+
+    // ── Super Admin ──
+    bindSuperAdminEvents();
   };
 
   const renderAll = () => {
@@ -3381,8 +3471,10 @@ ${txRows}
 
     // Freemium: aplikasi tidak pernah dikunci — hanya tampilkan banner pengingat trial
     checkSubscription();
-    // Pantau pembayaran Pakasir yang baru saja dilakukan (jika ada order pending)
     watchPendingSubscription();
+
+    // Cek apakah user adalah super admin (query ke tabel admin_users)
+    await checkSuperAdmin();
 
     applyRoleAccess();
     showApp();
@@ -3441,10 +3533,10 @@ ${txRows}
       btn.addEventListener('click', () => sendDebtReminder(btn.dataset.debtWa)));
   };
 
-  const openDebtModal = () => {
+  const openDebtModal = async () => {
     // Gerbang premium: gratis maksimal 5 kasbon aktif
     const activeCount = (state.debts || []).filter(d => d.status !== 'lunas').length;
-    if (activeCount >= 5 && !requirePremium('Kasbon lebih dari 5 catatan aktif')) return;
+    if (activeCount >= 5 && !await requirePremium('Kasbon lebih dari 5 catatan aktif')) return;
     const m = document.getElementById('debtModal');
     document.getElementById('debtForm')?.reset();
     document.getElementById('debtFormError')?.classList.add('hidden');
@@ -3611,15 +3703,15 @@ ${txRows}
     { keys: ['install', 'pasang aplikasi', 'unduh', 'download', 'layar utama', 'home screen'], a: 'Aplikasi ini bisa di-install langsung dari browser: buka di Chrome Android → menu ⋮ → "Tambahkan ke layar utama". Ikonnya muncul seperti aplikasi biasa dan bisa dibuka tanpa mengetik alamat lagi.' },
     { keys: ['hp lain', 'perangkat lain', 'laptop', 'komputer', 'multi device', 'dua hp'], a: 'Bisa! Data tersimpan di cloud, jadi kamu bisa login dengan akun yang sama dari HP lain, tablet, atau laptop — data toko langsung tersinkron.' },
     { keys: ['aman', 'keamanan', 'data hilang', 'backup', 'bocor'], a: 'Data toko kamu tersimpan aman di cloud dengan isolasi per-toko — pemilik toko lain tidak bisa melihat data kamu. Koneksi terenkripsi HTTPS, dan kami tidak pernah menjual data pengguna.' },
-    { keys: ['error', 'tidak bisa', 'gagal', 'masalah', 'lemot', 'macet', 'blank'], a: 'Coba langkah ini dulu: (1) refresh halaman 2x, (2) pastikan internet stabil, (3) logout lalu login lagi. Kalau masih bermasalah, kirim detailnya (screenshot kalau bisa) ke noreply.absenta@gmail.com — kami bantu cek.' },
-    { keys: ['kontak', 'customer service', 'hubungi admin', 'komplain', 'saran', 'kritik'], a: 'Untuk bantuan lebih lanjut, saran, atau komplain, hubungi kami via email: noreply.absenta@gmail.com — dibalas maksimal 1x24 jam di hari kerja. 😊' },
+    { keys: ['error', 'tidak bisa', 'gagal', 'masalah', 'lemot', 'macet', 'blank'], a: 'Coba langkah ini dulu: (1) refresh halaman 2x, (2) pastikan internet stabil, (3) logout lalu login lagi. Kalau masih bermasalah, kirim detailnya (screenshot kalau bisa) ke Telegram kami: https://t.me/+veK2jeQuBkQwNzU1 — kami bantu cek.' },
+    { keys: ['kontak', 'customer service', 'hubungi admin', 'komplain', 'saran', 'kritik'], a: 'Untuk bantuan lebih lanjut, saran, atau komplain, hubungi kami via Telegram: https://t.me/+veK2jeQuBkQwNzU1 — dibalas maksimal 1x24 jam di hari kerja. 😊' },
     { keys: ['produk', 'barang', 'tambah produk', 'input', 'kategori'], a: 'Untuk menambah produk: buka menu Inventori → klik "+ Tambah Produk". Kode produk dibuat otomatis, kamu juga bisa scan barcode dengan tombol 📷. Isi nama, harga jual, harga modal, dan stok, lalu Simpan.' },
     { keys: ['scan', 'barcode', 'kamera'], a: 'Scanner barcode ada di 2 tempat: (1) halaman Kasir — tombol "Scan Barcode" untuk memanggil produk ke keranjang, (2) form Tambah Produk — tombol 📷 untuk mengisi kode otomatis. Izinkan akses kamera saat diminta browser. Scanner fisik Bluetooth/USB juga didukung!' },
     { keys: ['scanner fisik', 'scanner portabel', 'scanner bluetooth', 'scanner usb', 'alat scan', 'tembak'], a: 'Scanner portabel (Bluetooth/USB) langsung didukung! Pair scanner ke HP/laptop (mode HID/keyboard), buka halaman Kasir, lalu tembak barcode — produk otomatis masuk keranjang dengan notifikasi hijau. Di form Tambah Produk, hasil scan otomatis mengisi kolom barcode. Tidak perlu pengaturan apa pun.' },
     { keys: ['struk', 'cetak', 'print', 'printer', 'bluetooth', 'thermal'], a: 'Setelah pembayaran, struk muncul otomatis. Pilihan cetak: 📶 Cetak Bluetooth (printer thermal Bluetooth Android, butuh aplikasi gratis RawBT dari Play Store), 🖨 Cetak Thermal (printer USB/WiFi), atau Cetak Biasa. Ukuran kertas 58/80mm diatur di Pengaturan.' },
     { keys: ['qris', 'qr', 'dana', 'pembayaran digital', 'dinamis'], a: 'Upload gambar QRIS tokomu di menu Pengaturan — QR tampil otomatis saat pelanggan bayar QRIS. Pengguna Premium dapat QRIS Dinamis 👑: nominal belanja otomatis tertanam di QR, pelanggan tidak perlu ketik nominal lagi. Konfirmasi manual setelah notifikasi uang masuk.' },
     { keys: ['kasir', 'pin', 'operator', 'karyawan', 'pegawai'], a: 'Tambahkan kasir di menu Kelola Kasir (khusus admin). Setiap kasir punya PIN sendiri. Kasir dengan role "kasir" hanya bisa membuka halaman Kasir & Riwayat — menu admin otomatis tersembunyi.' },
-    { keys: ['langganan', 'premium', 'trial', 'berlangganan', 'upgrade', 'gratis', 'harga', 'paket'], a: 'Fitur dasar GRATIS selamanya! 🎉 Ada 2 paket berbayar: (1) Premium Rp25.000/bulan — QRIS Dinamis, export PDF, operator & kasbon tanpa batas. (2) Bisnis Rp50.000/bulan 🏢 — semua Premium + Multi-Cabang tanpa batas & Dashboard Pusat. 30 hari pertama semua fitur terbuka gratis. Pembayaran lewat Pakasir (QRIS/Virtual Account) langsung dari aplikasi — langganan aktif otomatis setelah bayar. 💳' },
+    { keys: ['langganan', 'premium', 'trial', 'berlangganan', 'upgrade', 'gratis', 'harga', 'paket'], a: 'Fitur dasar GRATIS selamanya! 🎉 Ada 2 paket berbayar: (1) Premium Rp25.000/bulan — QRIS Dinamis, export PDF, operator & kasbon tanpa batas. (2) Bisnis Rp50.000/bulan 🏢 — semua Premium + Multi-Cabang tanpa batas & Dashboard Pusat. 30 hari pertama semua fitur terbuka gratis. Bayar via QRIS lalu konfirmasi via Telegram: https://t.me/+veK2jeQuBkQwNzU1.' },
     { keys: ['laporan', 'export', 'pdf', 'omset', 'penjualan', 'grafik'], a: 'Laporan ada di Dashboard: grafik penjualan 7 hari, laporan cepat (hari ini / 7 / 30 hari), dan tombol 📄 Export PDF untuk menyimpan/mencetak laporan lengkap.' },
     { keys: ['diskon', 'potongan'], a: 'Di halaman Kasir, sebelum bayar kamu bisa isi diskon nominal (Rp) ATAU persen (%) — salah satu saja. Diskon tercetak di struk.' },
     { keys: ['stok', 'habis', 'minimum'], a: 'Stok berkurang otomatis setiap transaksi. Atur "stok minimum" di tiap produk — produk yang menipis akan diberi tanda peringatan di Inventori. Tambah stok lewat menu Pembelian.' },
@@ -3627,7 +3719,7 @@ ${txRows}
     { keys: ['offline', 'internet', 'sinyal'], a: 'Aplikasi tetap bisa dibuka saat offline (PWA). Namun sinkronisasi data ke cloud butuh internet — pastikan online secara berkala agar data tersimpan aman.' },
     { keys: ['cabang', 'multi cabang', 'banyak toko', 'outlet', 'bisnis'], a: 'Multi-Cabang ada di paket Bisnis (Rp50.000/bulan) 🏢 — satu akun bisa punya banyak cabang. Buka Pengaturan → Cabang Toko → Tambah Cabang. Tiap cabang punya stok & transaksi sendiri. Ganti cabang lewat dropdown 🏪 Cabang di pojok kanan atas. Rekap omzet semua cabang muncul di Dashboard Pusat. Selama 30 hari trial fitur ini terbuka gratis.' },
     { keys: ['password', 'lupa', 'reset'], a: 'Lupa password? Di halaman login klik "Lupa password", masukkan email toko — link reset akan dikirim ke email tersebut.' },
-    { keys: ['hapus akun', 'hapus data'], a: 'Untuk menghapus akun dan seluruh data toko secara permanen, kirim permintaan ke noreply.absenta@gmail.com. Diproses maksimal 30 hari.' },
+    { keys: ['hapus akun', 'hapus data'], a: 'Untuk menghapus akun dan seluruh data toko secara permanen, kirim permintaan via Telegram: https://t.me/+veK2jeQuBkQwNzU1. Diproses maksimal 30 hari.' },
     { keys: ['rokok', 'tembakau', 'vape'], a: 'Produk rokok, tembakau, dan vape diblokir permanen dan tidak bisa diinput ke aplikasi ini.' }
   ];
 
@@ -3639,7 +3731,7 @@ ${txRows}
       if (score > bestScore) { bestScore = score; best = t; }
     });
     if (best) return best.a;
-    return 'Maaf, saya belum paham pertanyaan itu 🙏 Coba kata kunci seperti: produk, scan, struk, QRIS, kasir, langganan, laporan, diskon, stok, printer, install, atau backup. Atau hubungi kami langsung: noreply.absenta@gmail.com';
+    return 'Maaf, saya belum paham pertanyaan itu 🙏 Coba kata kunci seperti: produk, scan, struk, QRIS, kasir, langganan, laporan, diskon, stok, printer, install, atau backup. Atau hubungi kami langsung via Telegram: https://t.me/+veK2jeQuBkQwNzU1';
   };
 
   const initHelpChat = () => {
@@ -3657,14 +3749,46 @@ ${txRows}
       div.className = who === 'user'
         ? 'ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-sky-600 text-white px-4 py-2.5'
         : 'mr-auto max-w-[85%] rounded-2xl rounded-bl-md bg-white border border-slate-200 text-slate-700 px-4 py-2.5';
+      // Selalu pakai textContent (bukan innerHTML) agar aman dari XSS jawaban LLM/input pengguna
       div.textContent = text;
       messages.appendChild(div);
       messages.scrollTop = messages.scrollHeight;
+      return div;
     };
 
-    const ask = q => {
+    // Riwayat percakapan untuk konteks AI (maksimal 6 pesan terakhir)
+    const history = [];
+    const trimHistory = () => { if (history.length > 6) history.splice(0, history.length - 6); };
+
+    const ask = async q => {
       addMsg(q, 'user');
-      setTimeout(() => addMsg(helpChatAnswer(q), 'bot'), 350);
+      history.push({ role: 'user', content: q });
+      trimHistory();
+
+      // Indikator "sedang mengetik"
+      const typingNode = addMsg('Aisyah sedang mengetik…', 'bot');
+
+      const fallback = () => {
+        const a = helpChatAnswer(q);
+        addMsg(a, 'bot');
+        history.push({ role: 'assistant', content: a });
+        trimHistory();
+      };
+
+      try {
+        const { data, error } = await db.functions.invoke('aisyah-chat', { body: { messages: history } });
+        typingNode.remove();
+        if (error || !data || !data.reply) {
+          fallback();
+        } else {
+          addMsg(data.reply, 'bot');
+          history.push({ role: 'assistant', content: data.reply });
+          trimHistory();
+        }
+      } catch (e) {
+        typingNode.remove();
+        fallback();
+      }
     };
 
     // Tombol pertanyaan cepat
@@ -3694,6 +3818,216 @@ ${txRows}
   };
 
   const showHelpChatFab = () => document.getElementById('helpChatFab')?.classList.remove('hidden');
+
+  // ── Super Admin Module ───────────────────────────────────────────────────
+  // isSuperAdmin: true setelah berhasil terverifikasi lewat admin_users di Supabase.
+  // Nilai ini di-set saat enterAppAfterAuth dan di-reset saat logout.
+  let _isSuperAdmin = false;
+
+  const checkSuperAdmin = async () => {
+    if (!db || !state.authUser?.email) { _isSuperAdmin = false; return; }
+    try {
+      const { data, error } = await db
+        .from('admin_users')
+        .select('id')
+        .eq('email', state.authUser.email)
+        .maybeSingle();
+      _isSuperAdmin = !error && !!data;
+    } catch {
+      _isSuperAdmin = false;
+    }
+  };
+
+  const applySuperAdminVisibility = () => {
+    const btn = document.getElementById('openSuperAdminBtn');
+    if (btn) {
+      if (_isSuperAdmin) {
+        btn.classList.remove('hidden');
+        btn.style.display = '';
+      } else {
+        btn.classList.add('hidden');
+        btn.style.display = 'none';
+      }
+    }
+  };
+
+  // Kalkulator tanggal berakhir dari pilihan durasi dropdown
+  const computeUntilDate = () => {
+    const duration = document.getElementById('superAdminDuration')?.value;
+    if (duration === 'custom') {
+      const d = document.getElementById('superAdminCustomDate')?.value;
+      return d ? new Date(d).toISOString() : null;
+    }
+    const months = parseInt(duration || '1', 10);
+    const until = new Date();
+    until.setMonth(until.getMonth() + months);
+    return until.toISOString();
+  };
+
+  const superAdminShowMsg = (type, msg) => {
+    const err = document.getElementById('superAdminFormError');
+    const ok  = document.getElementById('superAdminFormSuccess');
+    if (!err || !ok) return;
+    if (type === 'error') {
+      err.textContent = msg; err.classList.remove('hidden');
+      ok.classList.add('hidden');
+    } else {
+      ok.textContent = msg; ok.classList.remove('hidden');
+      err.classList.add('hidden');
+    }
+    setTimeout(() => { err.classList.add('hidden'); ok.classList.add('hidden'); }, 4000);
+  };
+
+  const superAdminStatusLabel = store => {
+    const now = Date.now();
+    const bizMs  = store.business_until ? new Date(store.business_until).getTime() : null;
+    const premMs = store.premium_until  ? new Date(store.premium_until).getTime()  : null;
+    const triMs  = store.trial_ends_at  ? new Date(store.trial_ends_at).getTime()  : null;
+    if (bizMs  && bizMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-xs font-semibold">Bisnis</span>';
+    if (premMs && premMs > now) return '<span class="px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 text-xs font-semibold">Premium</span>';
+    if (triMs  && triMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">Trial</span>';
+    return '<span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs font-semibold">Gratis</span>';
+  };
+
+  const superAdminFmtDate = v => {
+    if (!v) return '<span class="text-slate-300">—</span>';
+    return esc(new Date(v).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }));
+  };
+
+  // Render tabel toko dan isi dropdown pilih toko
+  const superAdminRenderTable = (stores) => {
+    const wrapper = document.getElementById('superAdminTableWrapper');
+    const sel = document.getElementById('superAdminStoreSelect');
+    if (!wrapper || !sel) return;
+
+    // Isi dropdown
+    sel.innerHTML = '<option value="">— Pilih toko —</option>' +
+      stores.map(s =>
+        `<option value="${esc(s.id)}">${esc(s.name || 'Tanpa Nama')} — ${esc(s.owner_email || s.owner_id)}</option>`
+      ).join('');
+
+    if (!stores.length) {
+      wrapper.innerHTML = '<p class="text-slate-400 text-sm">Belum ada toko terdaftar.</p>';
+      return;
+    }
+
+    wrapper.innerHTML = `
+      <table class="w-full text-sm border-collapse">
+        <thead>
+          <tr class="border-b border-slate-200 text-left text-slate-500 text-xs uppercase tracking-wide">
+            <th class="py-2 pr-4 font-medium">Nama Toko</th>
+            <th class="py-2 pr-4 font-medium">Owner ID</th>
+            <th class="py-2 pr-4 font-medium">Email Pemilik</th>
+            <th class="py-2 pr-4 font-medium">Trial</th>
+            <th class="py-2 pr-4 font-medium">Premium s/d</th>
+            <th class="py-2 pr-4 font-medium">Bisnis s/d</th>
+            <th class="py-2 font-medium">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${stores.map(s => `
+            <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+              <td class="py-2 pr-4 font-medium text-slate-900">${esc(s.name || '-')}</td>
+              <td class="py-2 pr-4 text-slate-500 font-mono text-xs">${esc(s.owner_id || '-')}</td>
+              <td class="py-2 pr-4 text-slate-500">${esc(s.owner_email || '-')}</td>
+              <td class="py-2 pr-4">${superAdminFmtDate(s.trial_ends_at)}</td>
+              <td class="py-2 pr-4">${superAdminFmtDate(s.premium_until)}</td>
+              <td class="py-2 pr-4">${superAdminFmtDate(s.business_until)}</td>
+              <td class="py-2">${superAdminStatusLabel(s)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  };
+
+  const superAdminLoadStores = async () => {
+    const wrapper = document.getElementById('superAdminTableWrapper');
+    if (wrapper) wrapper.innerHTML = '<p class="text-slate-400 text-sm">Memuat data...</p>';
+    try {
+      const { data, error } = await db.functions.invoke('admin-subscription', {
+        body: { action: 'list_stores' }
+      });
+      if (error || !data?.stores) {
+        if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat data toko.</p>';
+        return;
+      }
+      superAdminRenderTable(data.stores);
+    } catch (e) {
+      if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Terjadi kesalahan koneksi.</p>';
+    }
+  };
+
+  const bindSuperAdminEvents = () => {
+    // Tombol "Admin Panel" di pengaturan → navigasi ke screen super admin
+    document.getElementById('openSuperAdminBtn')?.addEventListener('click', () => {
+      showScreen('screen-superadmin');
+      superAdminLoadStores();
+    });
+
+    // Refresh
+    document.getElementById('superAdminRefreshBtn')?.addEventListener('click', superAdminLoadStores);
+
+    // Toggle custom date input
+    document.getElementById('superAdminDuration')?.addEventListener('change', e => {
+      const wrap = document.getElementById('superAdminCustomDateWrapper');
+      if (wrap) wrap.classList.toggle('hidden', e.target.value !== 'custom');
+    });
+
+    // Aktifkan langganan
+    document.getElementById('superAdminActivateBtn')?.addEventListener('click', async () => {
+      const storeId = document.getElementById('superAdminStoreSelect')?.value;
+      const pkg     = document.getElementById('superAdminPackage')?.value;
+      const until   = computeUntilDate();
+      if (!storeId) { superAdminShowMsg('error', 'Pilih toko terlebih dahulu.'); return; }
+      if (!until)   { superAdminShowMsg('error', 'Pilih tanggal berakhir terlebih dahulu.'); return; }
+
+      const btn = document.getElementById('superAdminActivateBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Memproses...'; }
+      try {
+        const { data, error } = await db.functions.invoke('admin-subscription', {
+          body: { action: 'activate', store_id: storeId, package: pkg, until }
+        });
+        if (error || !data?.success) {
+          superAdminShowMsg('error', 'Gagal mengaktifkan: ' + (data?.error || error?.message || 'kesalahan tidak dikenal'));
+        } else {
+          superAdminShowMsg('ok', 'Langganan berhasil diaktifkan.');
+          // AC9: invalidasi cache langganan agar status baru langsung terlihat
+          invalidateSubscriptionCache();
+          await superAdminLoadStores();
+        }
+      } catch (e) {
+        superAdminShowMsg('error', 'Terjadi kesalahan koneksi.');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '✅ Aktifkan'; }
+      }
+    });
+
+    // Revokasi langganan
+    document.getElementById('superAdminRevokeBtn')?.addEventListener('click', async () => {
+      const storeId = document.getElementById('superAdminStoreSelect')?.value;
+      if (!storeId) { superAdminShowMsg('error', 'Pilih toko terlebih dahulu.'); return; }
+      if (!confirm('Yakin merevokasi semua langganan toko ini?')) return;
+
+      const btn = document.getElementById('superAdminRevokeBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Memproses...'; }
+      try {
+        const { data, error } = await db.functions.invoke('admin-subscription', {
+          body: { action: 'revoke', store_id: storeId }
+        });
+        if (error || !data?.success) {
+          superAdminShowMsg('error', 'Gagal merevokasi: ' + (data?.error || error?.message || 'kesalahan tidak dikenal'));
+        } else {
+          superAdminShowMsg('ok', 'Langganan berhasil direvokasi.');
+          invalidateSubscriptionCache();
+          await superAdminLoadStores();
+        }
+      } catch (e) {
+        superAdminShowMsg('error', 'Terjadi kesalahan koneksi.');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🗑 Revokasi'; }
+      }
+    });
+  };
+  // ── End Super Admin Module ───────────────────────────────────────────────
 
   const init = async () => {
     setLoadingStatus('Menghubungkan ke database...', 10);

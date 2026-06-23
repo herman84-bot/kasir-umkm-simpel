@@ -649,6 +649,7 @@
             </div>
             <button id="saveSettingsBtn" class="w-full rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">💾 Simpan Pengaturan</button>
             <div id="settingsSaved" class="hidden text-center text-green-600 text-sm font-medium">✅ Pengaturan berhasil disimpan!</div>
+            <button id="openSuperAdminBtn" data-role="superadmin" class="hidden w-full rounded-2xl bg-violet-700 px-5 py-3 text-white font-semibold hover:bg-violet-800 transition">🛡 Admin Panel</button>
           </div>
 
           <!-- Preview struk -->
@@ -731,8 +732,71 @@
           </div>
           <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-2">
             <h4 class="font-semibold text-slate-900">Dukungan & Kontak</h4>
-            <p class="text-slate-600 text-sm">Email: <a href="mailto:noreply.absenta@gmail.com" class="text-sky-600 hover:underline">noreply.absenta@gmail.com</a></p>
+            <p class="text-slate-600 text-sm">Telegram: <a href="https://t.me/+veK2jeQuBkQwNzU1" target="_blank" rel="noopener noreferrer" class="text-sky-600 hover:underline">t.me/+veK2jeQuBkQwNzU1</a></p>
             <p class="text-slate-600 text-sm">Gratis 30 hari pertama, selanjutnya berlangganan bulanan via QRIS.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Super Admin Panel (tersembunyi dari navigasi publik) -->
+      <section id="screen-superadmin" class="screen hidden" data-role="superadmin">
+        <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 class="text-2xl font-semibold">Panel Super Admin</h3>
+            <p class="text-slate-500">Manajemen langganan terpusat semua toko.</p>
+          </div>
+          <button id="superAdminRefreshBtn" class="rounded-2xl bg-sky-600 px-4 py-2.5 text-white text-sm font-semibold hover:bg-sky-700 transition whitespace-nowrap">🔄 Muat Ulang</button>
+        </div>
+
+        <!-- Form Aktivasi -->
+        <div class="max-w-2xl mb-6">
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-4">
+            <h4 class="text-lg font-semibold">Aktivasi / Revokasi Langganan</h4>
+            <div id="superAdminFormError" class="hidden rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+            <div id="superAdminFormSuccess" class="hidden rounded-2xl bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700"></div>
+            <label class="block">
+              <span class="text-slate-700 font-medium text-sm">Toko (pilih dari daftar)</span>
+              <select id="superAdminStoreSelect" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
+                <option value="">— Pilih toko —</option>
+              </select>
+            </label>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="block">
+                <span class="text-slate-700 font-medium text-sm">Paket</span>
+                <select id="superAdminPackage" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
+                  <option value="premium">Premium</option>
+                  <option value="business">Bisnis</option>
+                </select>
+              </label>
+              <label class="block">
+                <span class="text-slate-700 font-medium text-sm">Durasi</span>
+                <select id="superAdminDuration" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
+                  <option value="1">1 Bulan</option>
+                  <option value="3">3 Bulan</option>
+                  <option value="6">6 Bulan</option>
+                  <option value="12">12 Bulan</option>
+                  <option value="custom">Custom (pilih tanggal)</option>
+                </select>
+              </label>
+            </div>
+            <div id="superAdminCustomDateWrapper" class="hidden">
+              <label class="block">
+                <span class="text-slate-700 font-medium text-sm">Tanggal Berakhir</span>
+                <input type="date" id="superAdminCustomDate" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+              </label>
+            </div>
+            <div class="flex gap-3 pt-2">
+              <button id="superAdminActivateBtn" class="flex-1 rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition">✅ Aktifkan</button>
+              <button id="superAdminRevokeBtn" class="flex-1 rounded-2xl bg-rose-600 px-5 py-3 text-white font-semibold hover:bg-rose-700 transition">🗑 Revokasi</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabel semua toko -->
+        <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 overflow-x-auto">
+          <h4 class="text-lg font-semibold mb-4">Daftar Semua Toko</h4>
+          <div id="superAdminTableWrapper">
+            <p class="text-slate-400 text-sm">Memuat data...</p>
           </div>
         </div>
       </section>
@@ -782,6 +846,39 @@
           <button type="button" id="cancelCashierModal" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal Konfirmasi Pembayaran QRIS/Transfer -->
+  <div id="paymentConfirmModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+        <div>
+          <h3 class="text-xl font-semibold">Konfirmasi Pembayaran</h3>
+          <p class="text-slate-500 text-sm">Pastikan pembayaran sudah diterima sebelum melanjutkan.</p>
+        </div>
+        <button id="closePaymentConfirmModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-2">
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-500">Metode Pembayaran</span>
+            <span id="paymentConfirmMethod" class="font-semibold text-slate-800"></span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-500">Total Tagihan</span>
+            <span id="paymentConfirmTotal" class="font-bold text-lg text-slate-900"></span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-500">Kasir</span>
+            <span id="paymentConfirmCashier" class="font-semibold text-slate-800"></span>
+          </div>
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button id="paymentConfirmOk" class="flex-1 rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">Ya, Konfirmasi Pembayaran</button>
+          <button id="paymentConfirmCancel" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1024,13 +1121,13 @@
             <p>✅ QRIS Dinamis — nominal otomatis tertanam di QR</p>
             <p>✅ Export laporan PDF</p>
             <p>✅ Operator kasir tanpa batas</p>
-            <p>✅ Dukungan prioritas via email</p>
+            <p>✅ Dukungan prioritas via Telegram</p>
           </div>
         </div>
 
         <div class="mt-5 rounded-2xl bg-slate-50 border border-slate-200 p-4 text-left text-sm text-slate-600 space-y-1">
           <p class="font-semibold text-slate-800">Pembayaran otomatis & aman:</p>
-          <p>1. Klik <strong>Bayar Sekarang</strong> — Anda diarahkan ke halaman aman Pakasir</p>
+          <p>1. Klik <strong>Bayar Sekarang</strong> — diarahkan ke halaman aman Pakasir</p>
           <p>2. Bayar via <strong>QRIS atau Virtual Account</strong> (semua bank & e-wallet)</p>
           <p>3. Langganan <strong>aktif otomatis</strong> dalam hitungan detik 🎉</p>
         </div>
