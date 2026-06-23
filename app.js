@@ -3443,11 +3443,11 @@ ${txRows}
     showHelpChatFab();
     await loadData();
 
-    // Cek super admin sebelum guard toko agar super admin tanpa toko bisa masuk
+    // Cek super admin SEBELUM guard toko agar bypass bisa berjalan
     await checkSuperAdmin();
 
     // Pengaman: user terautentikasi tapi belum punya toko (mis. lewat konfirmasi email)
-    // Super admin dikecualikan — mereka tidak wajib memiliki toko
+    // Super admin dibebaskan dari kewajiban memiliki toko
     if (db && state.authUser && !state.storeId && !_isSuperAdmin) {
       let storeName = prompt('Selamat datang! Masukkan nama toko Anda untuk memulai:');
       storeName = (storeName || '').trim() || 'Toko Saya';
