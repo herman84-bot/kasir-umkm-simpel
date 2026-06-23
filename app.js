@@ -3443,8 +3443,12 @@ ${txRows}
     showHelpChatFab();
     await loadData();
 
+    // Cek super admin sebelum guard toko agar super admin tanpa toko bisa masuk
+    await checkSuperAdmin();
+
     // Pengaman: user terautentikasi tapi belum punya toko (mis. lewat konfirmasi email)
-    if (db && state.authUser && !state.storeId) {
+    // Super admin dikecualikan — mereka tidak wajib memiliki toko
+    if (db && state.authUser && !state.storeId && !_isSuperAdmin) {
       let storeName = prompt('Selamat datang! Masukkan nama toko Anda untuk memulai:');
       storeName = (storeName || '').trim() || 'Toko Saya';
       const ownerName = prompt('Nama Anda (pemilik):') || 'Pemilik';
@@ -3472,9 +3476,6 @@ ${txRows}
     // Freemium: aplikasi tidak pernah dikunci — hanya tampilkan banner pengingat trial
     checkSubscription();
     watchPendingSubscription();
-
-    // Cek apakah user adalah super admin (query ke tabel admin_users)
-    await checkSuperAdmin();
 
     applyRoleAccess();
     showApp();
@@ -3825,12 +3826,12 @@ ${txRows}
   let _isSuperAdmin = false;
 
   const checkSuperAdmin = async () => {
-    if (!db || !state.authUser?.email) { _isSuperAdmin = false; return; }
+    if (!db || !state.authUser?.id) { _isSuperAdmin = false; return; }
     try {
       const { data, error } = await db
         .from('admin_users')
         .select('id')
-        .eq('email', state.authUser.email)
+        .eq('user_id', state.authUser.id)
         .maybeSingle();
       _isSuperAdmin = !error && !!data;
     } catch {
