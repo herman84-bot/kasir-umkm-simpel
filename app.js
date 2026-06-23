@@ -68,7 +68,7 @@ const App = (() => {
 
   // ── Langganan / masa aktif ────────────────────────────────────────────────
   const SUBS_QRIS_PAYLOAD = '00020101021126570011ID.DANA.WWW011893600915303246671402090324667140303UMI51440014ID.CO.QRIS.WWW0215ID10265311627370303UMI5204899953033605802ID5916Absenta solution6014Kota Tangerang6105151166304797F';
-  const SUBS_EMAIL = 'noreply.absenta@gmail.com';
+  const SUPPORT_TELEGRAM_URL = 'https://t.me/+veK2jeQuBkQwNzU1';
 
   // Short-lived in-memory cache for the server-side subscription check (max 60 s).
   // Stored in a module-level variable — NOT localStorage — so it resets on each page load.
@@ -146,13 +146,6 @@ const App = (() => {
     const overlay = document.getElementById('subsOverlay');
     if (!overlay) return;
     renderSubsQr();
-    const emailBtn = document.getElementById('subsEmailBtn');
-    if (emailBtn) {
-      const pkg = plan ? `${plan.label} (${plan.price}/bulan)` : 'Premium';
-      const subject = encodeURIComponent(`Konfirmasi Pembayaran Langganan ${pkg} - Kasir UMKM Simpel`);
-      const body = encodeURIComponent(`Halo, saya sudah membayar langganan paket ${pkg} Kasir UMKM Simpel.\n\nEmail akun: ${state.authUser?.email || '-'}\nNama toko: ${state.store?.name || '-'}\n\n(Lampirkan screenshot bukti pembayaran di email ini)`);
-      emailBtn.href = `mailto:${SUBS_EMAIL}?subject=${subject}&body=${body}`;
-    }
     overlay.classList.remove('hidden');
     overlay.style.display = 'flex';
   };
@@ -183,7 +176,7 @@ const App = (() => {
         'Export laporan PDF',
         'Operator kasir tanpa batas',
         'Kasbon tanpa batas',
-        'Dukungan prioritas via email'
+        'Dukungan prioritas via Telegram'
       ]
     },
     business: {
@@ -195,7 +188,7 @@ const App = (() => {
         'Multi-Cabang tanpa batas',
         'Dashboard Pusat — pantau semua cabang',
         'Stok & transaksi terpisah per cabang',
-        'Dukungan prioritas via email'
+        'Dukungan prioritas via Telegram'
       ]
     }
   };
@@ -3647,15 +3640,15 @@ ${txRows}
     { keys: ['install', 'pasang aplikasi', 'unduh', 'download', 'layar utama', 'home screen'], a: 'Aplikasi ini bisa di-install langsung dari browser: buka di Chrome Android → menu ⋮ → "Tambahkan ke layar utama". Ikonnya muncul seperti aplikasi biasa dan bisa dibuka tanpa mengetik alamat lagi.' },
     { keys: ['hp lain', 'perangkat lain', 'laptop', 'komputer', 'multi device', 'dua hp'], a: 'Bisa! Data tersimpan di cloud, jadi kamu bisa login dengan akun yang sama dari HP lain, tablet, atau laptop — data toko langsung tersinkron.' },
     { keys: ['aman', 'keamanan', 'data hilang', 'backup', 'bocor'], a: 'Data toko kamu tersimpan aman di cloud dengan isolasi per-toko — pemilik toko lain tidak bisa melihat data kamu. Koneksi terenkripsi HTTPS, dan kami tidak pernah menjual data pengguna.' },
-    { keys: ['error', 'tidak bisa', 'gagal', 'masalah', 'lemot', 'macet', 'blank'], a: 'Coba langkah ini dulu: (1) refresh halaman 2x, (2) pastikan internet stabil, (3) logout lalu login lagi. Kalau masih bermasalah, kirim detailnya (screenshot kalau bisa) ke noreply.absenta@gmail.com — kami bantu cek.' },
-    { keys: ['kontak', 'customer service', 'hubungi admin', 'komplain', 'saran', 'kritik'], a: 'Untuk bantuan lebih lanjut, saran, atau komplain, hubungi kami via email: noreply.absenta@gmail.com — dibalas maksimal 1x24 jam di hari kerja. 😊' },
+    { keys: ['error', 'tidak bisa', 'gagal', 'masalah', 'lemot', 'macet', 'blank'], a: 'Coba langkah ini dulu: (1) refresh halaman 2x, (2) pastikan internet stabil, (3) logout lalu login lagi. Kalau masih bermasalah, kirim detailnya (screenshot kalau bisa) ke Telegram kami: https://t.me/+veK2jeQuBkQwNzU1 — kami bantu cek.' },
+    { keys: ['kontak', 'customer service', 'hubungi admin', 'komplain', 'saran', 'kritik'], a: 'Untuk bantuan lebih lanjut, saran, atau komplain, hubungi kami via Telegram: https://t.me/+veK2jeQuBkQwNzU1 — dibalas maksimal 1x24 jam di hari kerja. 😊' },
     { keys: ['produk', 'barang', 'tambah produk', 'input', 'kategori'], a: 'Untuk menambah produk: buka menu Inventori → klik "+ Tambah Produk". Kode produk dibuat otomatis, kamu juga bisa scan barcode dengan tombol 📷. Isi nama, harga jual, harga modal, dan stok, lalu Simpan.' },
     { keys: ['scan', 'barcode', 'kamera'], a: 'Scanner barcode ada di 2 tempat: (1) halaman Kasir — tombol "Scan Barcode" untuk memanggil produk ke keranjang, (2) form Tambah Produk — tombol 📷 untuk mengisi kode otomatis. Izinkan akses kamera saat diminta browser. Scanner fisik Bluetooth/USB juga didukung!' },
     { keys: ['scanner fisik', 'scanner portabel', 'scanner bluetooth', 'scanner usb', 'alat scan', 'tembak'], a: 'Scanner portabel (Bluetooth/USB) langsung didukung! Pair scanner ke HP/laptop (mode HID/keyboard), buka halaman Kasir, lalu tembak barcode — produk otomatis masuk keranjang dengan notifikasi hijau. Di form Tambah Produk, hasil scan otomatis mengisi kolom barcode. Tidak perlu pengaturan apa pun.' },
     { keys: ['struk', 'cetak', 'print', 'printer', 'bluetooth', 'thermal'], a: 'Setelah pembayaran, struk muncul otomatis. Pilihan cetak: 📶 Cetak Bluetooth (printer thermal Bluetooth Android, butuh aplikasi gratis RawBT dari Play Store), 🖨 Cetak Thermal (printer USB/WiFi), atau Cetak Biasa. Ukuran kertas 58/80mm diatur di Pengaturan.' },
     { keys: ['qris', 'qr', 'dana', 'pembayaran digital', 'dinamis'], a: 'Upload gambar QRIS tokomu di menu Pengaturan — QR tampil otomatis saat pelanggan bayar QRIS. Pengguna Premium dapat QRIS Dinamis 👑: nominal belanja otomatis tertanam di QR, pelanggan tidak perlu ketik nominal lagi. Konfirmasi manual setelah notifikasi uang masuk.' },
     { keys: ['kasir', 'pin', 'operator', 'karyawan', 'pegawai'], a: 'Tambahkan kasir di menu Kelola Kasir (khusus admin). Setiap kasir punya PIN sendiri. Kasir dengan role "kasir" hanya bisa membuka halaman Kasir & Riwayat — menu admin otomatis tersembunyi.' },
-    { keys: ['langganan', 'premium', 'trial', 'berlangganan', 'upgrade', 'gratis', 'harga', 'paket'], a: 'Fitur dasar GRATIS selamanya! 🎉 Ada 2 paket berbayar: (1) Premium Rp25.000/bulan — QRIS Dinamis, export PDF, operator & kasbon tanpa batas. (2) Bisnis Rp50.000/bulan 🏢 — semua Premium + Multi-Cabang tanpa batas & Dashboard Pusat. 30 hari pertama semua fitur terbuka gratis. Bayar via QRIS lalu konfirmasi ke noreply.absenta@gmail.com.' },
+    { keys: ['langganan', 'premium', 'trial', 'berlangganan', 'upgrade', 'gratis', 'harga', 'paket'], a: 'Fitur dasar GRATIS selamanya! 🎉 Ada 2 paket berbayar: (1) Premium Rp25.000/bulan — QRIS Dinamis, export PDF, operator & kasbon tanpa batas. (2) Bisnis Rp50.000/bulan 🏢 — semua Premium + Multi-Cabang tanpa batas & Dashboard Pusat. 30 hari pertama semua fitur terbuka gratis. Bayar via QRIS lalu konfirmasi via Telegram: https://t.me/+veK2jeQuBkQwNzU1.' },
     { keys: ['laporan', 'export', 'pdf', 'omset', 'penjualan', 'grafik'], a: 'Laporan ada di Dashboard: grafik penjualan 7 hari, laporan cepat (hari ini / 7 / 30 hari), dan tombol 📄 Export PDF untuk menyimpan/mencetak laporan lengkap.' },
     { keys: ['diskon', 'potongan'], a: 'Di halaman Kasir, sebelum bayar kamu bisa isi diskon nominal (Rp) ATAU persen (%) — salah satu saja. Diskon tercetak di struk.' },
     { keys: ['stok', 'habis', 'minimum'], a: 'Stok berkurang otomatis setiap transaksi. Atur "stok minimum" di tiap produk — produk yang menipis akan diberi tanda peringatan di Inventori. Tambah stok lewat menu Pembelian.' },
@@ -3663,7 +3656,7 @@ ${txRows}
     { keys: ['offline', 'internet', 'sinyal'], a: 'Aplikasi tetap bisa dibuka saat offline (PWA). Namun sinkronisasi data ke cloud butuh internet — pastikan online secara berkala agar data tersimpan aman.' },
     { keys: ['cabang', 'multi cabang', 'banyak toko', 'outlet', 'bisnis'], a: 'Multi-Cabang ada di paket Bisnis (Rp50.000/bulan) 🏢 — satu akun bisa punya banyak cabang. Buka Pengaturan → Cabang Toko → Tambah Cabang. Tiap cabang punya stok & transaksi sendiri. Ganti cabang lewat dropdown 🏪 Cabang di pojok kanan atas. Rekap omzet semua cabang muncul di Dashboard Pusat. Selama 30 hari trial fitur ini terbuka gratis.' },
     { keys: ['password', 'lupa', 'reset'], a: 'Lupa password? Di halaman login klik "Lupa password", masukkan email toko — link reset akan dikirim ke email tersebut.' },
-    { keys: ['hapus akun', 'hapus data'], a: 'Untuk menghapus akun dan seluruh data toko secara permanen, kirim permintaan ke noreply.absenta@gmail.com. Diproses maksimal 30 hari.' },
+    { keys: ['hapus akun', 'hapus data'], a: 'Untuk menghapus akun dan seluruh data toko secara permanen, kirim permintaan via Telegram: https://t.me/+veK2jeQuBkQwNzU1. Diproses maksimal 30 hari.' },
     { keys: ['rokok', 'tembakau', 'vape'], a: 'Produk rokok, tembakau, dan vape diblokir permanen dan tidak bisa diinput ke aplikasi ini.' }
   ];
 
@@ -3675,7 +3668,7 @@ ${txRows}
       if (score > bestScore) { bestScore = score; best = t; }
     });
     if (best) return best.a;
-    return 'Maaf, saya belum paham pertanyaan itu 🙏 Coba kata kunci seperti: produk, scan, struk, QRIS, kasir, langganan, laporan, diskon, stok, printer, install, atau backup. Atau hubungi kami langsung: noreply.absenta@gmail.com';
+    return 'Maaf, saya belum paham pertanyaan itu 🙏 Coba kata kunci seperti: produk, scan, struk, QRIS, kasir, langganan, laporan, diskon, stok, printer, install, atau backup. Atau hubungi kami langsung via Telegram: https://t.me/+veK2jeQuBkQwNzU1';
   };
 
   const initHelpChat = () => {
@@ -3705,18 +3698,6 @@ ${txRows}
     const trimHistory = () => { if (history.length > 6) history.splice(0, history.length - 6); };
 
     const ask = async q => {
-      // existing ask for Aisyah chat
-    };
-
-// Simple AI integration call using new edge function
-const askAI = async q => {
-  // Reuse same history sanitization if needed, but send single message
-  const { data, error } = await db.functions.invoke('ai-integration', { body: { messages: [{ role: 'user', content: q }] } });
-  if (error || !data || !data.reply) {
-    return 'Terjadi kesalahan saat memanggil AI.';
-  }
-  return data.reply;
-};
       addMsg(q, 'user');
       history.push({ role: 'user', content: q });
       trimHistory();
