@@ -22,6 +22,4 @@ config.js
 
 # Supabase temp files (berisi connection string dan project metadata)
 supabase/.temp/
-
-# Generated SEO files from next-sitemap
-/public/sitemap*.xml
+.claude/worktrees/

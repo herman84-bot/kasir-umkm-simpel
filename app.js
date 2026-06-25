@@ -67,8 +67,21 @@ const App = (() => {
   const getQrisImage = () => localStorage.getItem('qris_image') || '';
 
   // ── Langganan / masa aktif ────────────────────────────────────────────────
-  const SUBS_QRIS_PAYLOAD = '00020101021126570011ID.DANA.WWW011893600915303246671402090324667140303UMI51440014ID.CO.QRIS.WWW0215ID10265311627370303UMI5204899953033605802ID5916Absenta solution6014Kota Tangerang6105151166304797F';
   const SUPPORT_TELEGRAM_URL = 'https://t.me/+veK2jeQuBkQwNzU1';
+  const PAKASIR_BASE = 'https://app.pakasir.com';
+  const PAKASIR_SLUG = 'kasir-umkm-simpel';
+
+  const makeSubsOrderId = () => {
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    const ts = `${String(d.getFullYear()).slice(2)}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+    return `KUS-${String(state.storeId||'x').slice(-6)}-${ts}`;
+  };
+
+  const buildPakasirUrl = (amount, orderId) => {
+    const redirect = encodeURIComponent(location.origin + location.pathname);
+    return `${PAKASIR_BASE}/pay/${PAKASIR_SLUG}/${amount}?order_id=${orderId}&redirect=${redirect}`;
+  };
 
   // Short-lived in-memory cache for the server-side subscription check (max 60 s).
   // Stored in a module-level variable — NOT localStorage — so it resets on each page load.
@@ -130,24 +143,68 @@ const App = (() => {
   // Bisnis aktif jika trial / business_until.
   const getBusinessDaysLeft = () => daysLeftFor(['trial_ends_at', 'business_until']);
 
-  const renderSubsQr = () => {
-    const el = document.getElementById('subsQrCode');
-    if (!el || el.dataset.rendered) return;
-    el.innerHTML = '';
-    if (window.QRCode) {
-      new QRCode(el, { text: SUBS_QRIS_PAYLOAD, width: 192, height: 192, correctLevel: QRCode.CorrectLevel.M });
-      el.dataset.rendered = '1';
-    } else {
-      el.textContent = 'Gagal memuat QR. Periksa koneksi internet.';
-    }
-  };
+  let _currentSubsPlan = null;
 
   const showSubsOverlay = (plan = null) => {
     const overlay = document.getElementById('subsOverlay');
     if (!overlay) return;
-    renderSubsQr();
+    _currentSubsPlan = plan || PLANS.premium;
     overlay.classList.remove('hidden');
     overlay.style.display = 'flex';
+  };
+
+  const startPakasirPayment = async () => {
+    const plan = _currentSubsPlan || PLANS.premium;
+    const tier = plan.label === 'Bisnis' ? 'business' : 'premium';
+    const amount = plan.amount;
+    const orderId = makeSubsOrderId();
+    const store = primaryStore();
+    if (!store) { alert('Data toko belum siap. Coba lagi sebentar.'); return; }
+    const payBtn = document.getElementById('subsPayBtn');
+    if (payBtn) { payBtn.textContent = 'Menyiapkan...'; payBtn.style.pointerEvents = 'none'; }
+    const { error } = await db.from('subscription_orders').insert({
+      order_id: orderId, store_id: store.id, tier, amount, status: 'pending'
+    });
+    if (error) {
+      alert('Gagal menyiapkan pembayaran. Pastikan SQL 08_pakasir.sql sudah dijalankan.');
+      if (payBtn) { payBtn.textContent = '💳 Bayar Sekarang via Pakasir'; payBtn.style.pointerEvents = ''; }
+      return;
+    }
+    localStorage.setItem('pending_subs_order', JSON.stringify({ orderId, tier }));
+    window.location.href = buildPakasirUrl(amount, orderId);
+  };
+
+  const checkPakasirOrderStatus = async () => {
+    const raw = localStorage.getItem('pending_subs_order');
+    if (!raw) return false;
+    let pending;
+    try { pending = JSON.parse(raw); } catch { localStorage.removeItem('pending_subs_order'); return false; }
+    const { data } = await db.from('subscription_orders').select('status').eq('order_id', pending.orderId).maybeSingle();
+    if (data?.status === 'completed') {
+      localStorage.removeItem('pending_subs_order');
+      invalidateSubscriptionCache();
+      await loadStore();
+      return true;
+    }
+    return false;
+  };
+
+  const watchPendingSubscription = async () => {
+    if (!localStorage.getItem('pending_subs_order')) return;
+    if (await checkPakasirOrderStatus()) {
+      hideSubsOverlay();
+      alert('Pembayaran berhasil! 🎉 Langganan Anda sudah aktif.');
+      return;
+    }
+    let tries = 0;
+    const timer = setInterval(async () => {
+      tries++;
+      if (await checkPakasirOrderStatus()) {
+        clearInterval(timer);
+        hideSubsOverlay();
+        alert('Pembayaran berhasil! 🎉 Langganan Anda sudah aktif.');
+      } else if (tries >= 20) clearInterval(timer);
+    }, 3000);
   };
 
   const hideSubsOverlay = () => {
@@ -171,6 +228,7 @@ const App = (() => {
       title: '👑 Upgrade ke Premium',
       label: 'Premium',
       price: 'Rp25.000',
+      amount: 25000,
       features: [
         'QRIS Dinamis — nominal otomatis tertanam di QR',
         'Export laporan PDF',
@@ -183,6 +241,7 @@ const App = (() => {
       title: '🏢 Upgrade ke Bisnis',
       label: 'Bisnis',
       price: 'Rp50.000',
+      amount: 50000,
       features: [
         'Semua fitur Premium',
         'Multi-Cabang tanpa batas',
@@ -3210,21 +3269,24 @@ ${txRows}
 
     // ── Langganan ──
     document.getElementById('subsBannerBtn')?.addEventListener('click', () => showUpgradeOverlay('premium'));
+    document.getElementById('subsPayBtn')?.addEventListener('click', e => { e.preventDefault(); startPakasirPayment(); });
     document.getElementById('subsRecheckBtn')?.addEventListener('click', async () => {
       const btn = document.getElementById('subsRecheckBtn');
       btn.textContent = 'Memeriksa...';
-      await loadStore();
-      // loadStore() already invalidated the cache; fetch fresh result from server
-      const serverResult = db ? await fetchSubscriptionFromServer() : null;
-      btn.textContent = '🔄 Saya sudah diaktifkan — cek ulang';
-      const premiumActive = serverResult !== null ? serverResult.premiumActive : false;
-      if (premiumActive) {
+      let active = await checkPakasirOrderStatus();
+      if (!active) {
+        await loadStore();
+        const serverResult = db ? await fetchSubscriptionFromServer() : null;
+        active = serverResult !== null ? serverResult.premiumActive : false;
+      }
+      btn.textContent = '🔄 Sudah bayar — cek status';
+      if (active) {
         hideSubsOverlay();
         const banner = document.getElementById('subsBanner');
         if (banner) { banner.classList.add('hidden'); document.body.style.paddingTop = ''; }
-        alert('Premium aktif! 👑 Semua fitur premium sudah terbuka.');
+        alert('Langganan aktif! 🎉 Semua fitur sudah terbuka.');
       } else {
-        alert('Belum aktif. Jika sudah membayar, tunggu konfirmasi admin (maks. 1×24 jam).');
+        alert('Pembayaran belum terdeteksi. Jika baru saja membayar, tunggu beberapa detik lalu coba lagi.');
       }
     });
     document.getElementById('subsCloseBtn')?.addEventListener('click', hideSubsOverlay);
@@ -3381,8 +3443,12 @@ ${txRows}
     showHelpChatFab();
     await loadData();
 
+    // Cek super admin SEBELUM guard toko agar super admin bisa bypass
+    await checkSuperAdmin();
+
     // Pengaman: user terautentikasi tapi belum punya toko (mis. lewat konfirmasi email)
-    if (db && state.authUser && !state.storeId) {
+    // Super admin dibebaskan dari kewajiban memiliki toko
+    if (db && state.authUser && !state.storeId && !_isSuperAdmin) {
       let storeName = prompt('Selamat datang! Masukkan nama toko Anda untuk memulai:');
       storeName = (storeName || '').trim() || 'Toko Saya';
       const ownerName = prompt('Nama Anda (pemilik):') || 'Pemilik';
@@ -3409,9 +3475,7 @@ ${txRows}
 
     // Freemium: aplikasi tidak pernah dikunci — hanya tampilkan banner pengingat trial
     checkSubscription();
-
-    // Cek apakah user adalah super admin (query ke tabel admin_users)
-    await checkSuperAdmin();
+    watchPendingSubscription();
 
     applyRoleAccess();
     showApp();
@@ -3762,12 +3826,12 @@ ${txRows}
   let _isSuperAdmin = false;
 
   const checkSuperAdmin = async () => {
-    if (!db || !state.authUser?.email) { _isSuperAdmin = false; return; }
+    if (!db || !state.authUser?.id) { _isSuperAdmin = false; return; }
     try {
       const { data, error } = await db
         .from('admin_users')
         .select('id')
-        .eq('email', state.authUser.email)
+        .eq('user_id', state.authUser.id)
         .maybeSingle();
       _isSuperAdmin = !error && !!data;
     } catch {
