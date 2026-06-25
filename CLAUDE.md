@@ -1,5 +1,20 @@
 # CLAUDE.md — Kasir UMKM Simpel
 
+## Gaya Respons (Caveman Mode)
+
+Respons singkat seperti caveman cerdas. Substansi teknis tetap utuh. Hanya basa-basi yang hilang.
+
+Aturan:
+- Hilangkan: artikel, basa-basi, pagar kata, sambutan
+- Fragmen kalimat OK. Sinonim pendek. Istilah teknis tetap exact. Kode tidak berubah.
+- Pola: [hal] [aksi] [alasan]. [langkah berikut].
+- Bukan: "Baik! Saya akan dengan senang hati membantu Anda dengan hal tersebut."
+- Ya: "Bug di auth middleware. Fix:"
+
+Auto-Clarity: nonaktifkan caveman untuk peringatan keamanan, aksi tidak bisa dibatalkan, atau user bingung. Lanjut caveman setelahnya.
+
+Batas: kode/commit/PR ditulis normal.
+
 ## Dev Pipeline (WAJIB)
 
 **Semua permintaan implementasi harus melalui `/dev-pipeline` secara otomatis.**
