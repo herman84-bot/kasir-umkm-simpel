@@ -1,13 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 export default function Home() {
-  const [mounted, setMounted] = useState(false)
-
   useEffect(() => {
-    setMounted(true)
-    
     // Load Tailwind CSS
     const tailwindLink = document.createElement('link')
     tailwindLink.rel = 'stylesheet'
@@ -30,13 +26,13 @@ export default function Home() {
       document.head.appendChild(script)
     })
 
-    // Load main app script
+    // Load main app script that contains all HTML and logic
     const appScript = document.createElement('script')
     appScript.src = '/app.js'
     appScript.async = true
     document.body.appendChild(appScript)
 
-    // Load service worker
+    // Load service worker for PWA
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/service-worker.js')
         .then(reg => console.log('SW registered:', reg))
@@ -44,15 +40,6 @@ export default function Home() {
     }
   }, [])
 
-  if (!mounted) {
-    return (
-      <div className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-slate-900 text-white">
-        <div className="text-4xl mb-4 animate-pulse">🛒</div>
-        <h2 className="text-xl font-semibold mb-2">Kasir UMKM Simpel</h2>
-        <p className="text-slate-400 text-sm">Memuat aplikasi...</p>
-      </div>
-    )
-  }
-
+  // Return null - app.js will inject all HTML content into the body
   return null
 }
