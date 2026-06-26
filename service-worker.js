@@ -1,7 +1,11 @@
-const CACHE_NAME = 'kasir-umkm-cache-v17';
+const CACHE_NAME = 'kasir-umkm-cache-v18';
+// CATATAN PENTING: jangan masukkan 'index.html' di sini. Vercel cleanUrls=true
+// me-redirect /index.html -> / (308); Cache API menolak menyimpan response
+// hasil redirect sehingga cache.addAll() reject dan install SW GAGAL TOTAL —
+// akibatnya SW lama tidak pernah tergantikan dan aset basi terus disajikan.
+// Root './' melayani index tanpa redirect. HTML tetap di-cache runtime (network-first).
 const ASSETS = [
-  '.',
-  'index.html',
+  './',
   'app.js',
   'manifest.json',
   'icons/icon-192.png',
@@ -10,8 +14,15 @@ const ASSETS = [
 
 self.addEventListener('install', event => {
   self.skipWaiting();
+  // allSettled + cache:'reload': install TIDAK boleh gagal hanya karena satu aset
+  // redirect/404. Ini memastikan SW baru selalu berhasil terpasang & aktif,
+  // memutus kebuntuan SW lama yang tidak pernah ter-update.
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then(cache =>
+      Promise.allSettled(
+        ASSETS.map(url => cache.add(new Request(url, { cache: 'reload' })))
+      )
+    )
   );
 });
 
