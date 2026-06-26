@@ -556,6 +556,17 @@ const App = (() => {
         : 'text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300';
     }
     if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
+    const mobileNameEl = document.getElementById('mobileUserName');
+    const mobileRoleEl = document.getElementById('mobileUserRole');
+    const mobileAvatar = document.getElementById('mobileUserAvatar');
+    if (mobileNameEl) mobileNameEl.textContent = name;
+    if (mobileRoleEl) {
+      mobileRoleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
+      mobileRoleEl.className = isAdmin
+        ? 'text-xs px-2 py-0.5 rounded-full bg-sky-700 text-sky-100'
+        : 'text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300';
+    }
+    if (mobileAvatar) mobileAvatar.textContent = name.charAt(0).toUpperCase();
     // Sidebar + bottom nav: menu admin disembunyikan untuk operator kasir
     document.querySelectorAll('[data-role="admin"]').forEach(el => {
       el.style.display = isAdmin ? '' : 'none';
@@ -3223,6 +3234,7 @@ ${txRows}
     const authError = document.getElementById('authError');
     const authSuccess = document.getElementById('authSuccess');
     const logoutButton = document.getElementById('logoutButton');
+    const mobileLogoutButton = document.getElementById('mobileLogoutButton');
 
     const showAuthError = msg => {
       authSuccess.classList.add('hidden');
@@ -3301,6 +3313,7 @@ ${txRows}
     });
 
     logoutButton?.addEventListener('click', logout);
+    mobileLogoutButton?.addEventListener('click', logout);
 
     // ── Thermal print ──
     dom.printThermalBtn?.addEventListener('click', () => {
