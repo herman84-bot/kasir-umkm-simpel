@@ -3966,6 +3966,10 @@ ${txRows}
         btn.style.display = 'none';
       }
     }
+    const deleteSection = document.getElementById('deleteAccountSection');
+    if (deleteSection) {
+      deleteSection.style.display = _isSuperAdmin ? 'none' : '';
+    }
   };
 
   // Kalkulator tanggal berakhir dari pilihan durasi dropdown
