@@ -713,10 +713,10 @@
 
         <!-- Hapus Akun -->
         <div class="mt-6 max-w-xl" data-role="admin">
-          <div class="rounded-3xl bg-white border border-red-200 shadow-sm p-6">
-            <h4 class="text-lg font-semibold text-red-700 mb-1">Zona Berbahaya</h4>
-            <p class="text-slate-500 text-sm mb-4">Hapus akun dan seluruh data toko (produk, transaksi, kasir, kasbon, riwayat, langganan) secara permanen. Tindakan ini tidak dapat dibatalkan.</p>
-            <button id="deleteAccountBtn" class="w-full rounded-2xl bg-red-600 px-5 py-3 text-white font-semibold hover:bg-red-700 transition">🗑 Hapus Akun Permanen</button>
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
+            <h4 class="text-lg font-semibold text-slate-800 mb-1">🔒 Tutup Akun</h4>
+            <p class="text-slate-500 text-sm mb-4">Menutup akun akan menghapus seluruh data toko Anda secara permanen dan tidak dapat dibatalkan.</p>
+            <button id="deleteAccountBtn" class="rounded-2xl border border-red-400 px-5 py-3 text-red-600 font-semibold hover:bg-red-50 transition">Tutup Akun</button>
           </div>
         </div>
       </section>
@@ -1328,18 +1328,18 @@
 
   <!-- Modal Hapus Akun -->
   <div id="deleteAccountModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
-    <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+    <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-200 p-5">
         <div>
-          <h3 class="text-xl font-semibold text-red-700">Hapus Akun Permanen</h3>
+          <h3 class="text-xl font-semibold text-slate-800">Konfirmasi Penutupan Akun</h3>
           <p class="text-slate-500 text-sm">Tindakan ini tidak dapat dibatalkan.</p>
         </div>
         <button id="closeDeleteAccountModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
       </div>
       <div class="p-6 space-y-4">
-        <div class="rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <div class="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
           <p class="font-semibold mb-1">⚠️ Data berikut akan dihapus permanen:</p>
-          <ul class="list-disc list-inside space-y-0.5 text-red-600">
+          <ul class="list-disc list-inside space-y-0.5 text-amber-700">
             <li>Toko, produk, dan transaksi</li>
             <li>Kasir dan kasbon</li>
             <li>Riwayat, langganan, dan semua data terkait</li>
