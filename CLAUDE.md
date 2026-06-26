@@ -35,32 +35,58 @@ Ketika user meminta sesuatu yang melibatkan perubahan kode (fitur baru, bug fix,
 - PWA (service-worker.js + manifest.json)
 - localStorage (caching)
 
-## Tanggung Jawab AI (WAJIB)
+## Tanggung Jawab AI — Pilar Utama (WAJIB untuk SETIAP perubahan)
 
-### Keamanan & Privasi Data
+AI HARUS aktif berpikir, bertanya, dan memverifikasi. Jangan anggap "kode jalan" = "sudah benar". Setiap commit harus lulus 4 pilar ini:
 
-Setiap perubahan kode harus aktif mempertimbangkan:
+### 1. Keamanan & Integritas Data
 
-- **Isolasi data antar user** — localStorage, state in-memory, dan cache TIDAK boleh bocor antar akun. Saat logout, bersihkan semua state dan storage per-akun.
-- **Aksi destruktif** — selalu verifikasi di sisi server (Edge Function), bukan hanya client-side.
-- **Data sensitif** — jangan simpan di localStorage tanpa enkripsi. Jangan expose di URL atau log.
-- **RLS Supabase** — setiap tabel baru wajib punya Row Level Security. Jangan bypass RLS tanpa alasan jelas.
-- **API key & secret** — selalu via environment variable / Edge Function, tidak pernah hardcode di client.
+Setiap perubahan harus aman dari sudut pandang:
 
-Ketika menulis kode: **berpikir seperti attacker** — tanyakan "bagaimana ini bisa disalahgunakan atau membocorkan data?"
+- **Isolasi data antar user** — localStorage, state in-memory, cache TIDAK boleh bocor antar akun/sesi. Saat logout/switch akun, bersihkan semua state sensitif.
+- **Server-side validation** — aksi destruktif (hapus, update, transfer) wajib verifikasi di Edge Function, bukan hanya client-side.
+- **RLS Supabase** — setiap tabel baru wajib punya Row Level Security. Jangan bypass RLS tanpa alasan yang didokumentasikan.
+- **API key & secret** — hanya via environment variable / Edge Function. Tidak pernah hardcode, tidak pernah log, tidak pernah visible di client.
+- **Data sensitif** — jangan simpan email/password/token di localStorage. Jangan expose di URL bar atau console log.
 
-### Desain UI yang Humanis
+**Tanyakan saat coding:** "Bagaimana user lain bisa akses data ini? Bagaimana attacker bisa bypass ini? Apa yang bisa bocor?"
 
-Setiap UI yang dibuat atau diubah harus memenuhi prinsip berikut:
+### 2. Desain & UX yang Humanis
 
-- **Mudah dipahami** — label, tombol, dan pesan error menggunakan bahasa Indonesia yang natural dan jelas, bukan jargon teknis.
-- **Tidak menakutkan** — hindari warna merah berlebihan, label alarming ("Zona Berbahaya"), atau bahasa yang membuat user panik. Informasikan konsekuensi dengan tenang dan jelas.
-- **Hierarki visual jelas** — aksi utama menonjol, aksi destruktif terlihat berbeda (misal outline/ghost button) tanpa mendominasi halaman.
-- **Konsisten** — ikuti pola desain yang sudah ada di app (rounded-3xl, shadow-sm, warna slate/white, Tailwind utility yang sudah ter-generate).
-- **Mobile-first** — semua UI harus nyaman dipakai di layar kecil (touch target cukup besar, teks terbaca, tidak perlu scroll horizontal).
-- **Aksi tidak bisa dibatalkan** — selalu tampilkan konfirmasi eksplisit (modal + verifikasi input), bukan hanya `confirm()` browser.
+Setiap UI harus mudah dipahami dan nyaman digunakan oleh pemilik UMKM non-teknis:
 
-Sebelum menulis HTML/CSS: **tanyakan "apakah pengguna UMKM non-teknis bisa langsung mengerti ini?"**
+- **Bahasa natural** — label, pesan, error, dan guidance menggunakan Bahasa Indonesia yang sederhana. Jangan jargon teknis.
+- **Tidak overwhelming** — hindari warna merah berlebihan, warning text yang menakutkan, atau visual yang alarming. Informasikan konsekuensi dengan tenang dan jelas.
+- **Visual hierarchy jelas** — aksi utama menonjol, aksi destruktif terlihat berbeda (outline/ghost button, bukan solid). Tidak ada kebingungan "mana yang harus diklik?"
+- **Konsisten** — ikuti pola desain existing (rounded-3xl, shadow-sm, warna slate/white, Tailwind). Tidak boleh ada satu card yang terlihat "seperti dari app lain".
+- **Mobile-first** — UI harus nyaman di layar 375px (iPhone SE). Touch target ≥ 44px, teks readable tanpa zoom, tidak ada horizontal scroll.
+- **Aksi irreversible** — selalu konfirmasi eksplisit + verifikasi input (modal + email/PIN, bukan hanya OK button). User tidak boleh bisa hapus data karena salah klik.
+- **Loading & error states** — tampilkan status (loading, error, success) dengan jelas. Jangan biarkan user bingung "apa yang terjadi?"
+
+**Tanyakan saat design:** "Apakah tukang sayur yang baru pakai smartphone bisa langsung ngerti ini tanpa manual?"
+
+### 3. Kualitas & Testability
+
+Setiap perubahan harus robust dan mudah diverifikasi:
+
+- **Happy path & edge cases** — jangan cuma test senang-senang. Test offline, network error, concurrent request, invalid input, rate limit, timeout.
+- **State consistency** — setelah operasi, semua state in-memory, localStorage, Supabase harus sinkron. Jangan ada ghost data atau missing data.
+- **Database integrity** — migration harus idempotent (bisa dijalankan 2x tanpa error). Foreign key harus proper (CASCADE atau SET NULL, sesuai semantik). Backfill data harus aman di production.
+- **No silent failures** — jangan catch error terus silent. Log apa yang salah, user perlu tahu, admin perlu bisa debug.
+- **Regression check** — perubahan baru tidak boleh break fitur lama. Test fitur existing yang adjacent untuk pastikan cross-impact.
+
+**Tanyakan saat implement:** "Apa yang bisa salah? Bagaimana kalau network timeout di tengah proses? Apakah state masih konsisten?"
+
+### 4. Dokumentasi & Maintainability
+
+Setiap perubahan harus bisa dipahami 6 bulan kemudian:
+
+- **Commit message jelas** — bukan "fix bug" atau "update". Jelaskan WHAT dan WHY: "fix: logout tidak bersihkan state.cashiers — data akun lama bocor saat login akun baru".
+- **Kode self-documenting** — nama variable/function jelas (bukan `x`, `fn`, `data`). Jangan komentar "lagi saya apa" tapi "kenapa kami pilih cara ini".
+- **Perubahan besar → di-document** — jika ada breaking change atau perubahan alur, catat di CLAUDE.md atau issue agar team tahu.
+- **Link context** — jika fix referensi issue/bug screenshot, include link atau nomor di commit message.
+
+**Tanyakan saat selesai:** "Apakah developer 6 bulan kemudian bisa pahami ini hanya baca commit message + kode?"
 
 ## Security Notes
 
