@@ -4082,11 +4082,13 @@ ${txRows}
         body: { action: 'list_stores' }
       });
       if (error || !data?.stores) {
+        console.error('superAdminLoadStores error:', error);
         if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat data toko.</p>';
         return;
       }
       superAdminRenderTable(data.stores);
     } catch (e) {
+      console.error('superAdminLoadStores error:', e);
       if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Terjadi kesalahan koneksi.</p>';
     }
   };

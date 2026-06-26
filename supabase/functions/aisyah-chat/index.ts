@@ -21,13 +21,6 @@ const systemPrompt =
   'Jawab dengan ringkas, jelas, dan langsung ke inti.';
 
 Deno.serve(async (req) => {
-  if (!allowedOrigin) {
-    return new Response(
-      JSON.stringify({ error: 'Server misconfiguration: ALLOWED_ORIGIN not set' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } },
-    );
-  }
-
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
