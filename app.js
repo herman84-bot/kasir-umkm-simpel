@@ -1299,8 +1299,8 @@ const App = (() => {
     dom.deleteAccountEmailInput.value = '';
     dom.deleteAccountError.classList.add('hidden');
     dom.deleteAccountConfirmBtn.disabled = true;
-    dom.deleteAccountConfirmBtn.classList.remove('bg-red-600', 'hover:bg-red-700', 'cursor-pointer');
-    dom.deleteAccountConfirmBtn.classList.add('bg-red-300', 'cursor-not-allowed');
+    dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'hover:bg-rose-700', 'text-white', 'cursor-pointer');
+    dom.deleteAccountConfirmBtn.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
     dom.deleteAccountModal.classList.remove('hidden');
     dom.deleteAccountModal.style.display = 'flex';
     dom.deleteAccountEmailInput.focus();
@@ -3503,11 +3503,11 @@ ${txRows}
       const match = dom.deleteAccountEmailInput.value.trim().toLowerCase() === (state.authUser?.email || '').toLowerCase();
       dom.deleteAccountConfirmBtn.disabled = !match;
       if (match) {
-        dom.deleteAccountConfirmBtn.classList.remove('bg-red-300', 'cursor-not-allowed');
-        dom.deleteAccountConfirmBtn.classList.add('bg-red-600', 'hover:bg-red-700', 'cursor-pointer');
+        dom.deleteAccountConfirmBtn.classList.remove('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
+        dom.deleteAccountConfirmBtn.classList.add('bg-rose-600', 'text-white', 'hover:bg-rose-700', 'cursor-pointer');
       } else {
-        dom.deleteAccountConfirmBtn.classList.remove('bg-red-600', 'hover:bg-red-700', 'cursor-pointer');
-        dom.deleteAccountConfirmBtn.classList.add('bg-red-300', 'cursor-not-allowed');
+        dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'text-white', 'hover:bg-rose-700', 'cursor-pointer');
+        dom.deleteAccountConfirmBtn.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
       }
     });
     dom.deleteAccountConfirmBtn?.addEventListener('click', handleDeleteAccount);
