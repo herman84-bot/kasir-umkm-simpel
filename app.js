@@ -574,7 +574,30 @@ const App = (() => {
     state.storeId = null;
     state.cart = {};
     state.cashAmount = 0;
+    state.cashiers = [];
+    state.selectedCashierId = '';
+    state.activeUserId = '';
+    state.products = [];
+    state.transactions = [];
+    state.purchases = [];
+    state.debts = [];
+    state.stores = [];
+    state.draftPurchase = null;
+    state.shiftStartTime = null;
+    state.currentTransaction = null;
+    _subsCacheResult = null;
     _isSuperAdmin = false;
+    Object.values(STORAGE).forEach(key => localStorage.removeItem(key));
+    localStorage.removeItem('pos_debts');
+    localStorage.removeItem('qris_image');
+    localStorage.removeItem('qris_payload');
+    localStorage.removeItem('offline_tx_queue');
+    localStorage.removeItem('pending_subs_order');
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith('active_store_') || k.startsWith('shift_start_') || k.startsWith('onboardingDone_')) {
+        localStorage.removeItem(k);
+      }
+    });
     showLoginPage();
   };
   // ─────────────────────────────────────────────────────────────────────────
@@ -810,7 +833,14 @@ const App = (() => {
     paymentConfirmTotal: document.getElementById('paymentConfirmTotal'),
     paymentConfirmCashier: document.getElementById('paymentConfirmCashier'),
     paymentConfirmOk: document.getElementById('paymentConfirmOk'),
-    paymentConfirmCancel: document.getElementById('paymentConfirmCancel')
+    paymentConfirmCancel: document.getElementById('paymentConfirmCancel'),
+    deleteAccountBtn: document.getElementById('deleteAccountBtn'),
+    deleteAccountModal: document.getElementById('deleteAccountModal'),
+    closeDeleteAccountModal: document.getElementById('closeDeleteAccountModal'),
+    cancelDeleteAccountModal: document.getElementById('cancelDeleteAccountModal'),
+    deleteAccountEmailInput: document.getElementById('deleteAccountEmailInput'),
+    deleteAccountConfirmBtn: document.getElementById('deleteAccountConfirmBtn'),
+    deleteAccountError: document.getElementById('deleteAccountError')
   };
 
   let chartInstance = null;
@@ -961,10 +991,11 @@ const App = (() => {
       setLoadingStatus('Siap!', 100);
     } catch (err) {
       console.warn('Gagal memuat data toko:', err);
-      state.products = state.products || [];
-      state.transactions = state.transactions || [];
-      state.cashiers = state.cashiers || [];
-      state.purchases = state.purchases || [];
+      state.products = [];
+      state.transactions = [];
+      state.cashiers = [];
+      state.purchases = [];
+      state.debts = [];
     }
 
     syncStorage();
@@ -1262,6 +1293,58 @@ const App = (() => {
   const closeCashierModalFn = () => {
     dom.cashierModal.classList.add('hidden');
     dom.cashierModal.style.display = '';
+  };
+
+  const openDeleteAccountModal = () => {
+    dom.deleteAccountEmailInput.value = '';
+    dom.deleteAccountError.classList.add('hidden');
+    dom.deleteAccountConfirmBtn.disabled = true;
+    dom.deleteAccountConfirmBtn.classList.remove('bg-red-600', 'hover:bg-red-700', 'cursor-pointer');
+    dom.deleteAccountConfirmBtn.classList.add('bg-red-300', 'cursor-not-allowed');
+    dom.deleteAccountModal.classList.remove('hidden');
+    dom.deleteAccountModal.style.display = 'flex';
+    dom.deleteAccountEmailInput.focus();
+  };
+
+  const closeDeleteAccountModal = () => {
+    dom.deleteAccountModal.classList.add('hidden');
+    dom.deleteAccountModal.style.display = '';
+  };
+
+  const handleDeleteAccount = async () => {
+    const emailInput = dom.deleteAccountEmailInput.value.trim();
+    const userEmail = state.authUser?.email || '';
+    if (emailInput.toLowerCase() !== userEmail.toLowerCase()) {
+      dom.deleteAccountError.textContent = 'Email tidak cocok. Silakan ketik ulang email Anda dengan benar.';
+      dom.deleteAccountError.classList.remove('hidden');
+      return;
+    }
+    dom.deleteAccountError.classList.add('hidden');
+    dom.deleteAccountConfirmBtn.textContent = 'Menghapus...';
+    dom.deleteAccountConfirmBtn.disabled = true;
+    try {
+      const { error } = await db.functions.invoke('delete-account', { body: {} });
+      if (error) throw error;
+      // Bersihkan semua localStorage secara eksplisit setelah penghapusan berhasil
+      Object.values(STORAGE).forEach(key => localStorage.removeItem(key));
+      localStorage.removeItem('qris_image');
+      localStorage.removeItem('qris_payload');
+      localStorage.removeItem('pending_subs_order');
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('active_store_') || k.startsWith('shift_start_') || k.startsWith('onboardingDone_')) {
+          localStorage.removeItem(k);
+        }
+      });
+      await db.auth.signOut();
+      closeDeleteAccountModal();
+      showLoginPage();
+    } catch (err) {
+      const msg = (err && err.message) ? err.message : 'Gagal menghapus akun. Coba lagi atau hubungi support.';
+      dom.deleteAccountError.textContent = msg;
+      dom.deleteAccountError.classList.remove('hidden');
+      dom.deleteAccountConfirmBtn.textContent = 'Hapus Akun Saya';
+      dom.deleteAccountConfirmBtn.disabled = false;
+    }
   };
 
   const saveCashier = async event => {
@@ -3411,6 +3494,26 @@ ${txRows}
 
     // ── Super Admin ──
     bindSuperAdminEvents();
+
+    // ── Hapus Akun ──
+    dom.deleteAccountBtn?.addEventListener('click', openDeleteAccountModal);
+    dom.closeDeleteAccountModal?.addEventListener('click', closeDeleteAccountModal);
+    dom.cancelDeleteAccountModal?.addEventListener('click', closeDeleteAccountModal);
+    dom.deleteAccountEmailInput?.addEventListener('input', () => {
+      const match = dom.deleteAccountEmailInput.value.trim().toLowerCase() === (state.authUser?.email || '').toLowerCase();
+      dom.deleteAccountConfirmBtn.disabled = !match;
+      if (match) {
+        dom.deleteAccountConfirmBtn.classList.remove('bg-red-300', 'cursor-not-allowed');
+        dom.deleteAccountConfirmBtn.classList.add('bg-red-600', 'hover:bg-red-700', 'cursor-pointer');
+      } else {
+        dom.deleteAccountConfirmBtn.classList.remove('bg-red-600', 'hover:bg-red-700', 'cursor-pointer');
+        dom.deleteAccountConfirmBtn.classList.add('bg-red-300', 'cursor-not-allowed');
+      }
+    });
+    dom.deleteAccountConfirmBtn?.addEventListener('click', handleDeleteAccount);
+    document.addEventListener('click', e => {
+      if (e.target === dom.deleteAccountModal) closeDeleteAccountModal();
+    });
   };
 
   const renderAll = () => {
@@ -3720,7 +3823,7 @@ ${txRows}
     { keys: ['offline', 'internet', 'sinyal'], a: 'Aplikasi tetap bisa dibuka saat offline (PWA). Namun sinkronisasi data ke cloud butuh internet — pastikan online secara berkala agar data tersimpan aman.' },
     { keys: ['cabang', 'multi cabang', 'banyak toko', 'outlet', 'bisnis'], a: 'Multi-Cabang ada di paket Bisnis (Rp50.000/bulan) 🏢 — satu akun bisa punya banyak cabang. Buka Pengaturan → Cabang Toko → Tambah Cabang. Tiap cabang punya stok & transaksi sendiri. Ganti cabang lewat dropdown 🏪 Cabang di pojok kanan atas. Rekap omzet semua cabang muncul di Dashboard Pusat. Selama 30 hari trial fitur ini terbuka gratis.' },
     { keys: ['password', 'lupa', 'reset'], a: 'Lupa password? Di halaman login klik "Lupa password", masukkan email toko — link reset akan dikirim ke email tersebut.' },
-    { keys: ['hapus akun', 'hapus data'], a: 'Untuk menghapus akun dan seluruh data toko secara permanen, kirim permintaan via Telegram: https://t.me/+veK2jeQuBkQwNzU1. Diproses maksimal 30 hari.' },
+    { keys: ['hapus akun', 'hapus data'], a: 'Untuk menghapus akun dan seluruh data toko secara permanen, buka menu Pengaturan → gulir ke bawah → klik "Hapus Akun Permanen". Ketik ulang email Anda sebagai konfirmasi. Tindakan ini tidak dapat dibatalkan dan seluruh data (toko, produk, transaksi, kasir, kasbon, langganan) akan terhapus selamanya.' },
     { keys: ['rokok', 'tembakau', 'vape'], a: 'Produk rokok, tembakau, dan vape diblokir permanen dan tidak bisa diinput ke aplikasi ini.' }
   ];
 
