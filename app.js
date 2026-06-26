@@ -33,6 +33,9 @@ const App = (() => {
         paperSize: s.paper_size || '58'
       };
     }
+    // Super admin tidak punya toko — jangan baca localStorage supaya data toko
+    // user sebelumnya tidak bocor ke context admin.
+    if (_isSuperAdmin) return { ...defaultStoreSettings };
     try {
       return { ...defaultStoreSettings, ...JSON.parse(localStorage.getItem(STORAGE.storeSettings) || '{}') };
     } catch { return { ...defaultStoreSettings }; }
@@ -2794,6 +2797,8 @@ ${discountHtml}${taxHtml}
 
   // ── Pengaturan Toko ───────────────────────────────────────────────────────
   const renderSettings = () => {
+    applySuperAdminVisibility();
+    if (_isSuperAdmin) return;
     renderBranchList();
     const store = getStoreSettings();
     if (dom.settingStoreName) dom.settingStoreName.value = store.name;
@@ -3958,12 +3963,29 @@ ${txRows}
   const checkSuperAdmin = async () => {
     if (!db || !state.authUser?.id) { _isSuperAdmin = false; return; }
     try {
+      // Primary: lookup by user_id (single round-trip, no Edge Function overhead)
       const { data, error } = await db
         .from('admin_users')
         .select('id')
         .eq('user_id', state.authUser.id)
         .maybeSingle();
-      _isSuperAdmin = !error && !!data;
+      if (!error && data) { _isSuperAdmin = true; return; }
+      // Fallback: baris dengan user_id NULL tidak terlihat oleh RLS policy
+      // (user_id = auth.uid() tidak pernah cocok dengan NULL).
+      // Verifikasi via Edge Function yang memakai service-role dan lookup by email.
+      // Gunakan check_admin jika sudah di-deploy, fallback ke list_stores untuk kompatibilitas.
+      const { data: checkData, error: checkErr } = await db.functions.invoke('admin-subscription', {
+        body: { action: 'check_admin' }
+      });
+      if (!checkErr) {
+        _isSuperAdmin = checkData?.is_admin === true;
+        return;
+      }
+      // check_admin belum di-deploy — gunakan list_stores sebagai pengganti sementara
+      const { error: listErr } = await db.functions.invoke('admin-subscription', {
+        body: { action: 'list_stores' }
+      });
+      _isSuperAdmin = !listErr;
     } catch {
       _isSuperAdmin = false;
     }
@@ -3984,6 +4006,14 @@ ${txRows}
     if (deleteSection) {
       deleteSection.style.display = _isSuperAdmin ? 'none' : '';
     }
+    // Sembunyikan section toko (nama/alamat/struk/preview/cabang) untuk super admin
+    // yang tidak memiliki toko sendiri.
+    const storeFormFields = document.getElementById('storeFormFields');
+    if (storeFormFields) storeFormFields.style.display = _isSuperAdmin ? 'none' : '';
+    const struPreviewSection = document.getElementById('struPreviewSection');
+    if (struPreviewSection) struPreviewSection.style.display = _isSuperAdmin ? 'none' : '';
+    const branchSection = document.getElementById('branchSettingsSection');
+    if (branchSection) branchSection.style.display = _isSuperAdmin ? 'none' : '';
   };
 
   // Kalkulator tanggal berakhir dari pilihan durasi dropdown
@@ -4082,14 +4112,19 @@ ${txRows}
         body: { action: 'list_stores' }
       });
       if (error || !data?.stores) {
+        const httpStatus = error?.context?.status ?? error?.status ?? null;
+        const statusSuffix = httpStatus ? ` (HTTP ${httpStatus})` : '';
         console.error('superAdminLoadStores error:', error);
-        if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat data toko.</p>';
+        superAdminShowMsg('error', `Gagal memuat data toko${statusSuffix}.`);
+        if (wrapper) wrapper.innerHTML = `<p class="text-rose-500 text-sm">Gagal memuat data toko${statusSuffix}.</p>`;
         return;
       }
       superAdminRenderTable(data.stores);
     } catch (e) {
       console.error('superAdminLoadStores error:', e);
-      if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Terjadi kesalahan koneksi.</p>';
+      const errMsg = e?.message ? ` — ${e.message}` : '';
+      superAdminShowMsg('error', `Terjadi kesalahan koneksi${errMsg}.`);
+      if (wrapper) wrapper.innerHTML = `<p class="text-rose-500 text-sm">Terjadi kesalahan koneksi${e?.message ? ` — ${esc(e.message)}` : ''}.</p>`;
     }
   };
 

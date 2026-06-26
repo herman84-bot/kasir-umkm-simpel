@@ -68,6 +68,14 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action: string = body.action ?? '';
 
+    // Lightweight admin status check — verifikasi sudah terjadi di blok email di atas.
+    if (action === 'check_admin') {
+      return new Response(
+        JSON.stringify({ is_admin: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     if (action === 'list_stores') {
       const { data: stores, error: storesErr } = await supabaseAdmin
         .from('stores')
