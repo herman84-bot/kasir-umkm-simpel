@@ -33,9 +33,9 @@ const App = (() => {
         paperSize: s.paper_size || '58'
       };
     }
-    // Super admin tidak punya toko — jangan baca localStorage supaya data toko
+    // Super admin tanpa toko — jangan baca localStorage supaya data toko
     // user sebelumnya tidak bocor ke context admin.
-    if (_isSuperAdmin) return { ...defaultStoreSettings };
+    if (_isSuperAdmin && !state.store) return { ...defaultStoreSettings };
     try {
       return { ...defaultStoreSettings, ...JSON.parse(localStorage.getItem(STORAGE.storeSettings) || '{}') };
     } catch { return { ...defaultStoreSettings }; }
@@ -2804,7 +2804,7 @@ ${discountHtml}${taxHtml}
   // ── Pengaturan Toko ───────────────────────────────────────────────────────
   const renderSettings = () => {
     applySuperAdminVisibility();
-    if (_isSuperAdmin) return;
+    if (_isSuperAdmin && !state.storeId) return;
     renderBranchList();
     const store = getStoreSettings();
     if (dom.settingStoreName) dom.settingStoreName.value = store.name;
@@ -4012,14 +4012,15 @@ ${txRows}
     if (deleteSection) {
       deleteSection.style.display = _isSuperAdmin ? 'none' : '';
     }
-    // Sembunyikan section toko (nama/alamat/struk/preview/cabang) untuk super admin
+    // Sembunyikan section toko (nama/alamat/struk/preview/cabang) hanya untuk super admin
     // yang tidak memiliki toko sendiri.
+    const hideStoreUI = _isSuperAdmin && !state.storeId;
     const storeFormFields = document.getElementById('storeFormFields');
-    if (storeFormFields) storeFormFields.style.display = _isSuperAdmin ? 'none' : '';
+    if (storeFormFields) storeFormFields.style.display = hideStoreUI ? 'none' : '';
     const struPreviewSection = document.getElementById('struPreviewSection');
-    if (struPreviewSection) struPreviewSection.style.display = _isSuperAdmin ? 'none' : '';
+    if (struPreviewSection) struPreviewSection.style.display = hideStoreUI ? 'none' : '';
     const branchSection = document.getElementById('branchSettingsSection');
-    if (branchSection) branchSection.style.display = _isSuperAdmin ? 'none' : '';
+    if (branchSection) branchSection.style.display = hideStoreUI ? 'none' : '';
   };
 
   // Kalkulator tanggal berakhir dari pilihan durasi dropdown
