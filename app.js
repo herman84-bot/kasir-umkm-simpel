@@ -273,6 +273,7 @@ const App = (() => {
   // Gerbang fitur Premium: true jika boleh lanjut, false + tampilkan upgrade jika tidak.
   // Uses server-side check to prevent client-side bypass via state.stores manipulation.
   const requirePremium = async featureName => {
+    if (_isSuperAdmin) return true;
     const serverResult = db ? await fetchSubscriptionFromServer() : null;
     // fail-closed: null (401 / network error) → treat as inactive
     const active = serverResult !== null ? serverResult.premiumActive : false;
@@ -282,6 +283,7 @@ const App = (() => {
   };
   // Gerbang fitur Bisnis (Multi-Cabang)
   const requireBusiness = async featureName => {
+    if (_isSuperAdmin) return true;
     const serverResult = db ? await fetchSubscriptionFromServer() : null;
     const active = serverResult !== null ? serverResult.businessActive : false;
     if (active) return true;
@@ -876,6 +878,10 @@ const App = (() => {
   const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 
   const loadLocalSettings = () => {
+    // Reset sebelum baca localStorage — cegah data akun lama bocor ke sesi akun baru
+    state.cashiers = [];
+    state.purchases = [];
+    state.selectedCashierId = '';
     const settingsData = localStorage.getItem(STORAGE.settings);
     const settings = settingsData ? JSON.parse(settingsData) : {};
     state.darkMode = settings.darkMode || false;
