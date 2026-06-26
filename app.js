@@ -3547,11 +3547,25 @@ ${txRows}
   };
 
   const registerServiceWorker = () => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js')
-        .then(() => console.log('Service worker terdaftar.'))
-        .catch(err => console.warn('Gagal daftar service worker:', err));
-    }
+    if (!('serviceWorker' in navigator)) return;
+
+    // Saat service worker baru mengambil kendali (deploy baru aktif),
+    // reload sekali agar HTML/JS terbaru langsung terpakai tanpa clear cache manual.
+    let _reloadingForNewSW = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (_reloadingForNewSW) return;
+      _reloadingForNewSW = true;
+      window.location.reload();
+    });
+
+    navigator.serviceWorker.register('service-worker.js')
+      .then(registration => {
+        console.log('Service worker terdaftar.');
+        // Paksa cek versi baru tiap load + tiap kembali fokus ke app.
+        registration.update();
+        window.addEventListener('focus', () => registration.update());
+      })
+      .catch(err => console.warn('Gagal daftar service worker:', err));
   };
 
   // Dipanggil setelah login/daftar berhasil ATAU saat sesi masih aktif
