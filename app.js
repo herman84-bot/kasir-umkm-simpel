@@ -949,6 +949,7 @@ const App = (() => {
     if (lastUserId !== state.authUser?.id) {
       [...Object.values(STORAGE), 'pos_debts', 'qris_image', 'qris_payload', 'offline_tx_queue', 'pending_subs_order']
         .forEach(key => localStorage.removeItem(key));
+      _isSuperAdmin = false;
     }
     localStorage.setItem('pos_last_user_id', state.authUser?.id ?? '');
     loadLocalSettings();
