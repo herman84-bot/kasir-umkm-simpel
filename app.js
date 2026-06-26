@@ -878,10 +878,6 @@ const App = (() => {
   const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 
   const loadLocalSettings = () => {
-    // Reset sebelum baca localStorage — cegah data akun lama bocor ke sesi akun baru
-    state.cashiers = [];
-    state.purchases = [];
-    state.selectedCashierId = '';
     const settingsData = localStorage.getItem(STORAGE.settings);
     const settings = settingsData ? JSON.parse(settingsData) : {};
     state.darkMode = settings.darkMode || false;
@@ -949,6 +945,12 @@ const App = (() => {
 
   // Memuat seluruh data toko (dipanggil SETELAH login berhasil)
   const loadData = async () => {
+    const lastUserId = localStorage.getItem('pos_last_user_id');
+    if (lastUserId !== state.authUser?.id) {
+      [...Object.values(STORAGE), 'pos_debts', 'qris_image', 'qris_payload', 'offline_tx_queue', 'pending_subs_order']
+        .forEach(key => localStorage.removeItem(key));
+    }
+    localStorage.setItem('pos_last_user_id', state.authUser?.id ?? '');
     loadLocalSettings();
 
     setLoadingStatus('Memuat data toko...', 25);
