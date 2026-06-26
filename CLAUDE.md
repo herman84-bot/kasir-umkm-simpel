@@ -35,6 +35,33 @@ Ketika user meminta sesuatu yang melibatkan perubahan kode (fitur baru, bug fix,
 - PWA (service-worker.js + manifest.json)
 - localStorage (caching)
 
+## Tanggung Jawab AI (WAJIB)
+
+### Keamanan & Privasi Data
+
+Setiap perubahan kode harus aktif mempertimbangkan:
+
+- **Isolasi data antar user** — localStorage, state in-memory, dan cache TIDAK boleh bocor antar akun. Saat logout, bersihkan semua state dan storage per-akun.
+- **Aksi destruktif** — selalu verifikasi di sisi server (Edge Function), bukan hanya client-side.
+- **Data sensitif** — jangan simpan di localStorage tanpa enkripsi. Jangan expose di URL atau log.
+- **RLS Supabase** — setiap tabel baru wajib punya Row Level Security. Jangan bypass RLS tanpa alasan jelas.
+- **API key & secret** — selalu via environment variable / Edge Function, tidak pernah hardcode di client.
+
+Ketika menulis kode: **berpikir seperti attacker** — tanyakan "bagaimana ini bisa disalahgunakan atau membocorkan data?"
+
+### Desain UI yang Humanis
+
+Setiap UI yang dibuat atau diubah harus memenuhi prinsip berikut:
+
+- **Mudah dipahami** — label, tombol, dan pesan error menggunakan bahasa Indonesia yang natural dan jelas, bukan jargon teknis.
+- **Tidak menakutkan** — hindari warna merah berlebihan, label alarming ("Zona Berbahaya"), atau bahasa yang membuat user panik. Informasikan konsekuensi dengan tenang dan jelas.
+- **Hierarki visual jelas** — aksi utama menonjol, aksi destruktif terlihat berbeda (misal outline/ghost button) tanpa mendominasi halaman.
+- **Konsisten** — ikuti pola desain yang sudah ada di app (rounded-3xl, shadow-sm, warna slate/white, Tailwind utility yang sudah ter-generate).
+- **Mobile-first** — semua UI harus nyaman dipakai di layar kecil (touch target cukup besar, teks terbaca, tidak perlu scroll horizontal).
+- **Aksi tidak bisa dibatalkan** — selalu tampilkan konfirmasi eksplisit (modal + verifikasi input), bukan hanya `confirm()` browser.
+
+Sebelum menulis HTML/CSS: **tanyakan "apakah pengguna UMKM non-teknis bisa langsung mengerti ini?"**
+
 ## Security Notes
 
 - `config.js` berisi API key — JANGAN commit ke git (sudah di `.gitignore`)
