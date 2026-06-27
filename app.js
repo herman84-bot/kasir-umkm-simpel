@@ -4,6 +4,8 @@ const App = (() => {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+  const APP_VERSION = '1.2.0';
+
   // Muat script eksternal sekali (no-op jika sudah ada); dipakai untuk lazy-load CDN
   const loadScript = url => new Promise((resolve, reject) => {
     if (document.querySelector(`script[src="${url}"]`)) { resolve(); return; }
@@ -415,6 +417,48 @@ const App = (() => {
     return false;
   };
 
+  let _logErrorCount = 0;
+
+  const SENSITIVE_KEY_RE = /pass|password|token|secret|key|credential|pw/i;
+
+  const sanitizeContext = (obj) => {
+    if (obj === null || obj === undefined) return obj;
+    if (Array.isArray(obj)) return obj.map(sanitizeContext);
+    if (typeof obj !== 'object') return obj;
+    const result = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (SENSITIVE_KEY_RE.test(k)) {
+        result[k] = '[redacted]';
+      } else {
+        result[k] = sanitizeContext(v);
+      }
+    }
+    return result;
+  };
+
+  const logError = async (message, context, err) => {
+    console.error(message, context, err);
+    if (_logErrorCount >= 10) return;
+    _logErrorCount++;
+    const truncate = (s, n) => s ? String(s).slice(0, n) : null;
+    const payload = {
+      store_id: state.storeId || null,
+      user_email: state.authUser?.email || null,
+      app_version: APP_VERSION,
+      message: truncate(message, 1000),
+      stack: truncate(err?.stack, 2000),
+      url: location.origin + location.pathname,
+      context: sanitizeContext(context) || null
+    };
+    if (!db) return;
+    try {
+      const { error: insertErr } = await db.from('error_logs').insert(payload);
+      if (insertErr) console.warn('logError insert failed:', insertErr);
+    } catch (e) {
+      console.warn('logError insert failed:', e);
+    }
+  };
+
   // Supabase row → app product object
   const fromDbProduct = p => ({
     id: String(p.id),
@@ -519,9 +563,10 @@ const App = (() => {
     if (sErr) return { error: 'Gagal membuat toko: ' + sErr.message };
 
     // Buat kasir admin (pemilik) — PIN default 1234
-    await db.from('cashiers').insert({
+    const { error: cashierErr } = await db.from('cashiers').insert({
       store_id: store.id, name: ownerName.trim(), password: '1234', role: 'admin'
     });
+    if (cashierErr) logError('cashier insert gagal', { storeId: state.storeId }, cashierErr);
 
     return { user: data.user, store };
   };
@@ -534,6 +579,15 @@ const App = (() => {
     if (m.includes('unable to validate email') || m.includes('invalid email')) return 'Format email tidak valid.';
     if (m.includes('email not confirmed')) return 'Email belum dikonfirmasi.';
     return msg || 'Terjadi kesalahan.';
+  };
+
+  const friendlyError = err => {
+    const code = err?.code || '';
+    const msg = (err?.message || String(err || '')).toLowerCase();
+    if (code === '23505' || msg.includes('duplicate key')) return 'Data sudah ada, tidak bisa duplikat.';
+    if (code === '23503' || msg.includes('foreign key')) return 'Data terhubung ke data lain, tidak bisa dihapus dulu.';
+    if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('timeout')) return 'Koneksi bermasalah. Pastikan internet aktif dan coba lagi.';
+    return 'Terjadi kesalahan. Coba lagi, atau hubungi tim kami jika masalah berlanjut.';
   };
 
   const showLoginPage = () => {
@@ -552,6 +606,22 @@ const App = (() => {
     const app = document.getElementById('appContainer');
     app.classList.remove('hidden');
     app.style.display = 'flex';
+  };
+
+  const showAppToast = (text, type = 'info') => {
+    let toast = document.getElementById('appGlobalToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'appGlobalToast';
+      toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] rounded-2xl px-5 py-3 text-white text-sm font-semibold shadow-2xl transition-opacity duration-300 no-print';
+      document.body.appendChild(toast);
+    }
+    const bgMap = { error: '#e11d48', success: '#059669', info: '#334155' };
+    toast.style.background = bgMap[type] || bgMap.info;
+    toast.textContent = text;
+    toast.style.opacity = '1';
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 4000);
   };
 
   // Setelah login: pemilik toko selalu admin (akses penuh)
@@ -892,15 +962,34 @@ const App = (() => {
 
   const loadLocalSettings = () => {
     const settingsData = localStorage.getItem(STORAGE.settings);
-    const settings = settingsData ? JSON.parse(settingsData) : {};
+    let settings = {};
+    try {
+      settings = settingsData ? JSON.parse(settingsData) : {};
+    } catch (e) {
+      logError('loadLocalSettings: settings corrupt', { key: STORAGE.settings }, e);
+      localStorage.removeItem(STORAGE.settings);
+      settings = {};
+    }
     state.darkMode = settings.darkMode || false;
     state.reportRange = settings.reportRange || '7';
     state.historySearch = settings.historySearch || '';
     // cashiers & purchases now loaded from Supabase; these are temp fallbacks
     const cashiersData = localStorage.getItem(STORAGE.cashiers);
     const purchasesData = localStorage.getItem(STORAGE.purchases);
-    state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers;
-    state.purchases = purchasesData ? JSON.parse(purchasesData) : [];
+    try {
+      state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers;
+    } catch (e) {
+      logError('loadLocalSettings: cashiers corrupt', { key: STORAGE.cashiers }, e);
+      localStorage.removeItem(STORAGE.cashiers);
+      state.cashiers = sampleCashiers;
+    }
+    try {
+      state.purchases = purchasesData ? JSON.parse(purchasesData) : [];
+    } catch (e) {
+      logError('loadLocalSettings: purchases corrupt', { key: STORAGE.purchases }, e);
+      localStorage.removeItem(STORAGE.purchases);
+      state.purchases = [];
+    }
     state.selectedCashierId = settings.selectedCashierId || state.cashiers[0]?.id || '';
     state.activeUserId = settings.activeUserId || state.selectedCashierId;
   };
@@ -1026,7 +1115,8 @@ const App = (() => {
 
       setLoadingStatus('Siap!', 100);
     } catch (err) {
-      console.warn('Gagal memuat data toko:', err);
+      logError('loadData: gagal memuat data toko', { storeId: state.storeId }, err);
+      showAppToast('Gagal memuat data toko. Coba refresh halaman.', 'error');
       state.products = [];
       state.transactions = [];
       state.cashiers = [];
@@ -1106,11 +1196,12 @@ const App = (() => {
     if (!db || !state.authUser) { alert('Fitur cabang membutuhkan koneksi & login.'); return; }
     const { data: store, error } = await db.from('stores')
       .insert({ owner_id: state.authUser.id, name }).select().single();
-    if (error || !store) { alert('Gagal membuat cabang: ' + (error?.message || '')); return; }
+    if (error || !store) { alert('Gagal membuat cabang: ' + friendlyError(error)); return; }
     // Buat admin default untuk cabang baru agar langsung bisa dipakai (PIN 1234)
-    await db.from('cashiers').insert({
+    const { error: branchCashierErr } = await db.from('cashiers').insert({
       store_id: store.id, name: 'Pemilik', password: '1234', role: 'admin'
     });
+    if (branchCashierErr) logError('cashier insert gagal', { storeId: state.storeId }, branchCashierErr);
     state.stores.push(store);
     alert('Cabang "' + name + '" dibuat. PIN admin default: 1234');
     await switchStore(store.id);
@@ -1124,7 +1215,7 @@ const App = (() => {
     const name = (prompt('Nama baru cabang:', s.name || '') || '').trim();
     if (!name || name === s.name) return;
     const { error } = await db.from('stores').update({ name }).eq('id', id);
-    if (error) { alert('Gagal mengubah nama: ' + error.message); return; }
+    if (error) { alert('Gagal mengubah nama: ' + friendlyError(error)); return; }
     s.name = name;
     if (String(id) === String(state.storeId) && state.store) state.store.name = name;
     renderBranchList();
@@ -1144,7 +1235,7 @@ const App = (() => {
     }
     if (!confirm('Hapus cabang "' + (s.name || '') + '" beserta SEMUA produk, transaksi, dan datanya? Tindakan ini tidak bisa dibatalkan.')) return;
     const { error } = await db.from('stores').delete().eq('id', id);
-    if (error) { alert('Gagal menghapus: ' + error.message); return; }
+    if (error) { alert('Gagal menghapus: ' + friendlyError(error)); return; }
     state.stores = state.stores.filter(x => String(x.id) !== String(id));
     if (String(id) === String(state.storeId)) {
       localStorage.setItem(activeStoreKey(), String(state.stores[0].id));
@@ -1449,7 +1540,7 @@ const App = (() => {
     const numId = parseInt(id);
     if (db && !isNaN(numId)) {
       const { error } = await db.from('cashiers').delete().eq('id', numId);
-      if (error) { alert('Gagal hapus kasir: ' + error.message); return; }
+      if (error) { alert('Gagal hapus kasir: ' + friendlyError(error)); return; }
     }
     state.cashiers = state.cashiers.filter(x => x.id !== id);
     syncStorage();
@@ -1970,7 +2061,7 @@ const App = (() => {
         const { error: itemsErr } = await db.from('purchase_items').insert(itemRows);
         if (itemsErr) throw itemsErr;
       } catch (err) {
-        alert('Gagal menyimpan pembelian: ' + err.message);
+        alert('Gagal menyimpan pembelian: ' + friendlyError(err));
         return;
       }
     }
@@ -1985,7 +2076,8 @@ const App = (() => {
         if (db) {
           const numId = parseInt(product.id);
           if (!isNaN(numId)) {
-            await db.from('products').update({ stock: product.stock }).eq('id', numId);
+            const { error: stockErr } = await db.from('products').update({ stock: product.stock }).eq('id', numId);
+            if (stockErr) logError('savePurchaseOrder: stok gagal update', { productId: numId }, stockErr);
           }
         }
       }
@@ -2354,7 +2446,7 @@ const App = (() => {
     const numId = parseInt(productId);
     if (db && !isNaN(numId)) {
       const { error } = await db.from('products').delete().eq('id', numId);
-      if (error) { alert('Gagal hapus produk: ' + error.message); return; }
+      if (error) { alert('Gagal hapus produk: ' + friendlyError(error)); return; }
     }
     state.products = state.products.filter(item => item.id !== productId);
     syncStorage();
@@ -2391,12 +2483,12 @@ const App = (() => {
       if (!isNaN(numId)) {
         // Update existing
         const { error } = await db.from('products').update(dbPayload).eq('id', numId);
-        if (error) { alert('Gagal simpan produk: ' + error.message); return; }
+        if (error) { alert('Gagal simpan produk: ' + friendlyError(error)); return; }
       } else {
         // Insert new
         const { data, error } = await db.from('products')
           .insert({ ...dbPayload, store_id: state.storeId }).select().single();
-        if (error) { alert('Gagal tambah produk: ' + error.message); return; }
+        if (error) { alert('Gagal tambah produk: ' + friendlyError(error)); return; }
         finalId = String(data.id);
       }
     }
@@ -2832,6 +2924,8 @@ ${discountHtml}${taxHtml}
   // ── Pengaturan Toko ───────────────────────────────────────────────────────
   const renderSettings = () => {
     applySuperAdminVisibility();
+    const versionEl = document.getElementById('appVersionDisplay');
+    if (versionEl) versionEl.textContent = APP_VERSION;
     if (_isSuperAdmin && !state.storeId) return;
     renderBranchList();
     const store = getStoreSettings();
@@ -3400,7 +3494,7 @@ ${txRows}
       const res = await saveStoreSettings(store);
       dom.saveSettingsBtn.disabled = false;
       dom.saveSettingsBtn.textContent = '💾 Simpan Pengaturan';
-      if (res.error) { alert('Gagal menyimpan: ' + res.error); return; }
+      if (res.error) { alert('Gagal menyimpan: ' + friendlyError(res.error)); return; }
       updateSettingsPreview(store);
       dom.settingsSaved.classList.remove('hidden');
       setTimeout(() => dom.settingsSaved.classList.add('hidden'), 2500);
@@ -3551,6 +3645,18 @@ ${txRows}
     // ── Super Admin ──
     bindSuperAdminEvents();
 
+    // ── Cache & Versi ──
+    document.getElementById('clearCacheBtn')?.addEventListener('click', async () => {
+      if (!confirm('Bersihkan cache aplikasi? Halaman akan dimuat ulang.')) return;
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      } catch (e) {
+        console.warn('Cache deletion error:', e);
+      }
+      window.location.reload();
+    });
+
     // ── Hapus Akun ──
     dom.deleteAccountBtn?.addEventListener('click', openDeleteAccountModal);
     dom.closeDeleteAccountModal?.addEventListener('click', closeDeleteAccountModal);
@@ -3656,12 +3762,13 @@ ${txRows}
       if (!error && store) {
         state.store = store;
         state.storeId = store.id;
-        await db.from('cashiers').insert({
+        const { error: initCashierErr } = await db.from('cashiers').insert({
           store_id: store.id, name: ownerName.trim(), password: '1234', role: 'admin'
         });
+        if (initCashierErr) logError('cashier insert gagal', { storeId: state.storeId }, initCashierErr);
         await loadData();
       } else if (error) {
-        alert('Gagal membuat toko: ' + error.message);
+        alert('Gagal membuat toko: ' + friendlyError(error));
       }
     }
 
@@ -3786,7 +3893,8 @@ ${txRows}
     debt.status = 'lunas';
     debt.paid_at = new Date().toISOString();
     if (db && !isNaN(parseInt(id))) {
-      await db.from('debts').update({ status: 'lunas', paid_at: debt.paid_at }).eq('id', parseInt(id));
+      const { error } = await db.from('debts').update({ status: 'lunas', paid_at: debt.paid_at }).eq('id', parseInt(id));
+      if (error) logError('markDebtPaid: gagal update', { debtId: id }, error);
     }
     saveDebtsLocal();
     renderKasbon();
@@ -3796,7 +3904,8 @@ ${txRows}
     if (!confirm('Hapus catatan kasbon ini?')) return;
     state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
     if (db && !isNaN(parseInt(id))) {
-      await db.from('debts').delete().eq('id', parseInt(id));
+      const { error } = await db.from('debts').delete().eq('id', parseInt(id));
+      if (error) logError('deleteDebt: gagal delete', { debtId: id }, error);
     }
     saveDebtsLocal();
     renderKasbon();
@@ -4241,6 +4350,70 @@ ${txRows}
       }
     });
 
+    // Log Error Aplikasi
+    document.getElementById('superAdminLoadLogsBtn')?.addEventListener('click', async () => {
+      const wrapper = document.getElementById('superAdminErrorLogsWrapper');
+      const copyWrapper = document.getElementById('superAdminCopyLogsWrapper');
+      if (!wrapper) return;
+      const btn = document.getElementById('superAdminLoadLogsBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Memuat...'; }
+      wrapper.innerHTML = '<p class="text-slate-500 text-sm">Memuat log error...</p>';
+      if (copyWrapper) copyWrapper.classList.add('hidden');
+      try {
+        const { data, error } = await db.rpc('list_error_logs_for_admin');
+        if (error) {
+          wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat log. Pastikan migration 15_error_logs.sql sudah dijalankan.</p>';
+          return;
+        }
+        if (!data || !data.length) {
+          wrapper.innerHTML = '<p class="text-slate-400 text-sm">Tidak ada log error.</p>';
+          return;
+        }
+        wrapper._logsData = data;
+        wrapper.innerHTML = `<p class="text-slate-500 text-sm mb-2">${data.length} entri log terbaru:</p>` +
+          data.map(row => `<div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 mb-2 text-xs font-mono overflow-x-auto">
+            <span class="text-slate-400">${esc(row.created_at ? new Date(row.created_at).toLocaleString('id-ID') : '')}</span>
+            <span class="ml-2 text-rose-600 font-semibold">${esc(row.message)}</span>
+            ${row.store_name ? `<span class="ml-2 text-slate-500">[${esc(row.store_name)}]</span>` : ''}
+            ${row.url ? `<span class="ml-2 text-slate-400">${esc(row.url)}</span>` : ''}
+          </div>`).join('');
+        if (copyWrapper) copyWrapper.classList.remove('hidden');
+      } catch (e) {
+        wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat log. Pastikan migration 15_error_logs.sql sudah dijalankan.</p>';
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Muat Log'; }
+      }
+    });
+
+    document.getElementById('superAdminCopyLogsBtn')?.addEventListener('click', async () => {
+      const wrapper = document.getElementById('superAdminErrorLogsWrapper');
+      const copiedMsg = document.getElementById('superAdminCopiedMsg');
+      const logs = wrapper?._logsData;
+      if (!logs) return;
+      const redacted = logs.map(row => ({
+        ...row,
+        user_email: row.user_email ? row.user_email.slice(0, 3) + '***' : null
+      }));
+      const jsonStr = JSON.stringify(redacted, null, 2);
+      try {
+        await navigator.clipboard.writeText(jsonStr);
+      } catch (_) {
+        const ta = document.createElement('textarea');
+        ta.value = jsonStr;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      if (copiedMsg) {
+        copiedMsg.classList.remove('hidden');
+        setTimeout(() => copiedMsg.classList.add('hidden'), 2000);
+      }
+    });
+
     // Revokasi langganan
     document.getElementById('superAdminRevokeBtn')?.addEventListener('click', async () => {
       const storeId = document.getElementById('superAdminStoreSelect')?.value;
@@ -4272,6 +4445,13 @@ ${txRows}
   const init = async () => {
     setLoadingStatus('Menghubungkan ke database...', 10);
     initSupabase();
+    window.onerror = (msg, src, line, col, err) => {
+      logError(String(msg), { src, line, col }, err);
+      return false;
+    };
+    window.addEventListener('unhandledrejection', e => {
+      logError('Unhandled promise rejection: ' + (e.reason?.message || String(e.reason)), {}, e.reason instanceof Error ? e.reason : null);
+    });
     loadLocalSettings();
     bindEvents();
     initHelpChat();

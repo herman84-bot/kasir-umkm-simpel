@@ -711,6 +711,20 @@
           </div>
         </div>
 
+        <!-- Informasi Aplikasi -->
+        <div class="mt-6 max-w-xl" data-role="admin">
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
+            <h4 class="text-lg font-semibold text-slate-800 mb-1">Informasi Aplikasi</h4>
+            <p class="text-slate-500 text-sm mb-4">Versi aplikasi dan alat pemeliharaan cache.</p>
+            <div class="flex items-center gap-2 mb-4">
+              <span class="text-slate-600 text-sm">Versi:</span>
+              <span id="appVersionDisplay" class="font-mono font-semibold text-slate-700 text-sm">-</span>
+            </div>
+            <button id="clearCacheBtn" class="rounded-2xl border border-slate-200 px-5 py-3 text-slate-600 font-semibold hover:bg-slate-50 transition text-sm">Bersihkan Cache Aplikasi</button>
+            <p class="text-xs text-slate-400 mt-2">Membersihkan cache lokal dan memuat ulang halaman. Gunakan jika aplikasi terasa lambat atau tidak terupdate.</p>
+          </div>
+        </div>
+
         <!-- Hapus Akun -->
         <div id="deleteAccountSection" class="mt-6 max-w-xl" data-role="admin">
           <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
@@ -870,6 +884,18 @@
           <h4 class="text-lg font-semibold mb-4">Daftar Semua Toko</h4>
           <div id="superAdminTableWrapper">
             <p class="text-slate-400 text-sm">Memuat data...</p>
+          </div>
+        </div>
+
+        <!-- Log Error Aplikasi -->
+        <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
+          <h4 class="text-lg font-semibold mb-1">Log Error Aplikasi</h4>
+          <p class="text-slate-500 text-sm mb-4">Pantau error yang terjadi di sisi klien dari semua toko.</p>
+          <button id="superAdminLoadLogsBtn" class="rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition text-sm">Muat Log</button>
+          <div id="superAdminErrorLogsWrapper" class="mt-4"></div>
+          <div id="superAdminCopyLogsWrapper" class="hidden mt-3 flex items-center gap-3">
+            <button id="superAdminCopyLogsBtn" class="rounded-2xl border border-slate-200 px-4 py-3 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">Salin Semua (JSON)</button>
+            <span id="superAdminCopiedMsg" class="hidden text-emerald-600 text-sm font-medium">Tersalin!</span>
           </div>
         </div>
       </section>
