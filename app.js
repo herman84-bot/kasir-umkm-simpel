@@ -605,6 +605,7 @@ const App = (() => {
     _isSuperAdmin = false;
     Object.values(STORAGE).forEach(key => localStorage.removeItem(key));
     localStorage.removeItem('pos_debts');
+    localStorage.removeItem('pos_last_user_id');
     localStorage.removeItem('qris_image');
     localStorage.removeItem('qris_payload');
     localStorage.removeItem('offline_tx_queue');
@@ -1027,7 +1028,7 @@ const App = (() => {
   const syncStorage = () => {
     localStorage.setItem(STORAGE.products, JSON.stringify(state.products));
     localStorage.setItem(STORAGE.transactions, JSON.stringify(state.transactions));
-    localStorage.setItem(STORAGE.cashiers, JSON.stringify(state.cashiers));
+    localStorage.setItem(STORAGE.cashiers, JSON.stringify(state.cashiers.map(({ password: _pw, ...rest }) => rest)));
     localStorage.setItem(STORAGE.purchases, JSON.stringify(state.purchases));
     localStorage.setItem(STORAGE.settings, JSON.stringify({
       darkMode: state.darkMode,
@@ -2277,6 +2278,7 @@ const App = (() => {
     if (screenId === 'pengaturan') renderSettings();
     if (screenId === 'kasbon') renderKasbon();
     if (screenId === 'dashboard') renderDashboardPusat();
+    if (screenId === 'screen-superadmin') superAdminLoadStores();
   };
 
   const showInventoryModal = (title = 'Tambah Produk') => {
@@ -4116,7 +4118,9 @@ ${txRows}
 
   const superAdminLoadStores = async () => {
     const wrapper = document.getElementById('superAdminTableWrapper');
+    const sel = document.getElementById('superAdminStoreSelect');
     if (wrapper) wrapper.innerHTML = '<p class="text-slate-400 text-sm">Memuat data...</p>';
+    if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
     try {
       const { data, error } = await db.functions.invoke('admin-subscription', {
         body: { action: 'list_stores' }
@@ -4127,6 +4131,7 @@ ${txRows}
         console.error('superAdminLoadStores error:', error);
         superAdminShowMsg('error', `Gagal memuat data toko${statusSuffix}.`);
         if (wrapper) wrapper.innerHTML = `<p class="text-rose-500 text-sm">Gagal memuat data toko${statusSuffix}.</p>`;
+        if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
         return;
       }
       superAdminRenderTable(data.stores);
@@ -4135,6 +4140,7 @@ ${txRows}
       const errMsg = e?.message ? ` — ${e.message}` : '';
       superAdminShowMsg('error', `Terjadi kesalahan koneksi${errMsg}.`);
       if (wrapper) wrapper.innerHTML = `<p class="text-rose-500 text-sm">Terjadi kesalahan koneksi${e?.message ? ` — ${esc(e.message)}` : ''}.</p>`;
+      if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
     }
   };
 
@@ -4142,7 +4148,6 @@ ${txRows}
     // Tombol "Admin Panel" di pengaturan → navigasi ke screen super admin
     document.getElementById('openSuperAdminBtn')?.addEventListener('click', () => {
       showScreen('screen-superadmin');
-      superAdminLoadStores();
     });
 
     // Refresh
