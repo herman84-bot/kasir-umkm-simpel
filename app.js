@@ -4,6 +4,16 @@ const App = (() => {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+  // Muat script eksternal sekali (no-op jika sudah ada); dipakai untuk lazy-load CDN
+  const loadScript = url => new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${url}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = url;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+
   const STORAGE = {
     products: 'pos_products',
     transactions: 'pos_transactions',
@@ -373,7 +383,10 @@ const App = (() => {
           if (codes.length && codes[0].rawValue) return resolve(codes[0].rawValue);
         } catch (e) { /* lanjut ke jsQR */ }
       }
-      // 2) jsQR fallback
+      // 2) jsQR fallback (lazy-load on first use)
+      if (!window.jsQR) {
+        try { await loadScript('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'); } catch { /* skip */ }
+      }
       if (window.jsQR) {
         try {
           const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -862,9 +875,8 @@ const App = (() => {
 
   let chartInstance = null;
 
-  const formatCurrency = value => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value);
-  };
+  const _currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
+  const formatCurrency = value => _currencyFormatter.format(value);
 
   // Tanggal "YYYY-MM-DD" menurut ZONA WAKTU LOKAL perangkat (bukan UTC),
   // agar penjualan dini hari (mis. 00:00–07:00 WIB) tidak terhitung ke hari kemarin.
@@ -999,7 +1011,7 @@ const App = (() => {
       const { data: purchases } = await db
         .from('purchases').select('*, purchase_items(*)')
         .eq('store_id', state.storeId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }).limit(200);
       state.purchases = purchases ? purchases.map(fromDbPurchase) : [];
 
       // Kasbon (tabel bisa belum ada jika 05_kasbon.sql belum dijalankan)
@@ -1025,18 +1037,22 @@ const App = (() => {
     syncStorage();
   };
 
+  let _syncStorageTimer = null;
   const syncStorage = () => {
-    localStorage.setItem(STORAGE.products, JSON.stringify(state.products));
-    localStorage.setItem(STORAGE.transactions, JSON.stringify(state.transactions));
-    localStorage.setItem(STORAGE.cashiers, JSON.stringify(state.cashiers.map(({ password: _pw, ...rest }) => rest)));
-    localStorage.setItem(STORAGE.purchases, JSON.stringify(state.purchases));
-    localStorage.setItem(STORAGE.settings, JSON.stringify({
-      darkMode: state.darkMode,
-      selectedCashierId: state.selectedCashierId,
-      activeUserId: state.activeUserId,
-      reportRange: state.reportRange,
-      historySearch: state.historySearch
-    }));
+    clearTimeout(_syncStorageTimer);
+    _syncStorageTimer = setTimeout(() => {
+      localStorage.setItem(STORAGE.products, JSON.stringify(state.products));
+      localStorage.setItem(STORAGE.transactions, JSON.stringify(state.transactions));
+      localStorage.setItem(STORAGE.cashiers, JSON.stringify(state.cashiers.map(({ password: _pw, ...rest }) => rest)));
+      localStorage.setItem(STORAGE.purchases, JSON.stringify(state.purchases));
+      localStorage.setItem(STORAGE.settings, JSON.stringify({
+        darkMode: state.darkMode,
+        selectedCashierId: state.selectedCashierId,
+        activeUserId: state.activeUserId,
+        reportRange: state.reportRange,
+        historySearch: state.historySearch
+      }));
+    }, 300);
   };
 
   // ── Multi-Cabang (Premium) ───────────────────────────────────────────────
@@ -1557,19 +1573,12 @@ const App = (() => {
 
   const getFilteredTransactions = () => {
     const query = state.historySearch.trim().toLowerCase();
-    return state.transactions.filter(tx => {
-      if (!query) return true;
-      const content = [
-        tx.id,
-        tx.date,
-        tx.cashier,
-        tx.items.map(item => item.name).join(' '),
-        tx.total,
-        tx.cash,
-        tx.change
-      ].join(' ').toString().toLowerCase();
-      return content.includes(query);
-    });
+    if (!query) return state.transactions;
+    return state.transactions.filter(tx =>
+      tx.id.toString().includes(query) ||
+      (tx.cashier || '').toLowerCase().includes(query) ||
+      tx.items.some(item => (item.name || '').toLowerCase().includes(query))
+    );
   };
 
   const renderReportSummary = () => {
@@ -1588,11 +1597,15 @@ const App = (() => {
     const lowStockProducts = state.products.filter(product => product.stock >= 0 && product.stock <= (product.minStock || 5));
     dom.lowStockAlert.textContent = lowStockProducts.length ? `${lowStockProducts.length} produk stok rendah, segera kulakan lagi.` : 'Tidak ada stok kritis.';
 
-    const bestProduct = state.products.slice().sort((a, b) => {
-      const aQty = state.transactions.reduce((sum, tx) => sum + tx.items.filter(item => item.id === a.id).reduce((s, item) => s + item.qty, 0), 0);
-      const bQty = state.transactions.reduce((sum, tx) => sum + tx.items.filter(item => item.id === b.id).reduce((s, item) => s + item.qty, 0), 0);
-      return bQty - aQty;
-    })[0];
+    const productQtyMap = {};
+    state.transactions.forEach(tx => {
+      tx.items.forEach(item => {
+        productQtyMap[item.id] = (productQtyMap[item.id] || 0) + item.qty;
+      });
+    });
+    const bestProduct = state.products.slice().sort((a, b) =>
+      (productQtyMap[b.id] || 0) - (productQtyMap[a.id] || 0)
+    )[0];
     dom.topProduct.textContent = bestProduct ? `${bestProduct.name}` : '-';
 
     const categorySales = {};
@@ -1793,10 +1806,15 @@ const App = (() => {
     state.scannerRAF = requestAnimationFrame(tick);
   };
 
-  const startQuaggaScanner = () => {
+  const startQuaggaScanner = async () => {
     if (typeof Quagga === 'undefined') {
-      dom.scannerStatus.textContent = 'Scanner tidak tersedia di perangkat ini. Gunakan input manual.';
-      return;
+      dom.scannerStatus.textContent = 'Memuat library scanner...';
+      try {
+        await loadScript('https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js');
+      } catch (e) {
+        dom.scannerStatus.textContent = 'Scanner tidak tersedia di perangkat ini. Gunakan input manual.';
+        return;
+      }
     }
     state.scannerEngine = 'quagga';
     dom.scannerPlaceholder.classList.add('hidden');
@@ -1810,7 +1828,7 @@ const App = (() => {
       locate: true
     }, err => {
       if (err) {
-        dom.scannerStatus.textContent = 'Gagal membuka kamera: ' + (err.message || err);
+        dom.scannerStatus.textContent = 'Kamera gagal dibuka. Pastikan izin kamera sudah diberikan, atau gunakan input manual di bawah.';
         dom.scannerPlaceholder.classList.remove('hidden');
         return;
       }
@@ -2274,10 +2292,15 @@ const App = (() => {
       btn.classList.toggle('text-slate-400', !isActive);
       btn.classList.toggle('bg-slate-800', isActive);
     });
+    _activeScreenId = screenId;
+    if (screenId === 'dashboard') { updateDashboard(); renderSalesChart(); renderReportSummary(); renderDashboardPusat(); }
+    if (screenId === 'kasir') { renderProducts(); renderCart(); }
+    if (screenId === 'inventory') renderInventory();
+    if (screenId === 'riwayat') renderHistory();
+    if (screenId === 'pembelian') renderPurchaseHistory();
+    if (screenId === 'kasbon') renderKasbon();
     if (screenId === 'kelolaKasir') renderCashierManagement();
     if (screenId === 'pengaturan') renderSettings();
-    if (screenId === 'kasbon') renderKasbon();
-    if (screenId === 'dashboard') renderDashboardPusat();
     if (screenId === 'screen-superadmin') superAdminLoadStores();
   };
 
@@ -3028,7 +3051,7 @@ ${txRows}
     state.paymentMethod = method;
     document.querySelectorAll('.paymethod-btn').forEach(btn => {
       const active = btn.dataset.paymethod === method;
-      btn.className = `paymethod-btn flex-1 rounded-2xl border-2 px-3 py-2 text-sm font-semibold transition ${active ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'}`;
+      btn.className = `paymethod-btn flex-1 rounded-2xl border-2 px-3 py-3 text-sm font-semibold transition ${active ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'}`;
     });
     if (dom.cashInputWrapper) {
       dom.cashInputWrapper.style.display = method === 'Tunai' ? '' : 'none';
@@ -3158,10 +3181,14 @@ ${txRows}
       syncStorage();
     });
 
+    let _historySearchTimer = null;
     dom.historySearchInput.addEventListener('input', event => {
       state.historySearch = event.target.value;
-      renderHistory();
-      syncStorage();
+      clearTimeout(_historySearchTimer);
+      _historySearchTimer = setTimeout(() => {
+        renderHistory();
+        syncStorage();
+      }, 200);
     });
 
     dom.exportInventory.addEventListener('click', () => exportInventoryCSV());
@@ -3545,21 +3572,47 @@ ${txRows}
     });
   };
 
+  let _activeScreenId = 'dashboard';
+
   const renderAll = () => {
     dom.todayDate.textContent = '📅 ' + new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
     renderStoreSwitcher();
     renderCashierSelect();
-    renderCashierManagement();
     applyTheme();
     dom.reportRangeSelect.value = state.reportRange;
     dom.historySearchInput.value = state.historySearch;
-    renderProducts();
-    renderCart();
-    renderInventory();
-    renderHistory();
-    updateDashboard();
-    renderSalesChart();
-    renderReportSummary();
+    switch (_activeScreenId) {
+      case 'dashboard':
+        updateDashboard();
+        renderSalesChart();
+        renderReportSummary();
+        break;
+      case 'kasir':
+        renderProducts();
+        renderCart();
+        break;
+      case 'inventory':
+        renderInventory();
+        break;
+      case 'riwayat':
+        renderHistory();
+        break;
+      case 'pembelian':
+        renderPurchaseHistory();
+        break;
+      case 'kasbon':
+        renderKasbon();
+        break;
+      case 'kelolaKasir':
+        renderCashierManagement();
+        break;
+      case 'pengaturan':
+        renderSettings();
+        break;
+      case 'screen-superadmin':
+        superAdminLoadStores();
+        break;
+    }
   };
 
   const registerServiceWorker = () => {
