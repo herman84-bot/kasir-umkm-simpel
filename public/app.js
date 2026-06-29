@@ -3631,6 +3631,9 @@ ${txRows}
       dom.debtItemsContainer.innerHTML = '';
       state.currentDebtItems = [];
       
+      // Render opsi produk terlebih dahulu
+      renderDebtProductOptions();
+      
       // Render input item pertama
       addDebtItemRow();
       
@@ -3640,6 +3643,17 @@ ${txRows}
     } catch (error) {
       console.error('Error membuka modal kasbon:', error);
       alert('Terjadi kesalahan saat membuka form kasbon. Silakan refresh halaman.');
+    }
+  };
+
+  // Fungsi untuk merender opsi produk di dropdown kasbon
+  const renderDebtProductOptions = () => {
+    if (!dom.debtItemsContainer) return;
+    
+    // Jika belum ada produk sama sekali
+    if (!state.products || state.products.length === 0) {
+      // Akan ditangani di dalam addDebtItemRow
+      return;
     }
   };
 
