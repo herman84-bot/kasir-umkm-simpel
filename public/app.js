@@ -1757,13 +1757,35 @@ const App = (() => {
       console.error('purchaseProduct element not found');
       return;
     }
-    if (state.products.length === 0) {
-      dom.purchaseProduct.innerHTML = '<option value="">Belum ada produk</option>';
+    
+    // Jika belum ada produk sama sekali
+    if (!state.products || state.products.length === 0) {
+      dom.purchaseProduct.innerHTML = '<option value=\"\">-- Belum ada produk di inventory --</option>';
+      dom.purchaseProduct.disabled = true;
+      // Tampilkan pesan bantuan
+      const helpMsg = document.getElementById('purchaseProductHelp');
+      if (helpMsg) {
+        helpMsg.innerHTML = '<p class="text-amber-600 text-sm mt-2">⚠️ Anda belum memiliki produk. Silakan tambah produk di menu <strong>Inventory</strong> terlebih dahulu.</p>';
+      }
       return;
     }
-    dom.purchaseProduct.innerHTML = state.products.map(product => `
-      <option value="${product.id}">${esc(product.name)} (${product.stock} stok)</option>
-    `).join('');
+    
+    // Ada produk - tampilkan dalam dropdown
+    dom.purchaseProduct.disabled = false;
+    const options = state.products.map(product => {
+      const isOutOfStock = product.stock <= 0;
+      const disabledAttr = isOutOfStock ? 'disabled' : '';
+      const stockInfo = isOutOfStock ? ' - HABIS' : ` - Stok: ${product.stock}`;
+      return `<option value="${product.id}" ${disabledAttr}>${esc(product.name)}${stockInfo}</option>`;
+    }).join('');
+    
+    dom.purchaseProduct.innerHTML = '<option value="">-- Pilih Produk --</option>' + options;
+    
+    // Sembunyikan pesan bantuan jika ada
+    const helpMsg = document.getElementById('purchaseProductHelp');
+    if (helpMsg) {
+      helpMsg.innerHTML = '';
+    }
   };
 
   const renderPurchaseDraft = () => {
