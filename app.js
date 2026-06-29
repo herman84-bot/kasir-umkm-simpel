@@ -1968,9 +1968,21 @@ const App = (() => {
   };
 
   const renderPurchaseOptions = () => {
-    dom.purchaseProduct.innerHTML = state.products.map(product => `
-      <option value="${product.id}">${esc(product.name)} (${product.stock} stok)</option>
+    if (!dom.purchaseProduct) {
+      console.warn('Element purchaseProduct tidak ditemukan');
+      return;
+    }
+    
+    if (!state.products || state.products.length === 0) {
+      dom.purchaseProduct.innerHTML = '<option value="">Belum ada produk - tambahkan produk di menu Inventory terlebih dahulu</option>';
+      console.log('renderPurchaseOptions: tidak ada produk');
+      return;
+    }
+    
+    dom.purchaseProduct.innerHTML = '<option value="">-- Pilih Produk --</option>' + state.products.map(product => `
+      <option value="${product.id}">${esc(product.name)} (Stok: ${product.stock})</option>
     `).join('');
+    console.log(`renderPurchaseOptions: ${state.products.length} produk dimuat`);
   };
 
   const renderPurchaseDraft = () => {
