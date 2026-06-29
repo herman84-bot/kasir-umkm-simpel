@@ -442,7 +442,7 @@
           <div></div>
           <button id="tutupKasirBtn" class="rounded-2xl bg-amber-600 px-4 py-2.5 text-white text-sm font-semibold hover:bg-amber-700 transition">🔒 Tutup Kasir</button>
         </div>
-        <div class="grid gap-6 xl:grid-cols-[1.4fr_0.9fr] mb-6">
+        <div class="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1fr_1fr] 2xl:grid-cols-[1.2fr_0.8fr] mb-6">
           <div class="rounded-3xl bg-white p-6 shadow-xl border border-slate-200">
             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-5">
               <div>
@@ -464,13 +464,13 @@
             </div>
             <div id="productGrid" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"></div>
           </div>
-          <div class="rounded-3xl bg-white p-6 shadow-xl border border-slate-200">
+          <div class="rounded-3xl bg-white p-6 shadow-xl border border-slate-200 flex flex-col">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-xl font-semibold">Keranjang Belanja</h3>
               <span id="cartCount" class="rounded-full bg-slate-100 px-3 py-1 text-slate-700">0 item</span>
             </div>
-            <div class="space-y-3 mb-5" id="cartList"></div>
-            <div class="rounded-3xl bg-slate-100 p-4 space-y-4">
+            <div class="space-y-3 mb-5 overflow-y-auto max-h-[40vh] lg:max-h-[50vh]" id="cartList"></div>
+            <div class="rounded-3xl bg-slate-100 p-4 space-y-4 mt-auto">
               <div class="flex items-center justify-between text-sm text-slate-600">
                 <span>Subtotal</span><span id="cartSubtotal">Rp0</span>
               </div>
