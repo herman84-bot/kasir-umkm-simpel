@@ -701,6 +701,8 @@ const App = (() => {
     purchaseInvoice: document.getElementById('purchaseInvoice'),
     purchaseProduct: document.getElementById('purchaseProduct'),
     purchaseQty: document.getElementById('purchaseQty'),
+    purchasePrice: document.getElementById('purchasePrice'),
+    autoFillPrice: document.getElementById('autoFillPrice'),
     addPurchaseItem: document.getElementById('addPurchaseItem'),
     purchaseItemsList: document.getElementById('purchaseItemsList'),
     purchaseTotal: document.getElementById('purchaseTotal'),
@@ -1814,6 +1816,8 @@ const App = (() => {
   const openPurchaseModal = () => {
     resetPurchaseDraft();
     renderPurchaseOptions();
+    // Reset harga beli ke 0 saat modal dibuka
+    if (dom.purchasePrice) dom.purchasePrice.value = 0;
     dom.purchaseModal.classList.remove('hidden');
   };
 
@@ -1821,17 +1825,40 @@ const App = (() => {
     dom.purchaseModal.classList.add('hidden');
   };
 
+  const autoFillPurchasePrice = () => {
+    const productId = dom.purchaseProduct.value;
+    const product = state.products.find(item => item.id === productId);
+    if (product && dom.purchasePrice) {
+      dom.purchasePrice.value = product.cost || 0;
+    }
+  };
+
   const addPurchaseItemToDraft = () => {
     const productId = dom.purchaseProduct.value;
     const qty = Number(dom.purchaseQty.value) || 1;
+    const priceInput = dom.purchasePrice ? Number(dom.purchasePrice.value) : 0;
     const product = state.products.find(item => item.id === productId);
     if (!product) return;
+    
+    // Gunakan harga dari input jika ada, fallback ke product.cost
+    const finalPrice = priceInput > 0 ? priceInput : (product.cost || 0);
+    
     const existing = state.draftPurchase.items.find(item => item.id === productId);
     if (existing) {
       existing.qty += qty;
+      // Update harga jika berbeda
+      if (finalPrice !== existing.price) {
+        existing.price = finalPrice;
+      }
     } else {
-      state.draftPurchase.items.push({ id: product.id, name: product.name, price: product.cost, qty });
+      state.draftPurchase.items.push({ id: product.id, name: product.name, price: finalPrice, qty });
     }
+    
+    // Reset qty dan harga setelah tambah item
+    if (dom.purchaseQty) dom.purchaseQty.value = 1;
+    if (dom.purchasePrice) dom.purchasePrice.value = 0;
+    dom.purchaseProduct.value = '';
+    
     renderPurchaseDraft();
   };
 
@@ -3129,6 +3156,8 @@ ${txRows}
     dom.closePurchaseModal.addEventListener('click', closePurchaseModal);
     dom.cancelPurchase.addEventListener('click', closePurchaseModal);
     dom.addPurchaseItem.addEventListener('click', addPurchaseItemToDraft);
+    dom.autoFillPrice.addEventListener('click', autoFillPurchasePrice);
+    dom.purchaseProduct.addEventListener('change', autoFillPurchasePrice);
     dom.savePurchase.addEventListener('click', savePurchaseOrder);
     dom.exportPurchase.addEventListener('click', exportPurchasesCSV);
     dom.exportDataButton.addEventListener('click', exportAppBackup);
