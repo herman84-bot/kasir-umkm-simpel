@@ -638,7 +638,8 @@ const App = (() => {
     storeId: null,
     stores: [],
     paymentMethod: 'Tunai',
-    shiftStartTime: null
+    shiftStartTime: null,
+    currentDebtItems: []
   };
 
   const dom = {
@@ -812,7 +813,19 @@ const App = (() => {
     paymentConfirmTotal: document.getElementById('paymentConfirmTotal'),
     paymentConfirmCashier: document.getElementById('paymentConfirmCashier'),
     paymentConfirmOk: document.getElementById('paymentConfirmOk'),
-    paymentConfirmCancel: document.getElementById('paymentConfirmCancel')
+    paymentConfirmCancel: document.getElementById('paymentConfirmCancel'),
+    // Debt (Kasbon) elements
+    debtList: document.getElementById('debtList'),
+    debtModal: document.getElementById('debtModal'),
+    debtForm: document.getElementById('debtForm'),
+    debtFormError: document.getElementById('debtFormError'),
+    debtFormName: document.getElementById('debtFormName'),
+    debtFormPhone: document.getElementById('debtFormPhone'),
+    debtFormNote: document.getElementById('debtFormNote'),
+    debtFormAmount: document.getElementById('debtFormAmount'),
+    debtItemsContainer: document.getElementById('debtItemsContainer'),
+    debtTotalDisplay: document.getElementById('debtTotalDisplay'),
+    closeDebtModal: document.getElementById('closeDebtModal')
   };
 
   let chartInstance = null;
@@ -3451,9 +3464,14 @@ ${txRows}
     bindOnboarding();
 
     // ── Kasbon ──
-    document.getElementById('addDebtBtn')?.addEventListener('click', openDebtModal);
-    document.getElementById('closeDebtModal')?.addEventListener('click', closeDebtModal);
-    document.getElementById('debtForm')?.addEventListener('submit', saveDebt);
+    document.getElementById('addDebtBtn')?.addEventListener('click', openAddDebtModal);
+    document.getElementById('closeDebtModal')?.addEventListener('click', () => {
+      bootstrap.Modal.getInstance(dom.debtModal)?.hide();
+    });
+    dom.debtForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await saveDebt();
+    });
     document.getElementById('debtSearchInput')?.addEventListener('input', renderKasbon);
 
     // ── Struk WhatsApp ──
@@ -3566,6 +3584,13 @@ ${txRows}
     list.innerHTML = sorted.map(d => {
       const isPaid = d.status === 'lunas';
       const date = new Date(d.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+      
+      // Tampilkan detail produk jika ada
+      let itemsHtml = '';
+      if (d.items && Array.isArray(d.items) && d.items.length > 0) {
+        itemsHtml = `<div class="text-xs text-slate-500 mt-1">${d.items.map(i => `${i.product_name} (${i.qty}x)`).join(', ')}</div>`;
+      }
+      
       const tagBtn = (!isPaid && d.phone) ? `<button data-debt-wa="${esc(d.id)}" class="flex-1 rounded-2xl bg-green-600 px-3 py-2 text-xs text-white font-semibold hover:bg-green-700 transition">💬 Tagih</button>` : '';
       return `
         <div class="rounded-3xl bg-white border ${isPaid ? 'border-slate-200 opacity-60' : 'border-amber-200'} shadow-sm p-5 space-y-3">
@@ -3573,6 +3598,7 @@ ${txRows}
             <div class="min-w-0">
               <p class="font-semibold text-slate-900 truncate">${esc(d.customer_name)}</p>
               <p class="text-xs text-slate-400">${date}${d.note ? ' — ' + esc(d.note) : ''}</p>
+              ${itemsHtml}
             </div>
             <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
           </div>
@@ -3593,34 +3619,162 @@ ${txRows}
       btn.addEventListener('click', () => sendDebtReminder(btn.dataset.debtWa)));
   };
 
-  const openDebtModal = async () => {
+  const openAddDebtModal = async () => {
     // Gerbang premium: gratis maksimal 5 kasbon aktif
     const activeCount = (state.debts || []).filter(d => d.status !== 'lunas').length;
     if (activeCount >= 5 && !await requirePremium('Kasbon lebih dari 5 catatan aktif')) return;
-    const m = document.getElementById('debtModal');
-    document.getElementById('debtForm')?.reset();
-    document.getElementById('debtFormError')?.classList.add('hidden');
-    if (m) { m.classList.remove('hidden'); m.style.display = 'flex'; }
-    document.getElementById('debtFormName')?.focus();
+    
+    // Reset form dan state
+    dom.debtForm?.reset();
+    dom.debtFormError?.classList.add('hidden');
+    dom.debtItemsContainer.innerHTML = '';
+    state.currentDebtItems = [];
+    
+    // Render input item pertama
+    addDebtItemRow();
+    
+    // Tampilkan modal dengan Bootstrap
+    new bootstrap.Modal(dom.debtModal).show();
   };
 
-  const closeDebtModal = () => {
-    const m = document.getElementById('debtModal');
-    if (m) { m.classList.add('hidden'); m.style.display = ''; }
-  };
+  function addDebtItemRow() {
+    const container = dom.debtItemsContainer;
+    const index = state.currentDebtItems.length;
+    
+    const rowId = `debt-item-row-${index}`;
+    
+    const div = document.createElement('div');
+    div.className = 'row g-2 mb-2 align-items-end debt-item-row';
+    div.id = rowId;
+    div.innerHTML = `
+        <div class="col-5">
+            <label class="form-label small mb-0">Produk</label>
+            <select class="form-select form-select-sm debt-product-select" onchange="updateDebtItemPrice(this, ${index})">
+                <option value="">-- Pilih Produk --</option>
+                ${state.products.map(p => `
+                    <option value="${p.id}" data-price="${p.price}" data-name="${p.name}" data-stock="${p.stock}">
+                        ${p.name} (Stok: ${p.stock})
+                    </option>
+                `).join('')}
+            </select>
+        </div>
+        <div class="col-3">
+            <label class="form-label small mb-0">Qty</label>
+            <input type="number" class="form-control form-control-sm debt-qty-input" min="1" value="1" onchange="calculateDebtTotal()">
+        </div>
+        <div class="col-3">
+            <label class="form-label small mb-0">Subtotal</label>
+            <input type="text" class="form-control form-control-sm debt-subtotal-input" readonly value="0">
+        </div>
+        <div class="col-1">
+             <button type="button" class="btn btn-sm btn-outline-danger mb-1" onclick="removeDebtItemRow('${rowId}')">
+                <i class="bi bi-x"></i>
+             </button>
+        </div>
+    `;
+    container.appendChild(div);
+  }
+
+  function removeDebtItemRow(rowId) {
+    const row = document.getElementById(rowId);
+    if (row) row.remove();
+    calculateDebtTotal();
+  }
+
+  function updateDebtItemPrice(selectEl, index) {
+    const row = selectEl.closest('.debt-item-row');
+    const qtyInput = row.querySelector('.debt-qty-input');
+    const subtotalInput = row.querySelector('.debt-subtotal-input');
+    
+    const option = selectEl.options[selectEl.selectedIndex];
+    const price = parseFloat(option.getAttribute('data-price')) || 0;
+    
+    // Simpan data sementara
+    if (!state.currentDebtItems[index]) state.currentDebtItems[index] = {};
+    state.currentDebtItems[index].price = price;
+    state.currentDebtItems[index].productName = option.getAttribute('data-name');
+    state.currentDebtItems[index].productId = selectEl.value;
+
+    calculateDebtTotal();
+  }
+
+  function calculateDebtTotal() {
+    let grandTotal = 0;
+    const rows = document.querySelectorAll('.debt-item-row');
+    
+    state.currentDebtItems = []; // Reset temporary state
+
+    rows.forEach((row, idx) => {
+        const select = row.querySelector('.debt-product-select');
+        const qtyInput = row.querySelector('.debt-qty-input');
+        const subtotalInput = row.querySelector('.debt-subtotal-input');
+
+        const productId = select.value;
+        if (!productId) return;
+
+        const option = select.options[select.selectedIndex];
+        const price = parseFloat(option.getAttribute('data-price')) || 0;
+        const qty = parseInt(qtyInput.value) || 0;
+        const subtotal = price * qty;
+
+        subtotalInput.value = subtotal.toLocaleString('id-ID');
+        grandTotal += subtotal;
+
+        // Update state
+        state.currentDebtItems.push({
+            product_id: productId,
+            product_name: option.getAttribute('data-name'),
+            price: price,
+            qty: qty,
+            subtotal: subtotal
+        });
+    });
+
+    dom.debtTotalDisplay.textContent = `Total Hutang: Rp ${grandTotal.toLocaleString('id-ID')}`;
+    dom.debtFormAmount.value = grandTotal;
+  }
 
   const saveDebt = async e => {
-    e.preventDefault();
-    const name = document.getElementById('debtFormName').value.trim();
-    const phone = document.getElementById('debtFormPhone').value.trim();
-    const amount = Number(document.getElementById('debtFormAmount').value);
-    const note = document.getElementById('debtFormNote').value.trim();
-    const errEl = document.getElementById('debtFormError');
+    if (e) e.preventDefault();
+    
+    const name = dom.debtFormName.value.trim();
+    const phone = dom.debtFormPhone.value.trim();
+    const note = dom.debtFormNote.value.trim();
+    const amount = Number(dom.debtFormAmount.value);
+    const items = state.currentDebtItems;
+
     if (!name || !amount || amount <= 0) {
-      if (errEl) { errEl.textContent = 'Nama dan jumlah hutang wajib diisi.'; errEl.classList.remove('hidden'); }
+      dom.debtFormError.textContent = 'Nama dan total hutang wajib diisi.';
+      dom.debtFormError.classList.remove('hidden');
       return;
     }
-    let record = { customer_name: name, phone, amount, note, status: 'belum', created_at: new Date().toISOString() };
+    
+    if (items.length === 0) {
+      dom.debtFormError.textContent = 'Pilih minimal satu produk.';
+      dom.debtFormError.classList.remove('hidden');
+      return;
+    }
+
+    // Validasi Stok
+    for (let item of items) {
+        const product = state.products.find(p => p.id === item.product_id);
+        if (product && product.stock < item.qty) {
+          dom.debtFormError.textContent = `Stok tidak cukup untuk produk ${product.name}. Tersedia: ${product.stock}`;
+          dom.debtFormError.classList.remove('hidden');
+          return;
+        }
+    }
+
+    let record = { 
+      customer_name: name, 
+      phone, 
+      amount, 
+      note, 
+      status: 'belum', 
+      created_at: new Date().toISOString(),
+      items: items // Simpan array produk
+    };
+    
     if (db && state.storeId) {
       const { data, error } = await db.from('debts')
         .insert({ ...record, store_id: state.storeId }).select().single();
@@ -3633,11 +3787,29 @@ ${txRows}
     } else {
       record.id = 'D' + Date.now();
     }
+    
+    // Kurangi stok produk
+    for (let item of items) {
+        const product = state.products.find(p => p.id === item.product_id);
+        if (product) {
+            product.stock -= item.qty;
+            // Update ke database jika online
+            if (db && state.storeId) {
+                await db.from('products').update({ stock: product.stock }).eq('id', item.product_id);
+            }
+        }
+    }
+    
     state.debts = state.debts || [];
     state.debts.unshift(record);
     saveDebtsLocal();
-    closeDebtModal();
+    
+    // Tutup modal
+    bootstrap.Modal.getInstance(dom.debtModal)?.hide();
+    
     renderKasbon();
+    renderProducts(); // Refresh tampilan produk
+    alert('Kasbon berhasil disimpan! Stok produk telah dikurangi.');
   };
 
   const markDebtPaid = async id => {
