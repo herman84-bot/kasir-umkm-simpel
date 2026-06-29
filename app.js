@@ -1752,9 +1752,15 @@ const App = (() => {
   };
 
   const renderPurchaseOptions = () => {
+    console.log('renderPurchaseOptions called, state.products:', state.products);
+    if (!dom.purchaseProduct) {
+      console.error('dom.purchaseProduct is null or undefined');
+      return;
+    }
     dom.purchaseProduct.innerHTML = state.products.map(product => `
       <option value="${product.id}">${esc(product.name)} (${product.stock} stok)</option>
     `).join('');
+    console.log('Dropdown populated with', state.products.length, 'products');
   };
 
   const renderPurchaseDraft = () => {

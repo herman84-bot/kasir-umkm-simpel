@@ -1752,6 +1752,15 @@ const App = (() => {
   };
 
   const renderPurchaseOptions = () => {
+    console.log('renderPurchaseOptions called, products count:', state.products.length);
+    if (!dom.purchaseProduct) {
+      console.error('purchaseProduct element not found');
+      return;
+    }
+    if (state.products.length === 0) {
+      dom.purchaseProduct.innerHTML = '<option value="">Belum ada produk</option>';
+      return;
+    }
     dom.purchaseProduct.innerHTML = state.products.map(product => `
       <option value="${product.id}">${esc(product.name)} (${product.stock} stok)</option>
     `).join('');

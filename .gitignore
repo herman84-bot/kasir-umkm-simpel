@@ -1,405 +1,59 @@
+```
+# Build artifacts
+public/app.js
+
+# Environment
+.env
+.env.local
+*.env.*
+
 # Dependencies
 node_modules/
 
-# Build artifacts
-dist/
-build/
-target/
-
-# Environment variables
-.env
-.env.local
-.env.*
-
-# IDE specific
+# Editors
 .vscode/
 .idea/
 
-# Python specific
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-venv/
-.venv/
-.env/
 
-# Logs
-*.log
+# Compiled files
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+*.out
+
+# Distribution / packaging
+dist/
+build/
+*.tar.gz
+*.whl
+*.egg
+*.egg-info/
+
+# Testing
+.coverage
+htmlcov/
+.coverage.*
+.nyc_output
+coverage-final.json
 
 # OS generated files
 .DS_Store
 Thumbs.db
-
-# Temporary files
-*.tmp
-*.temp
-*.bak
-
-# Coverage reports
-coverage/
-htmlcov/
-.coverage
-
-# Compression files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
-
-# Testing
-.pytest_cache/
-.mypy_cache/
-.nyc_output/
-coverage.xml
-
-# Distribution / packaging
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Jupyter Notebook
-.ipynb_checkpoints/
-
-# Local configuration files
-*.local
-config.local
-
-# Rust specific
-Cargo.lock
-target/
-
-# Go specific
-*.out
-*.exe
-
-# Java specific
-*.class
-*.jar
-*.war
-.gradle/
-build/
-
-# C/C++ specific
-*.a
-*.so
-*.dll
-*.dylib
-*.exe
-
-# Node specific
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Bower specific
-bower_components/
-
-# Rails specific
-*.rbc
-capybara-*.html
-.rspec
-/db/*.sqlite3
-/db/*.sqlite3-journal
-/public/system/
-/coverage/
-/serialized/
-/mini_racer.*
-bin/
-
-# Webpack specific
-webpack-stats.json
-
-# SASS specific
-.sass-cache/
-
-# Phoenix specific
-priv/static/
-priv/repo/seeds.exs
-
-# Nim specific
-nimcache/
-
-# Julia specific
-julia-*/
-
-# Zig specific
-zig-out/
-zig-cache/
-
-# Dart specific
-.dart_tool/
-.build/
-
-# Elixir specific
-erl_crash.dump
-
-# Elm specific
-elm-stuff/
-**/elm-stuff
-
-# Haskell specific
-dist-newstyle/
-.cabal-sandbox/
-cabal.sandbox.config
-*.o
-*.hi
-
-# Lua specific
-*.lua~
-
-# Perl specific
-/blib/
-/local/lib/perl5/
-/_build/
-
-# PHP specific
-vendor/
-
-# Python virtualenv
-.env/
-
-# Ruby specific
-.bundle/
-.rbx/
-_project_settings.yml
-.svn/
-.hg/
-.git/
-
-# Scala specific
-.classpath
-.project
-.settings/
-.dependency/
-target/
-
-# Swift specific
-.swift-version
-
-# Visual Studio Code
-.vscode/settings.json
-.vscode/tasks.json
-.vscode/launch.json
-.vscode/extensions.json
-
-# Visual Studio specific
-.vs/
-*.VC.db
-*.VC.VC.opendb
-
-# Xcode specific
-*.xcodeproj/
-*.xcworkspace/
-*.framework/
-*.gpx
-*.lrplugin/
-*.mobileprovision
-*.pcd
-*.xib
-*.xcdatamodel
-*.xcmappingmodel
-*.cd
-*.xcassets
-*.lproj/
-*.app/
-
-# Android specific
-*.iml
-.gradle/
-local.properties
-.pro
-captures/
-.externalNativeBuild/
-.cxx/
-
-# CMake specific
-CMakeFiles/
-CMakeCache.txt
-cmake_install.manifest
-install_manifest.txt
-*.pdb
-*.kdev4
-*.dir/
-*.ninja_log
-*.sublime-workspace
-*.tlog
-*.vcxproj.user
-*.vcxproj.filters
-*.vcproj.user
-*.vcproj.filters
-*.sln.docstates
-*.userprefs
-*.aps
-*.ncb
-*.opensdf
-*.sdf
-*.pidb
-*.pdi
-*.layout
-*.VC.db
-*.VC.VC.opendb
-*.vc.db
-*.vc.opendb
-*.idb
-*.ilk
-*.iobj
-*.ipdb
-*.ipch
-*.mvc
-*.mvd
-*.mvcx
-*.mvdx
-*.mvn
-*.mvnx
-*.mvpx
-*.mvpz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mvvx
-*.mvx
-*.mvz
-*.mvt
-*.mvtx
-*.mvv
-*.mv...... (truncated due to excessive repetitive entries)
+ehthumbs.db
+Icon?
+.directory
+*.nfs*
+```
