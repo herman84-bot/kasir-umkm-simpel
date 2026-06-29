@@ -1,25 +1,48 @@
-# Ignore OS files
+```
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+dist/
+build/
+target/
+.gradle/
+
+# Compiled files
+*.pyc
+*.class
+*.o
+*.exe
+*.dll
+*.so
+*.a
+*.obj
+*.out
+
+# System files
 .DS_Store
 Thumbs.db
-
-# Node dependencies
-node_modules/
-
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# VS Code files
-.vscode/
-
-# Local storage dumps
-*.localstorage
-
-# Config dengan API keys (gunakan config.example.js sebagai template)
-config.js
-.vercel
-
-# Supabase temp files (berisi connection string dan project metadata)
-supabase/.temp/
-.claude/worktrees/
+coverage/
+htmlcov/
+*.tar*
+*.zip
+*.gz
+*.rar
+```

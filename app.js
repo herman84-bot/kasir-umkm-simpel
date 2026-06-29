@@ -2011,10 +2011,29 @@ const App = (() => {
     dom.purchaseTotal.textContent = formatCurrency(total);
   };
 
-  const openPurchaseModal = () => {
+  const openPurchaseModal = async () => {
     resetPurchaseDraft();
-    renderPurchaseOptions();
+    
+    // Tampilkan loading state di modal
+    dom.purchaseProduct.innerHTML = '<option value=\"\">Memuat produk...</option>';
+    dom.purchaseProduct.disabled = true;
     dom.purchaseModal.classList.remove('hidden');
+    
+    // Pastikan data produk sudah ter-load dari server
+    if (!state.products || state.products.length === 0) {
+      try {
+        await loadData();
+      } catch (err) {
+        console.error('Gagal memuat data untuk pembelian:', err);
+        showAppToast('Gagal memuat data produk. Silakan refresh halaman.', 'error');
+        closePurchaseModal();
+        return;
+      }
+    }
+    
+    // Enable dropdown dan render options setelah data siap
+    dom.purchaseProduct.disabled = false;
+    renderPurchaseOptions();
   };
 
   const closePurchaseModal = () => {
