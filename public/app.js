@@ -3465,9 +3465,7 @@ ${txRows}
 
     // ── Kasbon ──
     document.getElementById('addDebtBtn')?.addEventListener('click', openAddDebtModal);
-    document.getElementById('closeDebtModal')?.addEventListener('click', () => {
-      bootstrap.Modal.getInstance(dom.debtModal)?.hide();
-    });
+    document.getElementById('closeDebtModal')?.addEventListener('click', closeDebtModal);
     dom.debtForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
       await saveDebt();
@@ -3637,12 +3635,21 @@ ${txRows}
       // Render input item pertama
       addDebtItemRow();
       
-      // Tampilkan modal dengan Bootstrap
-      const modal = new bootstrap.Modal(dom.debtModal);
-      modal.show();
+      // Tampilkan modal secara manual (karena menggunakan Tailwind CSS, bukan Bootstrap Modal)
+      if (dom.debtModal) {
+        dom.debtModal.classList.remove('hidden');
+        dom.debtModal.classList.add('flex');
+      }
     } catch (error) {
       console.error('Error membuka modal kasbon:', error);
       alert('Terjadi kesalahan saat membuka form kasbon. Silakan refresh halaman.');
+    }
+  };
+
+  const closeDebtModal = () => {
+    if (dom.debtModal) {
+      dom.debtModal.classList.add('hidden');
+      dom.debtModal.classList.remove('flex');
     }
   };
 
@@ -3840,7 +3847,7 @@ ${txRows}
     saveDebtsLocal();
     
     // Tutup modal
-    bootstrap.Modal.getInstance(dom.debtModal)?.hide();
+    closeDebtModal();
     
     renderKasbon();
     renderProducts(); // Refresh tampilan produk
