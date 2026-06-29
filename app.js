@@ -4,6 +4,18 @@ const App = (() => {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+  const APP_VERSION = '1.2.0';
+
+  // Muat script eksternal sekali (no-op jika sudah ada); dipakai untuk lazy-load CDN
+  const loadScript = url => new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${url}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = url;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+
   const STORAGE = {
     products: 'pos_products',
     transactions: 'pos_transactions',
@@ -33,6 +45,9 @@ const App = (() => {
         paperSize: s.paper_size || '58'
       };
     }
+    // Super admin tanpa toko — jangan baca localStorage supaya data toko
+    // user sebelumnya tidak bocor ke context admin.
+    if (_isSuperAdmin && !state.store) return { ...defaultStoreSettings };
     try {
       return { ...defaultStoreSettings, ...JSON.parse(localStorage.getItem(STORAGE.storeSettings) || '{}') };
     } catch { return { ...defaultStoreSettings }; }
@@ -270,6 +285,7 @@ const App = (() => {
   // Gerbang fitur Premium: true jika boleh lanjut, false + tampilkan upgrade jika tidak.
   // Uses server-side check to prevent client-side bypass via state.stores manipulation.
   const requirePremium = async featureName => {
+    if (_isSuperAdmin) return true;
     const serverResult = db ? await fetchSubscriptionFromServer() : null;
     // fail-closed: null (401 / network error) → treat as inactive
     const active = serverResult !== null ? serverResult.premiumActive : false;
@@ -279,6 +295,7 @@ const App = (() => {
   };
   // Gerbang fitur Bisnis (Multi-Cabang)
   const requireBusiness = async featureName => {
+    if (_isSuperAdmin) return true;
     const serverResult = db ? await fetchSubscriptionFromServer() : null;
     const active = serverResult !== null ? serverResult.businessActive : false;
     if (active) return true;
@@ -368,7 +385,10 @@ const App = (() => {
           if (codes.length && codes[0].rawValue) return resolve(codes[0].rawValue);
         } catch (e) { /* lanjut ke jsQR */ }
       }
-      // 2) jsQR fallback
+      // 2) jsQR fallback (lazy-load on first use)
+      if (!window.jsQR) {
+        try { await loadScript('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'); } catch { /* skip */ }
+      }
       if (window.jsQR) {
         try {
           const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -395,6 +415,48 @@ const App = (() => {
       return true;
     }
     return false;
+  };
+
+  let _logErrorCount = 0;
+
+  const SENSITIVE_KEY_RE = /pass|password|token|secret|key|credential|pw/i;
+
+  const sanitizeContext = (obj) => {
+    if (obj === null || obj === undefined) return obj;
+    if (Array.isArray(obj)) return obj.map(sanitizeContext);
+    if (typeof obj !== 'object') return obj;
+    const result = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (SENSITIVE_KEY_RE.test(k)) {
+        result[k] = '[redacted]';
+      } else {
+        result[k] = sanitizeContext(v);
+      }
+    }
+    return result;
+  };
+
+  const logError = async (message, context, err) => {
+    console.error(message, context, err);
+    if (_logErrorCount >= 10) return;
+    _logErrorCount++;
+    const truncate = (s, n) => s ? String(s).slice(0, n) : null;
+    const payload = {
+      store_id: state.storeId || null,
+      user_email: state.authUser?.email || null,
+      app_version: APP_VERSION,
+      message: truncate(message, 1000),
+      stack: truncate(err?.stack, 2000),
+      url: location.origin + location.pathname,
+      context: sanitizeContext(context) || null
+    };
+    if (!db) return;
+    try {
+      const { error: insertErr } = await db.from('error_logs').insert(payload);
+      if (insertErr) console.warn('logError insert failed:', insertErr);
+    } catch (e) {
+      console.warn('logError insert failed:', e);
+    }
   };
 
   // Supabase row → app product object
@@ -501,9 +563,10 @@ const App = (() => {
     if (sErr) return { error: 'Gagal membuat toko: ' + sErr.message };
 
     // Buat kasir admin (pemilik) — PIN default 1234
-    await db.from('cashiers').insert({
+    const { error: cashierErr } = await db.from('cashiers').insert({
       store_id: store.id, name: ownerName.trim(), password: '1234', role: 'admin'
     });
+    if (cashierErr) logError('cashier insert gagal', { storeId: state.storeId }, cashierErr);
 
     return { user: data.user, store };
   };
@@ -516,6 +579,15 @@ const App = (() => {
     if (m.includes('unable to validate email') || m.includes('invalid email')) return 'Format email tidak valid.';
     if (m.includes('email not confirmed')) return 'Email belum dikonfirmasi.';
     return msg || 'Terjadi kesalahan.';
+  };
+
+  const friendlyError = err => {
+    const code = err?.code || '';
+    const msg = (err?.message || String(err || '')).toLowerCase();
+    if (code === '23505' || msg.includes('duplicate key')) return 'Data sudah ada, tidak bisa duplikat.';
+    if (code === '23503' || msg.includes('foreign key')) return 'Data terhubung ke data lain, tidak bisa dihapus dulu.';
+    if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('timeout')) return 'Koneksi bermasalah. Pastikan internet aktif dan coba lagi.';
+    return 'Terjadi kesalahan. Coba lagi, atau hubungi tim kami jika masalah berlanjut.';
   };
 
   const showLoginPage = () => {
@@ -534,6 +606,22 @@ const App = (() => {
     const app = document.getElementById('appContainer');
     app.classList.remove('hidden');
     app.style.display = 'flex';
+  };
+
+  const showAppToast = (text, type = 'info') => {
+    let toast = document.getElementById('appGlobalToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'appGlobalToast';
+      toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] rounded-2xl px-5 py-3 text-white text-sm font-semibold shadow-2xl transition-opacity duration-300 no-print';
+      document.body.appendChild(toast);
+    }
+    const bgMap = { error: '#e11d48', success: '#059669', info: '#334155' };
+    toast.style.background = bgMap[type] || bgMap.info;
+    toast.textContent = text;
+    toast.style.opacity = '1';
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 4000);
   };
 
   // Setelah login: pemilik toko selalu admin (akses penuh)
@@ -556,6 +644,17 @@ const App = (() => {
         : 'text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300';
     }
     if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
+    const mobileNameEl = document.getElementById('mobileUserName');
+    const mobileRoleEl = document.getElementById('mobileUserRole');
+    const mobileAvatar = document.getElementById('mobileUserAvatar');
+    if (mobileNameEl) mobileNameEl.textContent = name;
+    if (mobileRoleEl) {
+      mobileRoleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
+      mobileRoleEl.className = isAdmin
+        ? 'text-xs px-2 py-0.5 rounded-full bg-sky-700 text-sky-100'
+        : 'text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300';
+    }
+    if (mobileAvatar) mobileAvatar.textContent = name.charAt(0).toUpperCase();
     // Sidebar + bottom nav: menu admin disembunyikan untuk operator kasir
     document.querySelectorAll('[data-role="admin"]').forEach(el => {
       el.style.display = isAdmin ? '' : 'none';
@@ -574,7 +673,31 @@ const App = (() => {
     state.storeId = null;
     state.cart = {};
     state.cashAmount = 0;
+    state.cashiers = [];
+    state.selectedCashierId = '';
+    state.activeUserId = '';
+    state.products = [];
+    state.transactions = [];
+    state.purchases = [];
+    state.debts = [];
+    state.stores = [];
+    state.draftPurchase = null;
+    state.shiftStartTime = null;
+    state.currentTransaction = null;
+    _subsCacheResult = null;
     _isSuperAdmin = false;
+    Object.values(STORAGE).forEach(key => localStorage.removeItem(key));
+    localStorage.removeItem('pos_debts');
+    localStorage.removeItem('pos_last_user_id');
+    localStorage.removeItem('qris_image');
+    localStorage.removeItem('qris_payload');
+    localStorage.removeItem('offline_tx_queue');
+    localStorage.removeItem('pending_subs_order');
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith('active_store_') || k.startsWith('shift_start_') || k.startsWith('onboardingDone_')) {
+        localStorage.removeItem(k);
+      }
+    });
     showLoginPage();
   };
   // ─────────────────────────────────────────────────────────────────────────
@@ -810,14 +933,20 @@ const App = (() => {
     paymentConfirmTotal: document.getElementById('paymentConfirmTotal'),
     paymentConfirmCashier: document.getElementById('paymentConfirmCashier'),
     paymentConfirmOk: document.getElementById('paymentConfirmOk'),
-    paymentConfirmCancel: document.getElementById('paymentConfirmCancel')
+    paymentConfirmCancel: document.getElementById('paymentConfirmCancel'),
+    deleteAccountBtn: document.getElementById('deleteAccountBtn'),
+    deleteAccountModal: document.getElementById('deleteAccountModal'),
+    closeDeleteAccountModal: document.getElementById('closeDeleteAccountModal'),
+    cancelDeleteAccountModal: document.getElementById('cancelDeleteAccountModal'),
+    deleteAccountEmailInput: document.getElementById('deleteAccountEmailInput'),
+    deleteAccountConfirmBtn: document.getElementById('deleteAccountConfirmBtn'),
+    deleteAccountError: document.getElementById('deleteAccountError')
   };
 
   let chartInstance = null;
 
-  const formatCurrency = value => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value);
-  };
+  const _currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
+  const formatCurrency = value => _currencyFormatter.format(value);
 
   // Tanggal "YYYY-MM-DD" menurut ZONA WAKTU LOKAL perangkat (bukan UTC),
   // agar penjualan dini hari (mis. 00:00–07:00 WIB) tidak terhitung ke hari kemarin.
@@ -833,15 +962,34 @@ const App = (() => {
 
   const loadLocalSettings = () => {
     const settingsData = localStorage.getItem(STORAGE.settings);
-    const settings = settingsData ? JSON.parse(settingsData) : {};
+    let settings = {};
+    try {
+      settings = settingsData ? JSON.parse(settingsData) : {};
+    } catch (e) {
+      logError('loadLocalSettings: settings corrupt', { key: STORAGE.settings }, e);
+      localStorage.removeItem(STORAGE.settings);
+      settings = {};
+    }
     state.darkMode = settings.darkMode || false;
     state.reportRange = settings.reportRange || '7';
     state.historySearch = settings.historySearch || '';
     // cashiers & purchases now loaded from Supabase; these are temp fallbacks
     const cashiersData = localStorage.getItem(STORAGE.cashiers);
     const purchasesData = localStorage.getItem(STORAGE.purchases);
-    state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers;
-    state.purchases = purchasesData ? JSON.parse(purchasesData) : [];
+    try {
+      state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers;
+    } catch (e) {
+      logError('loadLocalSettings: cashiers corrupt', { key: STORAGE.cashiers }, e);
+      localStorage.removeItem(STORAGE.cashiers);
+      state.cashiers = sampleCashiers;
+    }
+    try {
+      state.purchases = purchasesData ? JSON.parse(purchasesData) : [];
+    } catch (e) {
+      logError('loadLocalSettings: purchases corrupt', { key: STORAGE.purchases }, e);
+      localStorage.removeItem(STORAGE.purchases);
+      state.purchases = [];
+    }
     state.selectedCashierId = settings.selectedCashierId || state.cashiers[0]?.id || '';
     state.activeUserId = settings.activeUserId || state.selectedCashierId;
   };
@@ -899,6 +1047,13 @@ const App = (() => {
 
   // Memuat seluruh data toko (dipanggil SETELAH login berhasil)
   const loadData = async () => {
+    const lastUserId = localStorage.getItem('pos_last_user_id');
+    if (lastUserId !== state.authUser?.id) {
+      [...Object.values(STORAGE), 'pos_debts', 'qris_image', 'qris_payload', 'offline_tx_queue', 'pending_subs_order']
+        .forEach(key => localStorage.removeItem(key));
+      _isSuperAdmin = false;
+    }
+    localStorage.setItem('pos_last_user_id', state.authUser?.id ?? '');
     loadLocalSettings();
 
     setLoadingStatus('Memuat data toko...', 25);
@@ -945,7 +1100,7 @@ const App = (() => {
       const { data: purchases } = await db
         .from('purchases').select('*, purchase_items(*)')
         .eq('store_id', state.storeId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }).limit(200);
       state.purchases = purchases ? purchases.map(fromDbPurchase) : [];
 
       // Kasbon (tabel bisa belum ada jika 05_kasbon.sql belum dijalankan)
@@ -960,28 +1115,34 @@ const App = (() => {
 
       setLoadingStatus('Siap!', 100);
     } catch (err) {
-      console.warn('Gagal memuat data toko:', err);
-      state.products = state.products || [];
-      state.transactions = state.transactions || [];
-      state.cashiers = state.cashiers || [];
-      state.purchases = state.purchases || [];
+      logError('loadData: gagal memuat data toko', { storeId: state.storeId }, err);
+      showAppToast('Gagal memuat data toko. Coba refresh halaman.', 'error');
+      state.products = [];
+      state.transactions = [];
+      state.cashiers = [];
+      state.purchases = [];
+      state.debts = [];
     }
 
     syncStorage();
   };
 
+  let _syncStorageTimer = null;
   const syncStorage = () => {
-    localStorage.setItem(STORAGE.products, JSON.stringify(state.products));
-    localStorage.setItem(STORAGE.transactions, JSON.stringify(state.transactions));
-    localStorage.setItem(STORAGE.cashiers, JSON.stringify(state.cashiers));
-    localStorage.setItem(STORAGE.purchases, JSON.stringify(state.purchases));
-    localStorage.setItem(STORAGE.settings, JSON.stringify({
-      darkMode: state.darkMode,
-      selectedCashierId: state.selectedCashierId,
-      activeUserId: state.activeUserId,
-      reportRange: state.reportRange,
-      historySearch: state.historySearch
-    }));
+    clearTimeout(_syncStorageTimer);
+    _syncStorageTimer = setTimeout(() => {
+      localStorage.setItem(STORAGE.products, JSON.stringify(state.products));
+      localStorage.setItem(STORAGE.transactions, JSON.stringify(state.transactions));
+      localStorage.setItem(STORAGE.cashiers, JSON.stringify(state.cashiers.map(({ password: _pw, ...rest }) => rest)));
+      localStorage.setItem(STORAGE.purchases, JSON.stringify(state.purchases));
+      localStorage.setItem(STORAGE.settings, JSON.stringify({
+        darkMode: state.darkMode,
+        selectedCashierId: state.selectedCashierId,
+        activeUserId: state.activeUserId,
+        reportRange: state.reportRange,
+        historySearch: state.historySearch
+      }));
+    }, 300);
   };
 
   // ── Multi-Cabang (Premium) ───────────────────────────────────────────────
@@ -1035,11 +1196,12 @@ const App = (() => {
     if (!db || !state.authUser) { alert('Fitur cabang membutuhkan koneksi & login.'); return; }
     const { data: store, error } = await db.from('stores')
       .insert({ owner_id: state.authUser.id, name }).select().single();
-    if (error || !store) { alert('Gagal membuat cabang: ' + (error?.message || '')); return; }
+    if (error || !store) { alert('Gagal membuat cabang: ' + friendlyError(error)); return; }
     // Buat admin default untuk cabang baru agar langsung bisa dipakai (PIN 1234)
-    await db.from('cashiers').insert({
+    const { error: branchCashierErr } = await db.from('cashiers').insert({
       store_id: store.id, name: 'Pemilik', password: '1234', role: 'admin'
     });
+    if (branchCashierErr) logError('cashier insert gagal', { storeId: state.storeId }, branchCashierErr);
     state.stores.push(store);
     alert('Cabang "' + name + '" dibuat. PIN admin default: 1234');
     await switchStore(store.id);
@@ -1053,7 +1215,7 @@ const App = (() => {
     const name = (prompt('Nama baru cabang:', s.name || '') || '').trim();
     if (!name || name === s.name) return;
     const { error } = await db.from('stores').update({ name }).eq('id', id);
-    if (error) { alert('Gagal mengubah nama: ' + error.message); return; }
+    if (error) { alert('Gagal mengubah nama: ' + friendlyError(error)); return; }
     s.name = name;
     if (String(id) === String(state.storeId) && state.store) state.store.name = name;
     renderBranchList();
@@ -1073,7 +1235,7 @@ const App = (() => {
     }
     if (!confirm('Hapus cabang "' + (s.name || '') + '" beserta SEMUA produk, transaksi, dan datanya? Tindakan ini tidak bisa dibatalkan.')) return;
     const { error } = await db.from('stores').delete().eq('id', id);
-    if (error) { alert('Gagal menghapus: ' + error.message); return; }
+    if (error) { alert('Gagal menghapus: ' + friendlyError(error)); return; }
     state.stores = state.stores.filter(x => String(x.id) !== String(id));
     if (String(id) === String(state.storeId)) {
       localStorage.setItem(activeStoreKey(), String(state.stores[0].id));
@@ -1264,6 +1426,58 @@ const App = (() => {
     dom.cashierModal.style.display = '';
   };
 
+  const openDeleteAccountModal = () => {
+    dom.deleteAccountEmailInput.value = '';
+    dom.deleteAccountError.classList.add('hidden');
+    dom.deleteAccountConfirmBtn.disabled = true;
+    dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'hover:bg-rose-700', 'text-white', 'cursor-pointer');
+    dom.deleteAccountConfirmBtn.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
+    dom.deleteAccountModal.classList.remove('hidden');
+    dom.deleteAccountModal.style.display = 'flex';
+    dom.deleteAccountEmailInput.focus();
+  };
+
+  const closeDeleteAccountModal = () => {
+    dom.deleteAccountModal.classList.add('hidden');
+    dom.deleteAccountModal.style.display = '';
+  };
+
+  const handleDeleteAccount = async () => {
+    const emailInput = dom.deleteAccountEmailInput.value.trim();
+    const userEmail = state.authUser?.email || '';
+    if (emailInput.toLowerCase() !== userEmail.toLowerCase()) {
+      dom.deleteAccountError.textContent = 'Email tidak cocok. Silakan ketik ulang email Anda dengan benar.';
+      dom.deleteAccountError.classList.remove('hidden');
+      return;
+    }
+    dom.deleteAccountError.classList.add('hidden');
+    dom.deleteAccountConfirmBtn.textContent = 'Menghapus...';
+    dom.deleteAccountConfirmBtn.disabled = true;
+    try {
+      const { error } = await db.functions.invoke('delete-account', { body: {} });
+      if (error) throw error;
+      // Bersihkan semua localStorage secara eksplisit setelah penghapusan berhasil
+      Object.values(STORAGE).forEach(key => localStorage.removeItem(key));
+      localStorage.removeItem('qris_image');
+      localStorage.removeItem('qris_payload');
+      localStorage.removeItem('pending_subs_order');
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('active_store_') || k.startsWith('shift_start_') || k.startsWith('onboardingDone_')) {
+          localStorage.removeItem(k);
+        }
+      });
+      await db.auth.signOut();
+      closeDeleteAccountModal();
+      showLoginPage();
+    } catch (err) {
+      const msg = (err && err.message) ? err.message : 'Gagal menghapus akun. Coba lagi atau hubungi support.';
+      dom.deleteAccountError.textContent = msg;
+      dom.deleteAccountError.classList.remove('hidden');
+      dom.deleteAccountConfirmBtn.textContent = 'Hapus Akun Saya';
+      dom.deleteAccountConfirmBtn.disabled = false;
+    }
+  };
+
   const saveCashier = async event => {
     event.preventDefault();
     dom.cashierFormError.classList.add('hidden');
@@ -1326,7 +1540,7 @@ const App = (() => {
     const numId = parseInt(id);
     if (db && !isNaN(numId)) {
       const { error } = await db.from('cashiers').delete().eq('id', numId);
-      if (error) { alert('Gagal hapus kasir: ' + error.message); return; }
+      if (error) { alert('Gagal hapus kasir: ' + friendlyError(error)); return; }
     }
     state.cashiers = state.cashiers.filter(x => x.id !== id);
     syncStorage();
@@ -1450,19 +1664,12 @@ const App = (() => {
 
   const getFilteredTransactions = () => {
     const query = state.historySearch.trim().toLowerCase();
-    return state.transactions.filter(tx => {
-      if (!query) return true;
-      const content = [
-        tx.id,
-        tx.date,
-        tx.cashier,
-        tx.items.map(item => item.name).join(' '),
-        tx.total,
-        tx.cash,
-        tx.change
-      ].join(' ').toString().toLowerCase();
-      return content.includes(query);
-    });
+    if (!query) return state.transactions;
+    return state.transactions.filter(tx =>
+      tx.id.toString().includes(query) ||
+      (tx.cashier || '').toLowerCase().includes(query) ||
+      tx.items.some(item => (item.name || '').toLowerCase().includes(query))
+    );
   };
 
   const renderReportSummary = () => {
@@ -1481,11 +1688,15 @@ const App = (() => {
     const lowStockProducts = state.products.filter(product => product.stock >= 0 && product.stock <= (product.minStock || 5));
     dom.lowStockAlert.textContent = lowStockProducts.length ? `${lowStockProducts.length} produk stok rendah, segera kulakan lagi.` : 'Tidak ada stok kritis.';
 
-    const bestProduct = state.products.slice().sort((a, b) => {
-      const aQty = state.transactions.reduce((sum, tx) => sum + tx.items.filter(item => item.id === a.id).reduce((s, item) => s + item.qty, 0), 0);
-      const bQty = state.transactions.reduce((sum, tx) => sum + tx.items.filter(item => item.id === b.id).reduce((s, item) => s + item.qty, 0), 0);
-      return bQty - aQty;
-    })[0];
+    const productQtyMap = {};
+    state.transactions.forEach(tx => {
+      tx.items.forEach(item => {
+        productQtyMap[item.id] = (productQtyMap[item.id] || 0) + item.qty;
+      });
+    });
+    const bestProduct = state.products.slice().sort((a, b) =>
+      (productQtyMap[b.id] || 0) - (productQtyMap[a.id] || 0)
+    )[0];
     dom.topProduct.textContent = bestProduct ? `${bestProduct.name}` : '-';
 
     const categorySales = {};
@@ -1686,10 +1897,15 @@ const App = (() => {
     state.scannerRAF = requestAnimationFrame(tick);
   };
 
-  const startQuaggaScanner = () => {
+  const startQuaggaScanner = async () => {
     if (typeof Quagga === 'undefined') {
-      dom.scannerStatus.textContent = 'Scanner tidak tersedia di perangkat ini. Gunakan input manual.';
-      return;
+      dom.scannerStatus.textContent = 'Memuat library scanner...';
+      try {
+        await loadScript('https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js');
+      } catch (e) {
+        dom.scannerStatus.textContent = 'Scanner tidak tersedia di perangkat ini. Gunakan input manual.';
+        return;
+      }
     }
     state.scannerEngine = 'quagga';
     dom.scannerPlaceholder.classList.add('hidden');
@@ -1703,7 +1919,7 @@ const App = (() => {
       locate: true
     }, err => {
       if (err) {
-        dom.scannerStatus.textContent = 'Gagal membuka kamera: ' + (err.message || err);
+        dom.scannerStatus.textContent = 'Kamera gagal dibuka. Pastikan izin kamera sudah diberikan, atau gunakan input manual di bawah.';
         dom.scannerPlaceholder.classList.remove('hidden');
         return;
       }
@@ -1752,15 +1968,9 @@ const App = (() => {
   };
 
   const renderPurchaseOptions = () => {
-    console.log('renderPurchaseOptions called, state.products:', state.products);
-    if (!dom.purchaseProduct) {
-      console.error('dom.purchaseProduct is null or undefined');
-      return;
-    }
     dom.purchaseProduct.innerHTML = state.products.map(product => `
       <option value="${product.id}">${esc(product.name)} (${product.stock} stok)</option>
     `).join('');
-    console.log('Dropdown populated with', state.products.length, 'products');
   };
 
   const renderPurchaseDraft = () => {
@@ -1851,7 +2061,7 @@ const App = (() => {
         const { error: itemsErr } = await db.from('purchase_items').insert(itemRows);
         if (itemsErr) throw itemsErr;
       } catch (err) {
-        alert('Gagal menyimpan pembelian: ' + err.message);
+        alert('Gagal menyimpan pembelian: ' + friendlyError(err));
         return;
       }
     }
@@ -1866,7 +2076,8 @@ const App = (() => {
         if (db) {
           const numId = parseInt(product.id);
           if (!isNaN(numId)) {
-            await db.from('products').update({ stock: product.stock }).eq('id', numId);
+            const { error: stockErr } = await db.from('products').update({ stock: product.stock }).eq('id', numId);
+            if (stockErr) logError('savePurchaseOrder: stok gagal update', { productId: numId }, stockErr);
           }
         }
       }
@@ -2173,10 +2384,16 @@ const App = (() => {
       btn.classList.toggle('text-slate-400', !isActive);
       btn.classList.toggle('bg-slate-800', isActive);
     });
+    _activeScreenId = screenId;
+    if (screenId === 'dashboard') { updateDashboard(); renderSalesChart(); renderReportSummary(); renderDashboardPusat(); }
+    if (screenId === 'kasir') { renderProducts(); renderCart(); }
+    if (screenId === 'inventory') renderInventory();
+    if (screenId === 'riwayat') renderHistory();
+    if (screenId === 'pembelian') renderPurchaseHistory();
+    if (screenId === 'kasbon') renderKasbon();
     if (screenId === 'kelolaKasir') renderCashierManagement();
     if (screenId === 'pengaturan') renderSettings();
-    if (screenId === 'kasbon') renderKasbon();
-    if (screenId === 'dashboard') renderDashboardPusat();
+    if (screenId === 'screen-superadmin') superAdminLoadStores();
   };
 
   const showInventoryModal = (title = 'Tambah Produk') => {
@@ -2229,7 +2446,7 @@ const App = (() => {
     const numId = parseInt(productId);
     if (db && !isNaN(numId)) {
       const { error } = await db.from('products').delete().eq('id', numId);
-      if (error) { alert('Gagal hapus produk: ' + error.message); return; }
+      if (error) { alert('Gagal hapus produk: ' + friendlyError(error)); return; }
     }
     state.products = state.products.filter(item => item.id !== productId);
     syncStorage();
@@ -2266,12 +2483,12 @@ const App = (() => {
       if (!isNaN(numId)) {
         // Update existing
         const { error } = await db.from('products').update(dbPayload).eq('id', numId);
-        if (error) { alert('Gagal simpan produk: ' + error.message); return; }
+        if (error) { alert('Gagal simpan produk: ' + friendlyError(error)); return; }
       } else {
         // Insert new
         const { data, error } = await db.from('products')
           .insert({ ...dbPayload, store_id: state.storeId }).select().single();
-        if (error) { alert('Gagal tambah produk: ' + error.message); return; }
+        if (error) { alert('Gagal tambah produk: ' + friendlyError(error)); return; }
         finalId = String(data.id);
       }
     }
@@ -2706,6 +2923,10 @@ ${discountHtml}${taxHtml}
 
   // ── Pengaturan Toko ───────────────────────────────────────────────────────
   const renderSettings = () => {
+    applySuperAdminVisibility();
+    const versionEl = document.getElementById('appVersionDisplay');
+    if (versionEl) versionEl.textContent = APP_VERSION;
+    if (_isSuperAdmin && !state.storeId) return;
     renderBranchList();
     const store = getStoreSettings();
     if (dom.settingStoreName) dom.settingStoreName.value = store.name;
@@ -2924,7 +3145,7 @@ ${txRows}
     state.paymentMethod = method;
     document.querySelectorAll('.paymethod-btn').forEach(btn => {
       const active = btn.dataset.paymethod === method;
-      btn.className = `paymethod-btn flex-1 rounded-2xl border-2 px-3 py-2 text-sm font-semibold transition ${active ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'}`;
+      btn.className = `paymethod-btn flex-1 rounded-2xl border-2 px-3 py-3 text-sm font-semibold transition ${active ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'}`;
     });
     if (dom.cashInputWrapper) {
       dom.cashInputWrapper.style.display = method === 'Tunai' ? '' : 'none';
@@ -3054,10 +3275,14 @@ ${txRows}
       syncStorage();
     });
 
+    let _historySearchTimer = null;
     dom.historySearchInput.addEventListener('input', event => {
       state.historySearch = event.target.value;
-      renderHistory();
-      syncStorage();
+      clearTimeout(_historySearchTimer);
+      _historySearchTimer = setTimeout(() => {
+        renderHistory();
+        syncStorage();
+      }, 200);
     });
 
     dom.exportInventory.addEventListener('click', () => exportInventoryCSV());
@@ -3146,6 +3371,7 @@ ${txRows}
     const authError = document.getElementById('authError');
     const authSuccess = document.getElementById('authSuccess');
     const logoutButton = document.getElementById('logoutButton');
+    const mobileLogoutButton = document.getElementById('mobileLogoutButton');
 
     const showAuthError = msg => {
       authSuccess.classList.add('hidden');
@@ -3224,6 +3450,7 @@ ${txRows}
     });
 
     logoutButton?.addEventListener('click', logout);
+    mobileLogoutButton?.addEventListener('click', logout);
 
     // ── Thermal print ──
     dom.printThermalBtn?.addEventListener('click', () => {
@@ -3267,7 +3494,7 @@ ${txRows}
       const res = await saveStoreSettings(store);
       dom.saveSettingsBtn.disabled = false;
       dom.saveSettingsBtn.textContent = '💾 Simpan Pengaturan';
-      if (res.error) { alert('Gagal menyimpan: ' + res.error); return; }
+      if (res.error) { alert('Gagal menyimpan: ' + friendlyError(res.error)); return; }
       updateSettingsPreview(store);
       dom.settingsSaved.classList.remove('hidden');
       setTimeout(() => dom.settingsSaved.classList.add('hidden'), 2500);
@@ -3417,31 +3644,103 @@ ${txRows}
 
     // ── Super Admin ──
     bindSuperAdminEvents();
+
+    // ── Cache & Versi ──
+    document.getElementById('clearCacheBtn')?.addEventListener('click', async () => {
+      if (!confirm('Bersihkan cache aplikasi? Halaman akan dimuat ulang.')) return;
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      } catch (e) {
+        console.warn('Cache deletion error:', e);
+      }
+      window.location.reload();
+    });
+
+    // ── Hapus Akun ──
+    dom.deleteAccountBtn?.addEventListener('click', openDeleteAccountModal);
+    dom.closeDeleteAccountModal?.addEventListener('click', closeDeleteAccountModal);
+    dom.cancelDeleteAccountModal?.addEventListener('click', closeDeleteAccountModal);
+    dom.deleteAccountEmailInput?.addEventListener('input', () => {
+      const match = dom.deleteAccountEmailInput.value.trim().toLowerCase() === (state.authUser?.email || '').toLowerCase();
+      dom.deleteAccountConfirmBtn.disabled = !match;
+      if (match) {
+        dom.deleteAccountConfirmBtn.classList.remove('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
+        dom.deleteAccountConfirmBtn.classList.add('bg-rose-600', 'text-white', 'hover:bg-rose-700', 'cursor-pointer');
+      } else {
+        dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'text-white', 'hover:bg-rose-700', 'cursor-pointer');
+        dom.deleteAccountConfirmBtn.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
+      }
+    });
+    dom.deleteAccountConfirmBtn?.addEventListener('click', handleDeleteAccount);
+    document.addEventListener('click', e => {
+      if (e.target === dom.deleteAccountModal) closeDeleteAccountModal();
+    });
   };
+
+  let _activeScreenId = 'dashboard';
 
   const renderAll = () => {
     dom.todayDate.textContent = '📅 ' + new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
     renderStoreSwitcher();
     renderCashierSelect();
-    renderCashierManagement();
     applyTheme();
     dom.reportRangeSelect.value = state.reportRange;
     dom.historySearchInput.value = state.historySearch;
-    renderProducts();
-    renderCart();
-    renderInventory();
-    renderHistory();
-    updateDashboard();
-    renderSalesChart();
-    renderReportSummary();
+    switch (_activeScreenId) {
+      case 'dashboard':
+        updateDashboard();
+        renderSalesChart();
+        renderReportSummary();
+        break;
+      case 'kasir':
+        renderProducts();
+        renderCart();
+        break;
+      case 'inventory':
+        renderInventory();
+        break;
+      case 'riwayat':
+        renderHistory();
+        break;
+      case 'pembelian':
+        renderPurchaseHistory();
+        break;
+      case 'kasbon':
+        renderKasbon();
+        break;
+      case 'kelolaKasir':
+        renderCashierManagement();
+        break;
+      case 'pengaturan':
+        renderSettings();
+        break;
+      case 'screen-superadmin':
+        superAdminLoadStores();
+        break;
+    }
   };
 
   const registerServiceWorker = () => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js')
-        .then(() => console.log('Service worker terdaftar.'))
-        .catch(err => console.warn('Gagal daftar service worker:', err));
-    }
+    if (!('serviceWorker' in navigator)) return;
+
+    // Saat service worker baru mengambil kendali (deploy baru aktif),
+    // reload sekali agar HTML/JS terbaru langsung terpakai tanpa clear cache manual.
+    let _reloadingForNewSW = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (_reloadingForNewSW) return;
+      _reloadingForNewSW = true;
+      window.location.reload();
+    });
+
+    navigator.serviceWorker.register('service-worker.js')
+      .then(registration => {
+        console.log('Service worker terdaftar.');
+        // Paksa cek versi baru tiap load + tiap kembali fokus ke app.
+        registration.update();
+        window.addEventListener('focus', () => registration.update());
+      })
+      .catch(err => console.warn('Gagal daftar service worker:', err));
   };
 
   // Dipanggil setelah login/daftar berhasil ATAU saat sesi masih aktif
@@ -3449,8 +3748,12 @@ ${txRows}
     showHelpChatFab();
     await loadData();
 
+    // Cek super admin SEBELUM guard toko agar super admin bisa bypass
+    await checkSuperAdmin();
+
     // Pengaman: user terautentikasi tapi belum punya toko (mis. lewat konfirmasi email)
-    if (db && state.authUser && !state.storeId) {
+    // Super admin dibebaskan dari kewajiban memiliki toko
+    if (db && state.authUser && !state.storeId && !_isSuperAdmin) {
       let storeName = prompt('Selamat datang! Masukkan nama toko Anda untuk memulai:');
       storeName = (storeName || '').trim() || 'Toko Saya';
       const ownerName = prompt('Nama Anda (pemilik):') || 'Pemilik';
@@ -3459,12 +3762,13 @@ ${txRows}
       if (!error && store) {
         state.store = store;
         state.storeId = store.id;
-        await db.from('cashiers').insert({
+        const { error: initCashierErr } = await db.from('cashiers').insert({
           store_id: store.id, name: ownerName.trim(), password: '1234', role: 'admin'
         });
+        if (initCashierErr) logError('cashier insert gagal', { storeId: state.storeId }, initCashierErr);
         await loadData();
       } else if (error) {
-        alert('Gagal membuat toko: ' + error.message);
+        alert('Gagal membuat toko: ' + friendlyError(error));
       }
     }
 
@@ -3478,9 +3782,6 @@ ${txRows}
     // Freemium: aplikasi tidak pernah dikunci — hanya tampilkan banner pengingat trial
     checkSubscription();
     watchPendingSubscription();
-
-    // Cek apakah user adalah super admin (query ke tabel admin_users)
-    await checkSuperAdmin();
 
     applyRoleAccess();
     showApp();
@@ -3592,7 +3893,8 @@ ${txRows}
     debt.status = 'lunas';
     debt.paid_at = new Date().toISOString();
     if (db && !isNaN(parseInt(id))) {
-      await db.from('debts').update({ status: 'lunas', paid_at: debt.paid_at }).eq('id', parseInt(id));
+      const { error } = await db.from('debts').update({ status: 'lunas', paid_at: debt.paid_at }).eq('id', parseInt(id));
+      if (error) logError('markDebtPaid: gagal update', { debtId: id }, error);
     }
     saveDebtsLocal();
     renderKasbon();
@@ -3602,7 +3904,8 @@ ${txRows}
     if (!confirm('Hapus catatan kasbon ini?')) return;
     state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
     if (db && !isNaN(parseInt(id))) {
-      await db.from('debts').delete().eq('id', parseInt(id));
+      const { error } = await db.from('debts').delete().eq('id', parseInt(id));
+      if (error) logError('deleteDebt: gagal delete', { debtId: id }, error);
     }
     saveDebtsLocal();
     renderKasbon();
@@ -3725,7 +4028,7 @@ ${txRows}
     { keys: ['offline', 'internet', 'sinyal'], a: 'Aplikasi tetap bisa dibuka saat offline (PWA). Namun sinkronisasi data ke cloud butuh internet — pastikan online secara berkala agar data tersimpan aman.' },
     { keys: ['cabang', 'multi cabang', 'banyak toko', 'outlet', 'bisnis'], a: 'Multi-Cabang ada di paket Bisnis (Rp50.000/bulan) 🏢 — satu akun bisa punya banyak cabang. Buka Pengaturan → Cabang Toko → Tambah Cabang. Tiap cabang punya stok & transaksi sendiri. Ganti cabang lewat dropdown 🏪 Cabang di pojok kanan atas. Rekap omzet semua cabang muncul di Dashboard Pusat. Selama 30 hari trial fitur ini terbuka gratis.' },
     { keys: ['password', 'lupa', 'reset'], a: 'Lupa password? Di halaman login klik "Lupa password", masukkan email toko — link reset akan dikirim ke email tersebut.' },
-    { keys: ['hapus akun', 'hapus data'], a: 'Untuk menghapus akun dan seluruh data toko secara permanen, kirim permintaan via Telegram: https://t.me/+veK2jeQuBkQwNzU1. Diproses maksimal 30 hari.' },
+    { keys: ['hapus akun', 'hapus data'], a: 'Untuk menghapus akun dan seluruh data toko secara permanen, buka menu Pengaturan → gulir ke bawah → klik "Hapus Akun Permanen". Ketik ulang email Anda sebagai konfirmasi. Tindakan ini tidak dapat dibatalkan dan seluruh data (toko, produk, transaksi, kasir, kasbon, langganan) akan terhapus selamanya.' },
     { keys: ['rokok', 'tembakau', 'vape'], a: 'Produk rokok, tembakau, dan vape diblokir permanen dan tidak bisa diinput ke aplikasi ini.' }
   ];
 
@@ -3831,14 +4134,31 @@ ${txRows}
   let _isSuperAdmin = false;
 
   const checkSuperAdmin = async () => {
-    if (!db || !state.authUser?.email) { _isSuperAdmin = false; return; }
+    if (!db || !state.authUser?.id) { _isSuperAdmin = false; return; }
     try {
+      // Primary: lookup by user_id (single round-trip, no Edge Function overhead)
       const { data, error } = await db
         .from('admin_users')
         .select('id')
-        .eq('email', state.authUser.email)
+        .eq('user_id', state.authUser.id)
         .maybeSingle();
-      _isSuperAdmin = !error && !!data;
+      if (!error && data) { _isSuperAdmin = true; return; }
+      // Fallback: baris dengan user_id NULL tidak terlihat oleh RLS policy
+      // (user_id = auth.uid() tidak pernah cocok dengan NULL).
+      // Verifikasi via Edge Function yang memakai service-role dan lookup by email.
+      // Gunakan check_admin jika sudah di-deploy, fallback ke list_stores untuk kompatibilitas.
+      const { data: checkData, error: checkErr } = await db.functions.invoke('admin-subscription', {
+        body: { action: 'check_admin' }
+      });
+      if (!checkErr) {
+        _isSuperAdmin = checkData?.is_admin === true;
+        return;
+      }
+      // check_admin belum di-deploy — gunakan list_stores sebagai pengganti sementara
+      const { error: listErr } = await db.functions.invoke('admin-subscription', {
+        body: { action: 'list_stores' }
+      });
+      _isSuperAdmin = !listErr;
     } catch {
       _isSuperAdmin = false;
     }
@@ -3855,6 +4175,19 @@ ${txRows}
         btn.style.display = 'none';
       }
     }
+    const deleteSection = document.getElementById('deleteAccountSection');
+    if (deleteSection) {
+      deleteSection.style.display = _isSuperAdmin ? 'none' : '';
+    }
+    // Sembunyikan section toko (nama/alamat/struk/preview/cabang) hanya untuk super admin
+    // yang tidak memiliki toko sendiri.
+    const hideStoreUI = _isSuperAdmin && !state.storeId;
+    const storeFormFields = document.getElementById('storeFormFields');
+    if (storeFormFields) storeFormFields.style.display = hideStoreUI ? 'none' : '';
+    const struPreviewSection = document.getElementById('struPreviewSection');
+    if (struPreviewSection) struPreviewSection.style.display = hideStoreUI ? 'none' : '';
+    const branchSection = document.getElementById('branchSettingsSection');
+    if (branchSection) branchSection.style.display = hideStoreUI ? 'none' : '';
   };
 
   // Kalkulator tanggal berakhir dari pilihan durasi dropdown
@@ -3947,18 +4280,29 @@ ${txRows}
 
   const superAdminLoadStores = async () => {
     const wrapper = document.getElementById('superAdminTableWrapper');
+    const sel = document.getElementById('superAdminStoreSelect');
     if (wrapper) wrapper.innerHTML = '<p class="text-slate-400 text-sm">Memuat data...</p>';
+    if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
     try {
       const { data, error } = await db.functions.invoke('admin-subscription', {
         body: { action: 'list_stores' }
       });
       if (error || !data?.stores) {
-        if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat data toko.</p>';
+        const httpStatus = error?.context?.status ?? error?.status ?? null;
+        const statusSuffix = httpStatus ? ` (HTTP ${httpStatus})` : '';
+        console.error('superAdminLoadStores error:', error);
+        superAdminShowMsg('error', `Gagal memuat data toko${statusSuffix}.`);
+        if (wrapper) wrapper.innerHTML = `<p class="text-rose-500 text-sm">Gagal memuat data toko${statusSuffix}.</p>`;
+        if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
         return;
       }
       superAdminRenderTable(data.stores);
     } catch (e) {
-      if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Terjadi kesalahan koneksi.</p>';
+      console.error('superAdminLoadStores error:', e);
+      const errMsg = e?.message ? ` — ${e.message}` : '';
+      superAdminShowMsg('error', `Terjadi kesalahan koneksi${errMsg}.`);
+      if (wrapper) wrapper.innerHTML = `<p class="text-rose-500 text-sm">Terjadi kesalahan koneksi${e?.message ? ` — ${esc(e.message)}` : ''}.</p>`;
+      if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
     }
   };
 
@@ -3966,7 +4310,6 @@ ${txRows}
     // Tombol "Admin Panel" di pengaturan → navigasi ke screen super admin
     document.getElementById('openSuperAdminBtn')?.addEventListener('click', () => {
       showScreen('screen-superadmin');
-      superAdminLoadStores();
     });
 
     // Refresh
@@ -4007,6 +4350,70 @@ ${txRows}
       }
     });
 
+    // Log Error Aplikasi
+    document.getElementById('superAdminLoadLogsBtn')?.addEventListener('click', async () => {
+      const wrapper = document.getElementById('superAdminErrorLogsWrapper');
+      const copyWrapper = document.getElementById('superAdminCopyLogsWrapper');
+      if (!wrapper) return;
+      const btn = document.getElementById('superAdminLoadLogsBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Memuat...'; }
+      wrapper.innerHTML = '<p class="text-slate-500 text-sm">Memuat log error...</p>';
+      if (copyWrapper) copyWrapper.classList.add('hidden');
+      try {
+        const { data, error } = await db.rpc('list_error_logs_for_admin');
+        if (error) {
+          wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat log. Pastikan migration 15_error_logs.sql sudah dijalankan.</p>';
+          return;
+        }
+        if (!data || !data.length) {
+          wrapper.innerHTML = '<p class="text-slate-400 text-sm">Tidak ada log error.</p>';
+          return;
+        }
+        wrapper._logsData = data;
+        wrapper.innerHTML = `<p class="text-slate-500 text-sm mb-2">${data.length} entri log terbaru:</p>` +
+          data.map(row => `<div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 mb-2 text-xs font-mono overflow-x-auto">
+            <span class="text-slate-400">${esc(row.created_at ? new Date(row.created_at).toLocaleString('id-ID') : '')}</span>
+            <span class="ml-2 text-rose-600 font-semibold">${esc(row.message)}</span>
+            ${row.store_name ? `<span class="ml-2 text-slate-500">[${esc(row.store_name)}]</span>` : ''}
+            ${row.url ? `<span class="ml-2 text-slate-400">${esc(row.url)}</span>` : ''}
+          </div>`).join('');
+        if (copyWrapper) copyWrapper.classList.remove('hidden');
+      } catch (e) {
+        wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat log. Pastikan migration 15_error_logs.sql sudah dijalankan.</p>';
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Muat Log'; }
+      }
+    });
+
+    document.getElementById('superAdminCopyLogsBtn')?.addEventListener('click', async () => {
+      const wrapper = document.getElementById('superAdminErrorLogsWrapper');
+      const copiedMsg = document.getElementById('superAdminCopiedMsg');
+      const logs = wrapper?._logsData;
+      if (!logs) return;
+      const redacted = logs.map(row => ({
+        ...row,
+        user_email: row.user_email ? row.user_email.slice(0, 3) + '***' : null
+      }));
+      const jsonStr = JSON.stringify(redacted, null, 2);
+      try {
+        await navigator.clipboard.writeText(jsonStr);
+      } catch (_) {
+        const ta = document.createElement('textarea');
+        ta.value = jsonStr;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      if (copiedMsg) {
+        copiedMsg.classList.remove('hidden');
+        setTimeout(() => copiedMsg.classList.add('hidden'), 2000);
+      }
+    });
+
     // Revokasi langganan
     document.getElementById('superAdminRevokeBtn')?.addEventListener('click', async () => {
       const storeId = document.getElementById('superAdminStoreSelect')?.value;
@@ -4038,6 +4445,13 @@ ${txRows}
   const init = async () => {
     setLoadingStatus('Menghubungkan ke database...', 10);
     initSupabase();
+    window.onerror = (msg, src, line, col, err) => {
+      logError(String(msg), { src, line, col }, err);
+      return false;
+    };
+    window.addEventListener('unhandledrejection', e => {
+      logError('Unhandled promise rejection: ' + (e.reason?.message || String(e.reason)), {}, e.reason instanceof Error ? e.reason : null);
+    });
     loadLocalSettings();
     bindEvents();
     initHelpChat();

@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+import { corsHeaders, allowedOrigin } from '../_shared/cors.ts';
 
 const systemPrompt =
   'Kamu adalah Aisyah, asisten virtual aplikasi Kasir UMKM Simpel. ' +
@@ -48,10 +48,47 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Rate limiting: 10 requests per 60-second window per user.
+    // INSERT first then COUNT so concurrent requests at the boundary both see the full count,
+    // avoiding the naive select-before-insert race window.
+    const serviceClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    );
+
+    const { error: insertError } = await serviceClient.from('chat_rate_log').insert({ user_id: user.id });
+    if (insertError) {
+      return new Response(
+        JSON.stringify({ error: 'Terjadi kesalahan pada server' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const windowStart = new Date(Date.now() - 60_000).toISOString();
+    const { count, error: countError } = await serviceClient
+      .from('chat_rate_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .gte('requested_at', windowStart);
+
+    if (countError) {
+      return new Response(
+        JSON.stringify({ error: 'Terlalu banyak permintaan. Coba lagi nanti.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    if ((count ?? 0) > 10) {
+      return new Response(
+        JSON.stringify({ error: 'Terlalu banyak permintaan. Coba lagi nanti.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     const apiKey = Deno.env.get('GROQ_API_KEY');
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: 'GROQ_API_KEY belum diset' }),
+        JSON.stringify({ error: 'Terjadi kesalahan pada server' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }

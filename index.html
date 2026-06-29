@@ -3,17 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kasir UMKM Simpel</title>
+  <title>Kasir UMKM Simpel — Aplikasi Kasir Gratis untuk Warung &amp; Toko</title>
+  <meta name="description" content="Aplikasi kasir gratis untuk warung dan toko UMKM Indonesia. Solusi POS mudah dan kasir online gratis: kelola penjualan, stok, dan laporan dengan cepat." />
+  <meta name="keywords" content="aplikasi kasir gratis, kasir UMKM, aplikasi POS mudah, kasir online gratis, aplikasi kasir untuk warung, kasir toko UMKM, point of sale, stok, inventory, umkm" />
+  <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#0f172a" />
+  <link rel="canonical" href="https://www.simpelkasir.my.id/" />
+  <meta property="og:title" content="Kasir UMKM Simpel — Aplikasi Kasir Gratis untuk Warung &amp; Toko" />
+  <meta property="og:description" content="Aplikasi kasir gratis dan kasir online gratis untuk UMKM. Solusi aplikasi POS mudah untuk mengelola penjualan, stok, dan laporan toko Anda." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.simpelkasir.my.id/" />
+  <meta property="og:site_name" content="Kasir UMKM Simpel" />
+  <meta property="og:locale" content="id_ID" />
+  <meta property="og:image" content="https://www.simpelkasir.my.id/icons/icon-192.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Kasir UMKM Simpel — Aplikasi Kasir Gratis untuk Warung &amp; Toko" />
+  <meta name="twitter:description" content="Aplikasi kasir gratis untuk warung dan kasir UMKM. Solusi aplikasi POS mudah dan kasir online gratis." />
+  <meta name="twitter:image" content="https://www.simpelkasir.my.id/icons/icon-192.png" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="stylesheet" href="tailwind.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <style>
     html, body {
       overflow-x: hidden;
@@ -80,6 +93,30 @@
       .no-print { display: none !important; }
     }
   </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Kasir UMKM Simpel",
+    "url": "https://www.simpelkasir.my.id/",
+    "description": "Aplikasi kasir gratis untuk warung dan toko UMKM Indonesia. Kelola penjualan, stok, dan laporan dengan mudah.",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": ["Web", "Android", "iOS"],
+    "offers": [
+      {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "IDR"
+      },
+      {
+        "@type": "Offer",
+        "price": "29000",
+        "priceCurrency": "IDR"
+      }
+    ],
+    "featureList": "Kasir cepat, Manajemen stok, Laporan penjualan, Pemindai barcode, Multi-outlet, Cetak struk"
+  }
+  </script>
   <!-- Thermal Receipt Print Style (dipakai di window baru) -->
   <style id="thermalStyle" type="text/plain">
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -125,8 +162,8 @@
       <div class="bg-white rounded-3xl shadow-2xl p-8">
         <!-- Tab switch -->
         <div class="flex rounded-2xl bg-slate-100 p-1 mb-6">
-          <button id="tabLogin" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-slate-900 shadow-sm transition">Masuk</button>
-          <button id="tabRegister" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 transition">Daftar Toko</button>
+          <button id="tabLogin" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-slate-900 shadow-sm transition min-h-[44px]">Masuk</button>
+          <button id="tabRegister" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 transition min-h-[44px]">Daftar Toko</button>
         </div>
 
         <div id="authError" class="hidden mb-4 rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
@@ -161,7 +198,7 @@
             <p class="text-sm font-medium text-sky-800">Masukkan email untuk reset password:</p>
             <input id="resetEmail" type="email" placeholder="email@toko.com"
               class="w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none text-sm" />
-            <button type="button" id="sendResetBtn" class="w-full rounded-2xl bg-sky-600 px-4 py-2.5 text-white text-sm font-semibold hover:bg-sky-700 transition">
+            <button type="button" id="sendResetBtn" class="w-full rounded-2xl bg-sky-600 px-4 py-2.5 text-white text-sm font-semibold hover:bg-sky-700 transition min-h-[44px]">
               Kirim Link Reset
             </button>
           </div>
@@ -274,7 +311,7 @@
       </button>
       <button data-screen="pengaturan" data-role="admin" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">⚙️</span>
-        <span class="text-[10px] mt-0.5 leading-tight">Setting</span>
+        <span class="text-[10px] mt-0.5 leading-tight">Atur</span>
       </button>
       <button data-screen="tentang" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">ℹ️</span>
@@ -297,13 +334,13 @@
             <span class="hidden sm:inline font-medium text-slate-500">Kasir:</span>
             <select id="cashierSelect" class="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-slate-900 text-sm max-w-[120px] sm:max-w-none"></select>
           </div>
-          <button id="themeToggle" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Tema">
+          <button id="themeToggle" class="rounded-2xl bg-white px-3 py-3 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Tema">
             <span>🌙</span><span class="hidden sm:inline"> Tema</span>
           </button>
-          <button id="exportDataButton" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Backup">
+          <button id="exportDataButton" class="rounded-2xl bg-white px-3 py-3 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Backup">
             <span>💾</span><span class="hidden sm:inline"> Backup</span>
           </button>
-          <button id="importDataButton" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Restore">
+          <button id="importDataButton" class="rounded-2xl bg-white px-3 py-3 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Restore">
             <span>📂</span><span class="hidden sm:inline"> Restore</span>
           </button>
         </div>
@@ -458,9 +495,9 @@
               <div>
                 <span class="text-slate-700 text-sm font-medium block mb-2">Metode Pembayaran</span>
                 <div class="flex gap-2">
-                  <button type="button" data-paymethod="Tunai" class="paymethod-btn flex-1 rounded-2xl border-2 border-sky-500 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700 transition">💵 Tunai</button>
-                  <button type="button" data-paymethod="QRIS" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-sky-300">📱 QRIS</button>
-                  <button type="button" data-paymethod="Transfer" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-sky-300">🏦 Transfer</button>
+                  <button type="button" data-paymethod="Tunai" class="paymethod-btn flex-1 rounded-2xl border-2 border-sky-500 bg-sky-50 px-3 py-3 text-sm font-semibold text-sky-700 transition">💵 Tunai</button>
+                  <button type="button" data-paymethod="QRIS" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-600 transition hover:border-sky-300">📱 QRIS</button>
+                  <button type="button" data-paymethod="Transfer" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-600 transition hover:border-sky-300">🏦 Transfer</button>
                 </div>
               </div>
               <div id="cashInputWrapper">
@@ -598,7 +635,7 @@
         </div>
 
         <!-- Multi-Cabang -->
-        <div class="max-w-xl mb-6">
+        <div id="branchSettingsSection" class="max-w-xl mb-6">
           <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
             <div class="flex items-center justify-between gap-3 mb-1">
               <h4 class="text-lg font-semibold">🏪 Cabang Toko</h4>
@@ -611,49 +648,51 @@
 
         <div class="max-w-xl">
           <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-4">
-            <label class="block">
-              <span class="text-slate-700 font-medium text-sm">Nama Toko</span>
-              <input id="settingStoreName" maxlength="100" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Warung Barokah" />
-            </label>
-            <label class="block">
-              <span class="text-slate-700 font-medium text-sm">Alamat</span>
-              <input id="settingStoreAddress" maxlength="200" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Jl. Merdeka No. 10, Jakarta" />
-            </label>
-            <label class="block">
-              <span class="text-slate-700 font-medium text-sm">No. Telepon / WhatsApp</span>
-              <input id="settingStorePhone" maxlength="20" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: 08123456789" />
-            </label>
-            <label class="block">
-              <span class="text-slate-700 font-medium text-sm">Pesan di struk (footer)</span>
-              <input id="settingStoreNote" maxlength="150" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Terima kasih, selamat datang kembali!" />
-            </label>
-            <label class="block">
-              <span class="text-slate-700 font-medium text-sm">Ukuran Kertas Struk</span>
-              <select id="settingPaperSize" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
-                <option value="58">58mm (Standar printer thermal kecil)</option>
-                <option value="80">80mm (Printer thermal besar)</option>
-              </select>
-            </label>
-            <div class="border-t border-slate-100 pt-4">
-              <p class="font-semibold text-slate-700 text-sm mb-1">🔲 QRIS Statis</p>
-              <p class="text-xs text-slate-500 mb-3">Upload gambar QRIS toko Anda. Akan muncul otomatis di layar saat kasir memilih metode bayar QRIS.</p>
+            <div id="storeFormFields">
               <label class="block">
-                <span class="text-slate-700 font-medium text-sm">Upload Gambar QRIS</span>
-                <input type="file" id="qrisFileInput" accept="image/*" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none bg-white" />
+                <span class="text-slate-700 font-medium text-sm">Nama Toko</span>
+                <input id="settingStoreName" maxlength="100" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Warung Barokah" />
               </label>
-              <div id="qrisPreviewWrapper" class="mt-3 hidden">
-                <p class="text-xs text-slate-500 mb-2">Preview QRIS tersimpan:</p>
-                <img id="qrisPreviewImg" src="" alt="QRIS" class="w-40 h-40 object-contain border border-slate-200 rounded-2xl bg-white p-2" />
-                <button type="button" id="qrisDeleteBtn" class="mt-2 text-xs text-red-500 hover:text-red-700">🗑 Hapus QRIS</button>
+              <label class="block mt-4">
+                <span class="text-slate-700 font-medium text-sm">Alamat</span>
+                <input id="settingStoreAddress" maxlength="200" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Jl. Merdeka No. 10, Jakarta" />
+              </label>
+              <label class="block mt-4">
+                <span class="text-slate-700 font-medium text-sm">No. Telepon / WhatsApp</span>
+                <input id="settingStorePhone" maxlength="20" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: 08123456789" />
+              </label>
+              <label class="block mt-4">
+                <span class="text-slate-700 font-medium text-sm">Pesan di struk (footer)</span>
+                <input id="settingStoreNote" maxlength="150" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Terima kasih, selamat datang kembali!" />
+              </label>
+              <label class="block mt-4">
+                <span class="text-slate-700 font-medium text-sm">Ukuran Kertas Struk</span>
+                <select id="settingPaperSize" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
+                  <option value="58">58mm (Standar printer thermal kecil)</option>
+                  <option value="80">80mm (Printer thermal besar)</option>
+                </select>
+              </label>
+              <div class="border-t border-slate-100 pt-4 mt-4">
+                <p class="font-semibold text-slate-700 text-sm mb-1">🔲 QRIS Statis</p>
+                <p class="text-xs text-slate-500 mb-3">Upload gambar QRIS toko Anda. Akan muncul otomatis di layar saat kasir memilih metode bayar QRIS.</p>
+                <label class="block">
+                  <span class="text-slate-700 font-medium text-sm">Upload Gambar QRIS</span>
+                  <input type="file" id="qrisFileInput" accept="image/*" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none bg-white" />
+                </label>
+                <div id="qrisPreviewWrapper" class="mt-3 hidden">
+                  <p class="text-xs text-slate-500 mb-2">Preview QRIS tersimpan:</p>
+                  <img id="qrisPreviewImg" src="" alt="QRIS" class="w-40 h-40 object-contain border border-slate-200 rounded-2xl bg-white p-2" />
+                  <button type="button" id="qrisDeleteBtn" class="mt-2 text-xs text-red-500 hover:text-red-700">🗑 Hapus QRIS</button>
+                </div>
               </div>
+              <button id="saveSettingsBtn" class="mt-4 w-full rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">💾 Simpan Pengaturan</button>
+              <div id="settingsSaved" class="hidden text-center text-green-600 text-sm font-medium mt-2">✅ Pengaturan berhasil disimpan!</div>
             </div>
-            <button id="saveSettingsBtn" class="w-full rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">💾 Simpan Pengaturan</button>
-            <div id="settingsSaved" class="hidden text-center text-green-600 text-sm font-medium">✅ Pengaturan berhasil disimpan!</div>
             <button id="openSuperAdminBtn" data-role="superadmin" class="hidden w-full rounded-2xl bg-violet-700 px-5 py-3 text-white font-semibold hover:bg-violet-800 transition">🛡 Admin Panel</button>
           </div>
 
           <!-- Preview struk -->
-          <div class="mt-6 rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
+          <div id="struPreviewSection" class="mt-6 rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
             <p class="text-sm font-medium text-slate-500 mb-4">Preview Struk</p>
             <div class="mx-auto bg-white border border-dashed border-slate-300 p-4 font-mono text-xs leading-relaxed" style="width:220px">
               <p class="text-center font-bold text-sm" id="previewStoreName">NAMA TOKO</p>
@@ -669,6 +708,45 @@
               <div class="border-t border-dashed border-slate-400 my-2"></div>
               <p class="text-center" id="previewStoreNote">Terima kasih!</p>
             </div>
+          </div>
+        </div>
+
+        <!-- Informasi Aplikasi -->
+        <div class="mt-6 max-w-xl" data-role="admin">
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
+            <h4 class="text-lg font-semibold text-slate-800 mb-1">Informasi Aplikasi</h4>
+            <p class="text-slate-500 text-sm mb-4">Versi aplikasi dan alat pemeliharaan cache.</p>
+            <div class="flex items-center gap-2 mb-4">
+              <span class="text-slate-600 text-sm">Versi:</span>
+              <span id="appVersionDisplay" class="font-mono font-semibold text-slate-700 text-sm">-</span>
+            </div>
+            <button id="clearCacheBtn" class="rounded-2xl border border-slate-200 px-5 py-3 text-slate-600 font-semibold hover:bg-slate-50 transition text-sm">Bersihkan Cache Aplikasi</button>
+            <p class="text-xs text-slate-400 mt-2">Membersihkan cache lokal dan memuat ulang halaman. Gunakan jika aplikasi terasa lambat atau tidak terupdate.</p>
+          </div>
+        </div>
+
+        <!-- Hapus Akun -->
+        <div id="deleteAccountSection" class="mt-6 max-w-xl" data-role="admin">
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
+            <h4 class="text-lg font-semibold text-slate-800 mb-1">🔒 Tutup Akun</h4>
+            <p class="text-slate-500 text-sm mb-4">Menutup akun akan menghapus seluruh data toko Anda secara permanen dan tidak dapat dibatalkan.</p>
+            <button id="deleteAccountBtn" class="rounded-2xl border border-red-200 px-5 py-3 text-red-600 font-semibold hover:bg-rose-100 transition">Tutup Akun</button>
+          </div>
+        </div>
+
+        <!-- Akun & Logout (mobile only) -->
+        <div class="mt-6 max-w-xl md:hidden">
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 rounded-full bg-sky-600 flex items-center justify-center text-white font-bold text-lg shrink-0" id="mobileUserAvatar">K</div>
+              <div class="min-w-0">
+                <p class="font-semibold text-sm text-slate-900 truncate" id="mobileUserName">Kasir</p>
+                <span id="mobileUserRole" class="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">Kasir</span>
+              </div>
+            </div>
+            <button id="mobileLogoutButton" class="shrink-0 rounded-2xl border border-slate-200 px-4 py-2.5 min-h-[44px] text-sm font-medium text-slate-600 hover:bg-slate-50 transition">
+              🚪 Keluar
+            </button>
           </div>
         </div>
       </section>
@@ -722,6 +800,11 @@
             <span class="inline-block mt-2 rounded-full bg-sky-100 text-sky-700 px-4 py-1 text-sm font-semibold">Versi 1.0.0</span>
             <p class="mt-4 text-slate-600">Aplikasi kasir lengkap untuk UMKM Indonesia. Point of Sale, Inventory, Laporan, dan lebih banyak fitur dalam satu aplikasi.</p>
             <p class="mt-2 text-slate-500 text-sm font-medium">Dikembangkan untuk UMKM Indonesia</p>
+            <div class="mt-4 flex flex-wrap justify-center gap-2">
+              <a href="about.html" class="text-sm text-sky-600 hover:underline">Tentang</a>
+              <a href="features.html" class="text-sm text-sky-600 hover:underline">Fitur</a>
+              <a href="privacy.html" class="text-sm text-sky-600 hover:underline">Privasi</a>
+            </div>
           </div>
           <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-3">
             <h4 class="font-semibold text-slate-900">Kebijakan Privasi</h4>
@@ -733,9 +816,9 @@
           <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-2">
             <h4 class="font-semibold text-slate-900">Dukungan & Kontak</h4>
             <a href="https://t.me/+veK2jeQuBkQwNzU1" target="_blank" rel="noopener noreferrer"
-              class="inline-flex items-center gap-2 rounded-xl bg-sky-50 border border-sky-200 px-4 py-2 text-sm font-medium text-sky-700 hover:bg-sky-100 transition">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-sky-500"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-              Hubungi via Telegram
+              class="inline-flex items-center gap-2 rounded-2xl bg-sky-50 border border-sky-200 px-3 py-2.5 min-h-[44px] text-sm font-medium text-sky-700 hover:bg-sky-100 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-sky-500 shrink-0"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+              Telegram
             </a>
             <p class="text-slate-600 text-sm">Gratis 30 hari pertama, selanjutnya berlangganan bulanan via QRIS.</p>
           </div>
@@ -801,6 +884,18 @@
           <h4 class="text-lg font-semibold mb-4">Daftar Semua Toko</h4>
           <div id="superAdminTableWrapper">
             <p class="text-slate-400 text-sm">Memuat data...</p>
+          </div>
+        </div>
+
+        <!-- Log Error Aplikasi -->
+        <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
+          <h4 class="text-lg font-semibold mb-1">Log Error Aplikasi</h4>
+          <p class="text-slate-500 text-sm mb-4">Pantau error yang terjadi di sisi klien dari semua toko.</p>
+          <button id="superAdminLoadLogsBtn" class="rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition text-sm">Muat Log</button>
+          <div id="superAdminErrorLogsWrapper" class="mt-4"></div>
+          <div id="superAdminCopyLogsWrapper" class="hidden mt-3 flex items-center gap-3">
+            <button id="superAdminCopyLogsBtn" class="rounded-2xl border border-slate-200 px-4 py-3 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">Salin Semua (JSON)</button>
+            <span id="superAdminCopiedMsg" class="hidden text-emerald-600 text-sm font-medium">Tersalin!</span>
           </div>
         </div>
       </section>
@@ -942,8 +1037,8 @@
         <div class="mt-3">
           <label class="block text-sm text-slate-600 mb-1">Atau ketik kode barcode manual:</label>
           <div class="flex gap-2">
-            <input id="manualBarcodeInput" type="text" placeholder="Masukkan kode barcode..." class="flex-1 rounded-2xl border border-slate-300 px-4 py-2 focus:ring-2 focus:ring-sky-400" />
-            <button id="manualBarcodeSubmit" type="button" class="rounded-2xl bg-slate-800 px-4 py-2 text-white hover:bg-slate-700 transition">Cari</button>
+            <input id="manualBarcodeInput" type="text" placeholder="Masukkan kode barcode..." class="flex-1 rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
+            <button id="manualBarcodeSubmit" type="button" class="rounded-2xl bg-slate-800 px-4 py-3 text-white hover:bg-slate-700 transition">Cari</button>
           </div>
         </div>
       </div>
@@ -1273,6 +1368,41 @@
     </div>
   </div>
 
+  <!-- Modal Hapus Akun -->
+  <div id="deleteAccountModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+        <div>
+          <h3 class="text-xl font-semibold text-slate-800">Konfirmasi Penutupan Akun</h3>
+          <p class="text-slate-500 text-sm">Tindakan ini tidak dapat dibatalkan.</p>
+        </div>
+        <button id="closeDeleteAccountModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          <p class="font-semibold mb-1">⚠️ Data berikut akan dihapus permanen:</p>
+          <ul class="list-disc list-inside space-y-0.5 text-amber-700">
+            <li>Toko, produk, dan transaksi</li>
+            <li>Kasir dan kasbon</li>
+            <li>Riwayat, langganan, dan semua data terkait</li>
+          </ul>
+        </div>
+        <label class="block">
+          <span class="text-slate-700 font-medium text-sm">Ketik ulang email Anda untuk konfirmasi</span>
+          <input id="deleteAccountEmailInput" type="email" autocomplete="off"
+            class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+            placeholder="email@contoh.com" />
+        </label>
+        <div id="deleteAccountError" class="hidden rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+        <button id="deleteAccountConfirmBtn" disabled
+          class="w-full rounded-2xl bg-slate-200 px-5 py-3 text-slate-400 font-semibold transition cursor-not-allowed">
+          Hapus Akun Saya
+        </button>
+        <button type="button" id="cancelDeleteAccountModal" class="w-full rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Chat Bantuan -->
   <button id="helpChatFab" class="hidden fixed bottom-20 md:bottom-6 right-4 z-[90] h-14 w-14 rounded-full bg-gradient-to-br from-teal-400 to-sky-600 text-3xl shadow-xl hover:scale-110 transition-transform flex items-center justify-center no-print" title="Tanya Aisyah">🧕</button>
   <div id="helpChatPanel" class="hidden fixed bottom-36 md:bottom-24 right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm rounded-3xl bg-white border border-slate-200 shadow-2xl flex flex-col overflow-hidden no-print" style="height:28rem">
@@ -1294,6 +1424,6 @@
     </form>
   </div>
 
-  <script src="app.js"></script>
+  <script defer src="app.js"></script>
 </body>
 </html>

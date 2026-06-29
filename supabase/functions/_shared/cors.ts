@@ -1,6 +1,5 @@
-// Origin allowlist via env. Set ALLOWED_ORIGIN to the app origin in production.
 // Falls back to '*' if unset so a fresh deploy doesn't break.
-const allowedOrigin = Deno.env.get('ALLOWED_ORIGIN') ?? '*';
+export const allowedOrigin = Deno.env.get('ALLOWED_ORIGIN') ?? '*';
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': allowedOrigin,

@@ -1,0 +1,27 @@
+# Konteks Project
+Saya (user) adalah non-coder, mengandalkan AI sepenuhnya, tidak bisa edit kode manual.
+Nama project: Kasir UMKM Simpel — aplikasi kasir (POS) & manajemen stok untuk UMKM.
+
+# Stack Teknologi (JANGAN diubah ke framework lain tanpa persetujuan eksplisit)
+- Frontend: HTML + Tailwind CSS + Vanilla JavaScript (app.js)
+- PWA: service-worker.js untuk mode offline, localStorage untuk data sementara di browser
+- Backend/Database: Supabase (PostgreSQL) — skema & migration ada di folder supabase/
+- Edge Functions: TypeScript, ada di folder supabase/functions/
+- Halaman utama: index.html, bisa dibuka langsung dari browser tanpa instalasi/build process
+
+# Fitur Yang Sudah Ada (jangan dihapus/dirusak saat menambah fitur baru)
+- Dashboard: ringkasan statistik & grafik penjualan
+- Kasir: transaksi 1 layar, keranjang belanja, diskon/pajak, cetak struk
+- Inventory: kelola stok barang, indikator stok hampir habis
+- Riwayat Transaksi: pencarian transaksi lama
+- Export Data: unduh laporan ke Excel/CSV
+- Dark mode & dukungan multi-kasir
+
+# Cara Kerja Yang Diwajibkan
+- SELALU berikan kode lengkap (full file replacement), JANGAN snippet/patch parsial.
+- Jangan ganti stack (misal ke React/Next.js) kecuali saya minta secara eksplisit.
+- Sebelum ubah struktur database (tabel di supabase/), jelaskan dulu rencananya dalam poin singkat.
+- Jelaskan setiap perubahan dengan bahasa sederhana, anggap saya tidak mengerti syntax.
+- Hati-hati dengan data di localStorage vs Supabase — pastikan jelas data mana yang tersimpan di browser (offline) dan mana yang sinkron ke Supabase (online), supaya tidak terjadi data hilang/konflik.
+- Jika ada ambiguitas kecil, pilih asumsi paling masuk akal dan lanjutkan; tanya balik hanya untuk keputusan besar/berisiko.
+- Pakai bahasa Indonesia untuk penjelasan ke saya.
