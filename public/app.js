@@ -3637,25 +3637,40 @@ ${txRows}
     new bootstrap.Modal(dom.debtModal).show();
   };
 
+  // Ekspos fungsi ke window agar bisa dipanggil dari HTML onclick/onchange
+  window.addDebtItemRow = addDebtItemRow;
+  window.removeDebtItemRow = removeDebtItemRow;
+  window.updateDebtItemPrice = updateDebtItemPrice;
+
   function addDebtItemRow() {
     const container = dom.debtItemsContainer;
-    const index = state.currentDebtItems.length;
+    if (!container) {
+      console.error('Element debtItemsContainer tidak ditemukan');
+      return;
+    }
     
+    const index = state.currentDebtItems.length;
     const rowId = `debt-item-row-${index}`;
     
     const div = document.createElement('div');
     div.className = 'row g-2 mb-2 align-items-end debt-item-row';
     div.id = rowId;
+    
+    // Handle jika products kosong
+    const productOptions = state.products && state.products.length > 0 
+      ? state.products.map(p => `
+          <option value="${p.id}" data-price="${p.price}" data-name="${esc(p.name)}" data-stock="${p.stock}">
+              ${esc(p.name)} (Stok: ${p.stock})
+          </option>
+        `).join('')
+      : '<option value="" disabled>Tidak ada produk di inventory</option>';
+    
     div.innerHTML = `
         <div class="col-5">
             <label class="form-label small mb-0">Produk</label>
             <select class="form-select form-select-sm debt-product-select" onchange="updateDebtItemPrice(this, ${index})">
                 <option value="">-- Pilih Produk --</option>
-                ${state.products.map(p => `
-                    <option value="${p.id}" data-price="${p.price}" data-name="${p.name}" data-stock="${p.stock}">
-                        ${p.name} (Stok: ${p.stock})
-                    </option>
-                `).join('')}
+                ${productOptions}
             </select>
         </div>
         <div class="col-3">
