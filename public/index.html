@@ -1280,7 +1280,16 @@
         </label>
         <label class="block">
           <span class="text-slate-700 font-medium text-sm">No. WhatsApp <span class="text-slate-400">(opsional, untuk tagih)</span></span>
-          <input id="debtFormPhone" maxlength="20" inputmode="numeric" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: 08123456789" />
+          <input 
+            id="debtFormPhone" 
+            type="tel"
+            pattern="[0-9]*" 
+            inputmode="numeric" 
+            maxlength="20" 
+            oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+            class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-sky-400 focus:outline-none" 
+            placeholder="contoh: 08123456789" 
+          />
         </label>
         <label class="block">
           <span class="text-slate-700 font-medium text-sm">Catatan <span class="text-slate-400">(opsional)</span></span>
