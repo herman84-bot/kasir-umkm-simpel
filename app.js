@@ -1972,17 +1972,20 @@ const App = (() => {
       console.warn('Element purchaseProduct tidak ditemukan');
       return;
     }
+
+    // Pastikan state.products sudah ter-load
+    const products = state.products || [];
     
-    if (!state.products || state.products.length === 0) {
+    if (products.length === 0) {
       dom.purchaseProduct.innerHTML = '<option value="">Belum ada produk - tambahkan produk di menu Inventory terlebih dahulu</option>';
-      console.log('renderPurchaseOptions: tidak ada produk');
+      console.log('renderPurchaseOptions: tidak ada produk di state.products');
       return;
     }
     
-    dom.purchaseProduct.innerHTML = '<option value="">-- Pilih Produk --</option>' + state.products.map(product => `
+    dom.purchaseProduct.innerHTML = '<option value="">-- Pilih Produk --</option>' + products.map(product => `
       <option value="${product.id}">${esc(product.name)} (Stok: ${product.stock})</option>
     `).join('');
-    console.log(`renderPurchaseOptions: ${state.products.length} produk dimuat`);
+    console.log(`renderPurchaseOptions: ${products.length} produk dimuat ke dropdown`);
   };
 
   const renderPurchaseDraft = () => {
