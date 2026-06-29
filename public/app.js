@@ -3620,21 +3620,27 @@ ${txRows}
   };
 
   const openAddDebtModal = async () => {
-    // Gerbang premium: gratis maksimal 5 kasbon aktif
-    const activeCount = (state.debts || []).filter(d => d.status !== 'lunas').length;
-    if (activeCount >= 5 && !await requirePremium('Kasbon lebih dari 5 catatan aktif')) return;
-    
-    // Reset form dan state
-    dom.debtForm?.reset();
-    dom.debtFormError?.classList.add('hidden');
-    dom.debtItemsContainer.innerHTML = '';
-    state.currentDebtItems = [];
-    
-    // Render input item pertama
-    addDebtItemRow();
-    
-    // Tampilkan modal dengan Bootstrap
-    new bootstrap.Modal(dom.debtModal).show();
+    try {
+      // Gerbang premium: gratis maksimal 5 kasbon aktif
+      const activeCount = (state.debts || []).filter(d => d.status !== 'lunas').length;
+      if (activeCount >= 5 && !await requirePremium('Kasbon lebih dari 5 catatan aktif')) return;
+      
+      // Reset form dan state
+      dom.debtForm?.reset();
+      dom.debtFormError?.classList.add('hidden');
+      dom.debtItemsContainer.innerHTML = '';
+      state.currentDebtItems = [];
+      
+      // Render input item pertama
+      addDebtItemRow();
+      
+      // Tampilkan modal dengan Bootstrap
+      const modal = new bootstrap.Modal(dom.debtModal);
+      modal.show();
+    } catch (error) {
+      console.error('Error membuka modal kasbon:', error);
+      alert('Terjadi kesalahan saat membuka form kasbon. Silakan refresh halaman.');
+    }
   };
 
   // Ekspos fungsi ke window agar bisa dipanggil dari HTML onclick/onchange
