@@ -299,7 +299,7 @@
     <main class="flex-1 min-w-0 max-w-full overflow-x-hidden p-3 md:p-6 pb-20 md:pb-6">
       <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-3">
-          <button id="sidebarToggleBtn" class="flex items-center gap-2 text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl font-medium transition shadow-sm border border-slate-200" title="Toggle Sidebar">
+          <button id="sidebarToggleBtn" class="hidden md:block flex items-center gap-2 text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl font-medium transition shadow-sm border border-slate-200" title="Toggle Sidebar">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
             <span>Menu</span>
           </button>
@@ -432,9 +432,9 @@
                 <h3 class="text-xl font-semibold">Cari Produk</h3>
                 <p class="text-slate-500">Klik produk untuk menambah ke keranjang.</p>
               </div>
-              <div class="flex flex-col gap-3 sm:flex-row">
-                <input id="searchInput" type="search" placeholder="Cari nama atau kode..." class="w-full sm:w-72 rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
-                <input id="barcodeInput" type="text" placeholder="Masukkan / scan kode" class="w-full sm:w-72 rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
+              <div class="flex flex-wrap gap-3">
+                <input id="searchInput" type="search" placeholder="Cari nama atau kode..." class="flex-1 min-w-[200px] rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
+                <input id="barcodeInput" type="text" placeholder="Masukkan / scan kode" class="flex-1 min-w-[200px] rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
                 <button id="scanButton" type="button" class="rounded-2xl bg-slate-900 px-5 py-3 text-white hover:bg-slate-800 transition">Scan Barcode</button>
                 <select id="categoryFilter" class="rounded-2xl border border-slate-300 px-4 py-3 bg-white">
                   <option value="All">Semua Kategori</option>
@@ -478,9 +478,9 @@
               <div>
                 <span class="text-slate-700 text-sm font-medium block mb-2">Metode Pembayaran</span>
                 <div class="flex gap-2">
-                  <button type="button" data-paymethod="Tunai" class="paymethod-btn flex-1 rounded-2xl border-2 border-sky-500 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700 transition">💵 Tunai</button>
-                  <button type="button" data-paymethod="QRIS" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-sky-300">📱 QRIS</button>
-                  <button type="button" data-paymethod="Transfer" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-sky-300">🏦 Transfer</button>
+                  <button type="button" data-paymethod="Tunai" class="paymethod-btn flex-1 rounded-2xl border-2 border-sky-500 bg-sky-50 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-sky-700 transition">💵 Tunai</button>
+                  <button type="button" data-paymethod="QRIS" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-slate-600 transition hover:border-sky-300">📱 QRIS</button>
+                  <button type="button" data-paymethod="Transfer" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-slate-600 transition hover:border-sky-300">🏦 Transfer</button>
                 </div>
               </div>
               <div id="cashInputWrapper">
