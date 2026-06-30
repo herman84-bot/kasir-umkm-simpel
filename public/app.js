@@ -2805,6 +2805,7 @@ ${discountHtml}${taxHtml}
 
   const closeReceipt = () => {
     dom.receiptModal.classList.add('hidden');
+    dom.receiptModal.style.display = '';
   };
 
   // ── Feature: Export PDF Laporan ──────────────────────────────────────────
