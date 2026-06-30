@@ -246,9 +246,9 @@
     </div>
   </div>
 
-  <div id="appContainer" class="hidden min-h-screen flex flex-col md:flex-row">
+  <div id="appContainer" class="hidden min-h-screen flex flex-col md:flex-row overflow-x-hidden">
     <!-- Sidebar: hidden on mobile, visible on md+ -->
-    <aside class="hidden md:flex md:w-72 bg-slate-900 text-white px-5 py-6 shadow-lg flex-col">
+    <aside id="mainSidebar" class="hidden md:flex md:w-72 bg-slate-900 text-white px-5 py-6 shadow-lg flex-col transition-all duration-300 shrink-0" style="margin-left: 0px;">
       <div class="mb-8">
         <h1 class="text-2xl font-semibold">Kasir UMKM</h1>
         <p class="text-slate-300 text-sm mt-1">Point of Sale & Inventory</p>
@@ -321,9 +321,14 @@
 
     <main class="flex-1 min-w-0 max-w-full overflow-x-hidden p-3 md:p-6 pb-20 md:pb-6">
       <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 class="text-2xl font-semibold" id="headerTitle">Aplikasi Kasir UMKM</h2>
-          <p class="text-slate-500 text-sm mt-0.5" id="todayDate"></p>
+        <div class="flex items-center gap-3">
+          <button id="sidebarToggleBtn" class="hidden md:block text-slate-500 hover:text-slate-700 p-2 rounded-xl bg-white shadow-sm border border-slate-200 transition" title="Toggle Sidebar">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+          </button>
+          <div>
+            <h2 class="text-2xl font-semibold" id="headerTitle">Aplikasi Kasir UMKM</h2>
+            <p class="text-slate-500 text-sm mt-0.5" id="todayDate"></p>
+          </div>
         </div>
         <div class="flex flex-wrap items-center gap-2 text-sm">
           <div class="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm text-slate-600" id="storeSwitcherWrapper" style="display:none">
@@ -1424,6 +1429,21 @@
     </form>
   </div>
 
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const toggleBtn = document.getElementById('sidebarToggleBtn');
+      const sidebar = document.getElementById('mainSidebar');
+      if (toggleBtn && sidebar) {
+        toggleBtn.addEventListener('click', () => {
+          if (sidebar.style.marginLeft === '-288px') {
+            sidebar.style.marginLeft = '0px';
+          } else {
+            sidebar.style.marginLeft = '-288px';
+          }
+        });
+      }
+    });
+  </script>
   <script defer src="app.js"></script>
 </body>
 </html>
