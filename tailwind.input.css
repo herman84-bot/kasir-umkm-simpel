@@ -2,6 +2,63 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  .dark body {
+    @apply bg-slate-900 text-slate-100;
+  }
+  
+  /* Containers & Cards */
+  .dark .bg-white {
+    background-color: theme('colors.slate.800') !important;
+  }
+  .dark .bg-slate-50 {
+    background-color: theme('colors.slate.900') !important;
+  }
+  .dark .bg-slate-100 {
+    background-color: theme('colors.slate.700') !important;
+  }
+  .dark .bg-slate-200 {
+    background-color: theme('colors.slate.600') !important;
+  }
+  
+  /* Text */
+  .dark .text-slate-900,
+  .dark .text-slate-800 {
+    color: theme('colors.slate.100') !important;
+  }
+  .dark .text-slate-700 {
+    color: theme('colors.slate.300') !important;
+  }
+  .dark .text-slate-600 {
+    color: theme('colors.slate.400') !important;
+  }
+  
+  /* Borders */
+  .dark .border-slate-200 {
+    border-color: theme('colors.slate.700') !important;
+  }
+  
+  /* Hover States (like the toggle button) */
+  .dark .hover\:bg-slate-100:hover {
+    background-color: theme('colors.slate.700') !important;
+  }
+  .dark .hover\:bg-slate-200:hover {
+    background-color: theme('colors.slate.600') !important;
+  }
+  
+  /* Specifically for the sidebar */
+  .dark #mainSidebar {
+    background-color: theme('colors.slate.950') !important;
+    border-right: 1px solid theme('colors.slate.800') !important;
+  }
+  
+  /* Bottom Nav */
+  .dark #bottomNav {
+    background-color: theme('colors.slate.950') !important;
+    border-top: 1px solid theme('colors.slate.800') !important;
+  }
+}
+
 @media (min-width: 768px) {
   #mainSidebar.sidebar-collapsed {
     margin-left: -18rem !important;
@@ -9,4 +66,3 @@
     pointer-events: none;
   }
 }
-

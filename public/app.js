@@ -1195,8 +1195,10 @@ const App = (() => {
   };
 
   const applyTheme = () => {
-    document.body.classList.toggle('dark', state.darkMode);
-    dom.themeToggle.textContent = state.darkMode ? '☀️ Terang' : '🌙 Tema';
+    document.documentElement.classList.toggle('dark', state.darkMode);
+    dom.themeToggle.innerHTML = state.darkMode 
+      ? '<span>☀️</span><span class="hidden sm:inline"> Terang</span>' 
+      : '<span>🌙</span><span class="hidden sm:inline"> Tema</span>';
   };
 
   // ── Kelola Kasir ──────────────────────────────────────────────────────────
