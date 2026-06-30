@@ -3733,7 +3733,6 @@ ${txRows}
     applyTheme();
     dom.reportRangeSelect.value = state.reportRange;
     dom.historySearchInput.value = state.historySearch;
-    renderPurchaseHistory();
     switch (_activeScreenId) {
       case 'dashboard':
         updateDashboard();
