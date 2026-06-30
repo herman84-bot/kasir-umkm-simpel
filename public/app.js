@@ -3042,6 +3042,15 @@ ${txRows}
   };
 
   const bindEvents = () => {
+    const toggleBtn = document.getElementById('sidebarToggleBtn');
+    const sidebar = document.getElementById('mainSidebar');
+    if (toggleBtn && sidebar) {
+      toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('md:flex');
+        sidebar.classList.toggle('md:hidden');
+      });
+    }
+
     dom.menuButtons.forEach(button => {
       button.addEventListener('click', () => showScreen(button.dataset.screen));
     });
