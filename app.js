@@ -1716,6 +1716,10 @@ const App = (() => {
   };
 
   const renderPurchaseHistory = () => {
+    if (!state?.purchases) {
+      dom.purchaseTable.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-500">Belum ada data pembelian.</td></tr>';
+      return;
+    }
     dom.purchaseTable.innerHTML = state.purchases.slice().reverse().map(order => {
       const time = new Date(order.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short', year: 'numeric' });
       return `
@@ -3729,6 +3733,7 @@ ${txRows}
     applyTheme();
     dom.reportRangeSelect.value = state.reportRange;
     dom.historySearchInput.value = state.historySearch;
+    renderPurchaseHistory();
     switch (_activeScreenId) {
       case 'dashboard':
         updateDashboard();
