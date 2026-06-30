@@ -248,7 +248,7 @@
 
   <div id="appContainer" class="hidden min-h-screen flex flex-col md:flex-row overflow-x-hidden">
     <!-- Sidebar: hidden on mobile, visible on md+ -->
-    <aside id="mainSidebar" class="hidden md:flex md:w-72 bg-slate-900 text-white px-5 py-6 shadow-lg flex-col transition-all duration-300 shrink-0" style="margin-left: 0px;">
+    <aside id="mainSidebar" class="hidden md:flex md:w-72 bg-slate-900 text-white px-5 py-6 shadow-lg flex-col transition-all duration-300 shrink-0">
       <div class="mb-8">
         <h1 class="text-2xl font-semibold">Kasir UMKM</h1>
         <p class="text-slate-300 text-sm mt-1">Point of Sale & Inventory</p>
@@ -1429,21 +1429,7 @@
     </form>
   </div>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const toggleBtn = document.getElementById('sidebarToggleBtn');
-      const sidebar = document.getElementById('mainSidebar');
-      if (toggleBtn && sidebar) {
-        toggleBtn.addEventListener('click', () => {
-          if (sidebar.style.marginLeft === '-288px') {
-            sidebar.style.marginLeft = '0px';
-          } else {
-            sidebar.style.marginLeft = '-288px';
-          }
-        });
-      }
-    });
-  </script>
+
   <script defer src="app.js"></script>
 </body>
 </html>
