@@ -3236,8 +3236,7 @@ ${txRows}
     const sidebar = document.getElementById('mainSidebar');
     if (toggleBtn && sidebar) {
       toggleBtn.addEventListener('click', () => {
-        sidebar.classList.toggle('md:flex');
-        sidebar.classList.toggle('md:hidden');
+        sidebar.classList.toggle('sidebar-collapsed');
       });
     }
     dom.menuButtons.forEach(button => {
