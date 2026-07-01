@@ -4234,16 +4234,48 @@ ${txRows}
     const wrapper = document.getElementById('superAdminTableWrapper');
     if (wrapper) wrapper.innerHTML = '<p class="text-slate-400 text-sm">Memuat data...</p>';
     try {
-      const { data, error } = await db.functions.invoke('admin-subscription', {
+      // Strategi 1: panggil RPC list_all_stores_for_admin (lebih andal, tanpa Edge Function)
+      const { data: rpcStores, error: rpcErr } = await db.rpc('list_all_stores_for_admin');
+      if (!rpcErr && rpcStores) {
+        console.log('[SuperAdmin] RPC berhasil, jumlah toko:', rpcStores.length);
+        const now = Date.now();
+        const enriched = rpcStores.map(s => {
+          const trialMs = s.trial_ends_at ? new Date(s.trial_ends_at).getTime() : null;
+          const premMs  = s.premium_until ? new Date(s.premium_until).getTime()  : null;
+          const bizMs   = s.business_until ? new Date(s.business_until).getTime() : null;
+          let subscription_status = 'Gratis';
+          if (bizMs  && bizMs  > now) subscription_status = 'Bisnis';
+          else if (premMs && premMs > now) subscription_status = 'Premium';
+          else if (trialMs && trialMs > now) subscription_status = 'Trial';
+          return { ...s, subscription_status };
+        });
+        superAdminRenderTable(enriched);
+        return;
+      }
+      console.warn('[SuperAdmin] RPC gagal, fallback ke Edge Function:', rpcErr?.message);
+
+      // Strategi 2 (fallback): panggil Edge Function admin-subscription
+      const res = await db.functions.invoke('admin-subscription', {
         body: { action: 'list_stores' }
       });
-      if (error || !data?.stores) {
-        if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat data toko.</p>';
+      const { error } = res;
+      let { data } = res;
+      if (error) {
+        console.error('[SuperAdmin] invoke error:', error);
+        if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat data toko: ' + esc(error.message || JSON.stringify(error)) + '</p>';
+        return;
+      }
+      if (typeof data === 'string') {
+        try { data = JSON.parse(data); } catch (_) {}
+      }
+      if (!data?.stores) {
+        if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat data toko (data kosong). Periksa Console.</p>';
         return;
       }
       superAdminRenderTable(data.stores);
     } catch (e) {
-      if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Terjadi kesalahan koneksi.</p>';
+      console.error('[SuperAdmin] exception:', e);
+      if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Terjadi kesalahan koneksi: ' + esc(e.message || '') + '</p>';
     }
   };
 

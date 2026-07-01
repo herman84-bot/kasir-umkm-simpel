@@ -4330,21 +4330,65 @@ ${txRows}
     if (wrapper) wrapper.innerHTML = '<p class="text-slate-400 text-sm">Memuat data...</p>';
     if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
     try {
-      const { data, error } = await db.functions.invoke('admin-subscription', {
+      // Strategi 1: panggil RPC list_all_stores_for_admin (lebih andal, tanpa Edge Function)
+      const { data: rpcStores, error: rpcErr } = await db.rpc('list_all_stores_for_admin');
+      if (!rpcErr && rpcStores) {
+        console.log('[SuperAdmin] RPC berhasil, jumlah toko:', rpcStores.length);
+        // Hitung status langganan di client
+        const now = Date.now();
+        const enriched = rpcStores.map(s => {
+          const trialMs = s.trial_ends_at ? new Date(s.trial_ends_at).getTime() : null;
+          const premMs  = s.premium_until ? new Date(s.premium_until).getTime()  : null;
+          const bizMs   = s.business_until ? new Date(s.business_until).getTime() : null;
+          let subscription_status = 'Gratis';
+          if (bizMs  && bizMs  > now) subscription_status = 'Bisnis';
+          else if (premMs && premMs > now) subscription_status = 'Premium';
+          else if (trialMs && trialMs > now) subscription_status = 'Trial';
+          return { ...s, subscription_status };
+        });
+        superAdminRenderTable(enriched);
+        return;
+      }
+      console.warn('[SuperAdmin] RPC gagal, fallback ke Edge Function:', rpcErr?.message);
+
+      // Strategi 2 (fallback): panggil Edge Function admin-subscription
+      const res = await db.functions.invoke('admin-subscription', {
         body: { action: 'list_stores' }
       });
-      if (error || !data?.stores) {
+      console.log('[SuperAdmin] Edge Function result:', res);
+      let { data, error } = res;
+
+      if (error) {
+        let errDetail = error.message || '';
+        try {
+          if (error.context && typeof error.context.json === 'function') {
+            const errBody = await error.context.json();
+            errDetail = errBody?.error || errDetail;
+          }
+        } catch (_) {}
+        console.error('[SuperAdmin] invoke error:', error);
         const httpStatus = error?.context?.status ?? error?.status ?? null;
         const statusSuffix = httpStatus ? ` (HTTP ${httpStatus})` : '';
-        console.error('superAdminLoadStores error:', error);
-        superAdminShowMsg('error', `Gagal memuat data toko${statusSuffix}.`);
-        if (wrapper) wrapper.innerHTML = `<p class="text-rose-500 text-sm">Gagal memuat data toko${statusSuffix}.</p>`;
+        superAdminShowMsg('error', `Gagal memuat data toko${statusSuffix}: ${errDetail}`);
+        if (wrapper) wrapper.innerHTML = `<p class="text-rose-500 text-sm">Gagal memuat data toko${statusSuffix}: ${esc(errDetail)}</p>`;
+        if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
+        return;
+      }
+
+      // Supabase JS v2 kadang mengembalikan data sebagai string JSON
+      if (typeof data === 'string') {
+        try { data = JSON.parse(data); } catch (_) {}
+      }
+
+      if (!data?.stores) {
+        console.warn('[SuperAdmin] data tidak mengandung stores:', data);
+        if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Respons tidak mengandung data toko. Periksa Console (F12).</p>';
         if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
         return;
       }
       superAdminRenderTable(data.stores);
     } catch (e) {
-      console.error('superAdminLoadStores error:', e);
+      console.error('[SuperAdmin] exception:', e);
       const errMsg = e?.message ? ` — ${e.message}` : '';
       superAdminShowMsg('error', `Terjadi kesalahan koneksi${errMsg}.`);
       if (wrapper) wrapper.innerHTML = `<p class="text-rose-500 text-sm">Terjadi kesalahan koneksi${e?.message ? ` — ${esc(e.message)}` : ''}.</p>`;

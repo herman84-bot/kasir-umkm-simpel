@@ -89,13 +89,20 @@ Deno.serve(async (req) => {
         );
       }
 
-      const ownerIds: string[] = [...new Set((stores ?? []).map((s: Record<string, unknown>) => s.owner_id as string))];
+      const ownerIds: string[] = [...new Set((stores ?? [])
+        .map((s: Record<string, unknown>) => s.owner_id as string)
+        .filter(Boolean)
+      )];
       const emailMap: Record<string, string> = {};
       if (ownerIds.length) {
         await Promise.all(
           ownerIds.map(async (ownerId) => {
-            const { data: userData } = await supabaseAdmin.auth.admin.getUserById(ownerId);
-            if (userData?.user?.email) emailMap[ownerId] = userData.user.email;
+            try {
+              const { data: userData } = await supabaseAdmin.auth.admin.getUserById(ownerId);
+              if (userData?.user?.email) emailMap[ownerId] = userData.user.email;
+            } catch (e) {
+              console.error(`Gagal mengambil user ${ownerId}:`, e);
+            }
           }),
         );
       }
