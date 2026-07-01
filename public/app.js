@@ -956,6 +956,8 @@ const App = (() => {
         .from('products').select('*').eq('store_id', state.storeId).order('id', { ascending: true });
       if (pErr) throw pErr;
       state.products = products ? products.map(fromDbProduct) : [];
+      // Bersihkan cache localStorage lama yang mungkin berisi produk UUID (offline/pra-Supabase)
+      // Setelah Supabase berhasil dimuat, localStorage akan ditimpa saat syncStorage() dipanggil
 
       setLoadingStatus('Memuat kasir...', 55);
       const { data: cashiers } = await db
