@@ -1567,7 +1567,7 @@ const App = (() => {
           <td class="p-3">${esc(order.items.length)} produk</td>
           <td class="p-3">${esc(order.status)}</td>
           <td class="p-3">
-            ${order.status !== 'Diretur' ? `<button data-retur="${esc(order.id)}" class="rounded-xl bg-red-50 border border-red-200 px-3 py-1.5 text-red-700 text-xs font-medium hover:bg-red-100 transition">📤 Retur</button>` : '<span class="text-slate-400 text-xs">Selesai Diretur</span>'}
+            ${order.status !== 'Diretur' ? `<button data-retur="${esc(order.id)}" class="rounded-xl bg-red-600 px-4 py-1.5 text-white text-xs font-semibold hover:bg-red-700 transition shadow-sm">📤 Retur</button>` : '<span class="text-slate-400 text-xs">Selesai Diretur</span>'}
           </td>
         </tr>
       `;

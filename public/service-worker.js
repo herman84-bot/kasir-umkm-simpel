@@ -1,4 +1,4 @@
-const CACHE_NAME = "kasir-umkm-v4";
+const CACHE_NAME = "kasir-umkm-v5";
 const ASSETS = [
   '.',
   'index.html',
