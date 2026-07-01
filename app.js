@@ -1014,6 +1014,22 @@ const App = (() => {
     const { data, error } = await db.from('stores').select('*').order('created_at', { ascending: true });
     if (error) { console.warn('loadStore error:', error); return null; }
     state.stores = data || [];
+    
+    document.getElementById('closeAdjustmentModal')?.addEventListener('click', closeAdjustmentModal);
+    document.getElementById('adjustmentForm')?.addEventListener('submit', saveAdjustment);
+    document.getElementById('closeLedgerModal')?.addEventListener('click', closeLedgerModal);
+    document.getElementById('startOpnameButton')?.addEventListener('click', startOpname);
+    document.getElementById('applyOpnameButton')?.addEventListener('click', applyOpname);
+
+    // Force service worker update for new deployments
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.update();
+        }
+      });
+    }
+
     if (!state.stores.length) { state.store = null; state.storeId = null; return null; }
 
     // Pilih cabang aktif: yang terakhir dipilih (jika masih ada) atau cabang pertama
@@ -2511,11 +2527,6 @@ const App = (() => {
       button.classList.toggle('text-white', button.dataset.screen === screenId);
     });
     // Update bottom nav active state
-    document.getElementById('closeAdjustmentModal')?.addEventListener('click', closeAdjustmentModal);
-    document.getElementById('adjustmentForm')?.addEventListener('submit', saveAdjustment);
-    document.getElementById('closeLedgerModal')?.addEventListener('click', closeLedgerModal);
-    document.getElementById('startOpnameButton')?.addEventListener('click', startOpname);
-    document.getElementById('applyOpnameButton')?.addEventListener('click', applyOpname);
 
     document.querySelectorAll('.menu-btn, .bottom-nav-btn').forEach(btn => {
       const isActive = btn.dataset.screen === screenId;
