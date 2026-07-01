@@ -123,8 +123,8 @@ setTimeout(() => {
   // Verify desktop toggle button classes
   const btnClasses = Array.from(toggleBtn.classList);
   console.log('Toggle Button classes:', btnClasses.join(' '));
-  if (!btnClasses.includes('hidden') || !btnClasses.includes('md:block')) {
-    console.error('FAIL: #sidebarToggleBtn must be hidden by default (mobile) and display block on md+ (desktop)');
+  if (!btnClasses.includes('hidden') || (!btnClasses.includes('md:block') && !btnClasses.includes('md:flex'))) {
+    console.error('FAIL: #sidebarToggleBtn must be hidden by default (mobile) and display block or flex on md+ (desktop)');
     process.exit(1);
   }
   

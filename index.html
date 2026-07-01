@@ -92,6 +92,13 @@
       #receiptContent { position: absolute; left: 0; top: 0; width: 100%; }
       .no-print { display: none !important; }
     }
+    #bottomNav {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    #bottomNav::-webkit-scrollbar {
+      display: none;
+    }
   </style>
   <script type="application/ld+json">
   {
@@ -280,40 +287,40 @@
     </aside>
 
     <!-- Bottom Navigation Bar: visible on mobile only -->
-    <nav id="bottomNav" class="fixed bottom-0 left-0 right-0 z-40 bg-slate-900 md:hidden flex items-stretch border-t border-slate-700">
-      <button data-screen="dashboard" data-role="admin" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+    <nav id="bottomNav" class="fixed bottom-0 left-0 right-0 z-40 bg-slate-900 md:hidden flex items-stretch border-t border-slate-700 overflow-x-auto">
+      <button data-screen="dashboard" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">📊</span>
         <span class="text-[10px] mt-0.5 leading-tight">Dashboard</span>
       </button>
-      <button data-screen="kasir" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+      <button data-screen="kasir" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">🧾</span>
         <span class="text-[10px] mt-0.5 leading-tight">Kasir</span>
       </button>
-      <button data-screen="inventory" data-role="admin" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+      <button data-screen="inventory" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">📦</span>
         <span class="text-[10px] mt-0.5 leading-tight">Inventory</span>
       </button>
-      <button data-screen="pembelian" data-role="admin" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+      <button data-screen="pembelian" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">🛍</span>
         <span class="text-[10px] mt-0.5 leading-tight">Beli</span>
       </button>
-      <button data-screen="riwayat" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+      <button data-screen="riwayat" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">📋</span>
         <span class="text-[10px] mt-0.5 leading-tight">Riwayat</span>
       </button>
-      <button data-screen="kasbon" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+      <button data-screen="kasbon" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">📒</span>
         <span class="text-[10px] mt-0.5 leading-tight">Kasbon</span>
       </button>
-      <button data-screen="kelolaKasir" data-role="admin" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+      <button data-screen="kelolaKasir" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">👥</span>
         <span class="text-[10px] mt-0.5 leading-tight">Kasir</span>
       </button>
-      <button data-screen="pengaturan" data-role="admin" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+      <button data-screen="pengaturan" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">⚙️</span>
         <span class="text-[10px] mt-0.5 leading-tight">Atur</span>
       </button>
-      <button data-screen="tentang" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+      <button data-screen="tentang" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">ℹ️</span>
         <span class="text-[10px] mt-0.5 leading-tight">Tentang</span>
       </button>
@@ -322,7 +329,7 @@
     <main class="flex-1 min-w-0 max-w-full overflow-x-hidden p-3 md:p-6 pb-20 md:pb-6">
       <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-3">
-          <button id="sidebarToggleBtn" class="hidden md:block flex items-center gap-2 text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl font-medium transition shadow-sm border border-slate-200" title="Toggle Sidebar">
+          <button id="sidebarToggleBtn" class="hidden md:flex items-center gap-2 text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl font-medium transition shadow-sm border border-slate-200" title="Toggle Sidebar">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
             <span>Menu</span>
           </button>

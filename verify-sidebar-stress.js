@@ -74,9 +74,9 @@ if (!sidebarClasses.includes('hidden') || !sidebarClasses.includes('md:flex')) {
   process.exit(1);
 }
 
-// Ensure toggleBtn is hidden on mobile, block on desktop
-if (!toggleBtnClasses.includes('hidden') || !toggleBtnClasses.includes('md:block')) {
-  console.error('FAIL: #sidebarToggleBtn must have "hidden" and "md:block" classes for mobile/desktop responsiveness');
+// Ensure toggleBtn is hidden on mobile, block or flex on desktop
+if (!toggleBtnClasses.includes('hidden') || (!toggleBtnClasses.includes('md:block') && !toggleBtnClasses.includes('md:flex'))) {
+  console.error('FAIL: #sidebarToggleBtn must have "hidden" and "md:block" or "md:flex" classes for mobile/desktop responsiveness');
   process.exit(1);
 }
 console.log('PASS: Responsive classes verified in HTML.');
