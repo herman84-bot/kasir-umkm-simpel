@@ -20,6 +20,7 @@ DECLARE
   v_qty numeric;
   v_price numeric;
   v_product_name text;
+  v_new_stock numeric;
 BEGIN
   -- 1. Insert into debts
   INSERT INTO public.debts (store_id, customer_name, phone, amount, note, status, items)
@@ -44,8 +45,18 @@ BEGIN
     VALUES (v_transaction_id, v_product_id, v_product_name, v_qty, v_price, v_qty * v_price);
 
     -- Decrement stock and write to ledger
-    -- Using the existing decrement_stock function with reference type 'kasbon'
-    PERFORM public.decrement_stock(v_product_id, v_qty, 'kasbon', v_debt_id::text, p_cashier_name);
+    UPDATE public.products
+    SET stock = GREATEST(0, stock - v_qty)
+    WHERE id = v_product_id AND store_id = p_store_id
+    RETURNING stock INTO v_new_stock;
+
+    IF v_new_stock IS NOT NULL THEN
+      INSERT INTO public.stock_ledgers (
+        store_id, product_id, reference_type, reference_id, qty_changed, balance_stock, cashier_name, reason
+      ) VALUES (
+        p_store_id, v_product_id, 'kasbon', v_debt_id::text, -v_qty, v_new_stock, p_cashier_name, 'Kasbon'
+      );
+    END IF;
   END LOOP;
 
   -- Return the new debt ID and transaction ID
