@@ -4065,7 +4065,7 @@ ${txRows}
     const rowId = `debt-item-row-${index}`;
     
     const div = document.createElement('div');
-    div.className = 'row g-2 mb-2 align-items-end debt-item-row';
+    div.className = 'flex gap-2 mb-2 items-center debt-item-row';
     div.id = rowId;
     
     // Handle jika products kosong
@@ -4078,24 +4078,21 @@ ${txRows}
       : '<option value="" disabled>Tidak ada produk di inventory</option>';
     
     div.innerHTML = `
-        <div class="col-5">
-            <label class="form-label small mb-0">Produk</label>
-            <select class="form-select form-select-sm debt-product-select" onchange="updateDebtItemPrice(this, ${index})">
-                <option value="">-- Pilih Produk --</option>
+        <div class="w-[45%]">
+            <select class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none debt-product-select" onchange="updateDebtItemPrice(this, ${index})">
+                <option value="">-- Produk --</option>
                 ${productOptions}
             </select>
         </div>
-        <div class="col-3">
-            <label class="form-label small mb-0">Qty</label>
-            <input type="number" class="form-control form-control-sm debt-qty-input" min="1" value="1" onchange="calculateDebtTotal()">
+        <div class="w-[20%]">
+            <input type="number" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none debt-qty-input" min="1" value="1" onchange="calculateDebtTotal()">
         </div>
-        <div class="col-3">
-            <label class="form-label small mb-0">Subtotal</label>
-            <input type="text" class="form-control form-control-sm debt-subtotal-input" readonly value="0">
+        <div class="w-[25%]">
+            <input type="text" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none debt-subtotal-input bg-slate-50" readonly value="0">
         </div>
-        <div class="col-1">
-             <button type="button" class="btn btn-sm btn-outline-danger mb-1" onclick="removeDebtItemRow('${rowId}')">
-                <i class="bi bi-x"></i>
+        <div class="w-[10%] flex justify-end">
+             <button type="button" class="rounded-xl bg-rose-100 text-rose-600 px-3 py-1.5 hover:bg-rose-200 transition font-bold" onclick="removeDebtItemRow('${rowId}')">
+                ×
              </button>
         </div>
     `;
