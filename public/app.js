@@ -911,6 +911,14 @@ const App = (() => {
     const _now = Date.now();
     const _bizExpiries = ['trial_ends_at', 'business_until'].map(c => primary[c]).filter(Boolean).map(d => new Date(d).getTime());
     const bizActiveForLoad = _bizExpiries.length === 0 ? true : Math.max(..._bizExpiries) > _now;
+    if (!db || !state.storeId) {
+      state.products = JSON.parse(localStorage.getItem(STORAGE.products) || '[]');
+      state.transactions = JSON.parse(localStorage.getItem(STORAGE.transactions) || '[]');
+      state.cashiers = JSON.parse(localStorage.getItem(STORAGE.cashiers) || '[]');
+      state.purchases = JSON.parse(localStorage.getItem(STORAGE.purchases) || '[]');
+      try { state.debts = JSON.parse(localStorage.getItem('pos_debts') || '[]'); } catch { state.debts = []; }
+      return;
+    }
     if (!bizActiveForLoad && String(active.id) !== String(primary.id)) {
       active = primary;
     }
@@ -1000,7 +1008,11 @@ const App = (() => {
         console.warn('Kasbon belum aktif (jalankan supabase/05_kasbon.sql):', dErr.message);
         try { state.debts = JSON.parse(localStorage.getItem('pos_debts') || '[]'); } catch { state.debts = []; }
       } else {
-        state.debts = debts || [];
+        if (debts && debts.length > 0) {
+          state.debts = debts;
+        } else {
+          try { state.debts = JSON.parse(localStorage.getItem('pos_debts') || '[]'); } catch { state.debts = []; }
+        }
       }
 
       setLoadingStatus('Siap!', 100);
@@ -1010,6 +1022,7 @@ const App = (() => {
       state.transactions = state.transactions || [];
       state.cashiers = state.cashiers || [];
       state.purchases = state.purchases || [];
+      try { state.debts = JSON.parse(localStorage.getItem('pos_debts') || '[]'); } catch { state.debts = []; }
     }
 
     syncStorage();
