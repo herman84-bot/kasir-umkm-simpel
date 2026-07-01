@@ -4079,16 +4079,16 @@ ${txRows}
     
     div.innerHTML = `
         <div class="w-[45%]">
-            <select class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none debt-product-select" onchange="updateDebtItemPrice(this, ${index})">
+            <select class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none debt-product-select dark:bg-slate-800 dark:text-white dark:border-slate-600" onchange="updateDebtItemPrice(this, ${index})">
                 <option value="">-- Produk --</option>
                 ${productOptions}
             </select>
         </div>
         <div class="w-[20%]">
-            <input type="number" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none debt-qty-input" min="1" value="1" onchange="calculateDebtTotal()">
+            <input type="number" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none debt-qty-input dark:bg-slate-800 dark:text-white dark:border-slate-600" min="1" value="1" onchange="calculateDebtTotal()">
         </div>
         <div class="w-[25%]">
-            <input type="text" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none debt-subtotal-input bg-slate-50" readonly value="0">
+            <input type="text" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none debt-subtotal-input bg-slate-50 dark:bg-slate-800 dark:text-white dark:border-slate-600" readonly value="0">
         </div>
         <div class="w-[10%] flex justify-end">
              <button type="button" class="rounded-xl bg-rose-100 text-rose-600 px-3 py-1.5 hover:bg-rose-200 transition font-bold" onclick="removeDebtItemRow('${rowId}')">
