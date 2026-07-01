@@ -4053,6 +4053,7 @@ ${txRows}
   window.addDebtItemRow = addDebtItemRow;
   window.removeDebtItemRow = removeDebtItemRow;
   window.updateDebtItemPrice = updateDebtItemPrice;
+  window.calculateDebtTotal = calculateDebtTotal;
 
   function addDebtItemRow() {
     const container = dom.debtItemsContainer;
@@ -4085,7 +4086,7 @@ ${txRows}
             </select>
         </div>
         <div class="w-[20%]">
-            <input type="number" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none debt-qty-input dark:bg-slate-800 dark:text-white dark:border-slate-600" min="1" value="1" onchange="calculateDebtTotal()">
+            <input type="number" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none debt-qty-input dark:bg-slate-800 dark:text-white dark:border-slate-600" min="1" value="1" oninput="calculateDebtTotal()">
         </div>
         <div class="w-[25%]">
             <input type="text" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none debt-subtotal-input bg-slate-50 dark:bg-slate-800 dark:text-white dark:border-slate-600" readonly value="0">
