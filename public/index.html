@@ -1423,13 +1423,22 @@
           </div>
           <button id="closeReturnPurchaseModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">&times;</button>
         </div>
-        <form id="returnPurchaseForm" class="p-6 space-y-4 overflow-y-auto flex-1">
-          <div id="returnItemsList" class="space-y-4"></div>
-          <label class="block">
-            <span class="text-slate-700 font-medium text-sm">Alasan Retur</span>
-            <input id="returnReason" type="text" required maxlength="150" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-red-400 focus:outline-none" placeholder="Contoh: Barang rusak, salah kirim, kadaluarsa" />
-          </label>
-          <button type="submit" class="w-full rounded-2xl bg-red-600 px-5 py-3 text-white font-semibold hover:bg-red-700 transition">📤 Kirim Retur ke Supplier</button>
+        <form id="returnPurchaseForm" class="flex flex-col flex-1 overflow-hidden">
+          <div class="p-6 space-y-4 overflow-y-auto flex-1">
+            <div id="returnItemsList" class="space-y-4"></div>
+            <label class="block">
+              <span class="text-slate-700 font-medium text-sm">Alasan Retur</span>
+              <input id="returnReason" type="text" required maxlength="150" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-red-400 focus:outline-none" placeholder="Contoh: Barang rusak, salah kirim, kadaluarsa" />
+            </label>
+          </div>
+          <div class="p-5 border-t border-slate-100 flex justify-end bg-slate-50">
+            <button type="submit" class="rounded-2xl bg-red-600 px-6 py-2.5 text-white font-semibold hover:bg-red-700 transition flex items-center gap-2 shadow-sm shadow-red-200">
+              <span>Kirim Retur ke Supplier</span>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </form>
       </div>
     </div>
