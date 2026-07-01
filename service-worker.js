@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kasir-umkm-cache-v23';
+const CACHE_NAME = 'kasir-umkm-cache-v25';
 // CATATAN PENTING: jangan masukkan 'index.html' di sini. Vercel cleanUrls=true
 // me-redirect /index.html -> / (308); Cache API menolak menyimpan response
 // hasil redirect sehingga cache.addAll() reject dan install SW GAGAL TOTAL —

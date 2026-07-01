@@ -756,6 +756,27 @@ const App = (() => {
     barcodeInput: document.getElementById('barcodeInput'),
     productBarcode: document.getElementById('productBarcode'),
     inventoryScanButton: document.getElementById('inventoryScanButton'),
+    // Inventory: Adjustment, Ledger, Opname
+    adjustmentModal: document.getElementById('adjustmentModal'),
+    adjustmentModalTitle: document.getElementById('adjustmentModalTitle'),
+    closeAdjustmentModal: document.getElementById('closeAdjustmentModal'),
+    adjustmentForm: document.getElementById('adjustmentForm'),
+    adjProductId: document.getElementById('adjProductId'),
+    adjCurrentStock: document.getElementById('adjCurrentStock'),
+    adjDirection: document.getElementById('adjDirection'),
+    adjQty: document.getElementById('adjQty'),
+    adjReason: document.getElementById('adjReason'),
+    adjNote: document.getElementById('adjNote'),
+    ledgerModal: document.getElementById('ledgerModal'),
+    ledgerProductName: document.getElementById('ledgerProductName'),
+    ledgerTableBody: document.getElementById('ledgerTableBody'),
+    closeLedgerModal: document.getElementById('closeLedgerModal'),
+    startOpnameButton: document.getElementById('startOpnameButton'),
+    applyOpnameButton: document.getElementById('applyOpnameButton'),
+    opnameTable: document.getElementById('opnameTable'),
+    opnameSummary: document.getElementById('opnameSummary'),
+    opnameTotalLoss: document.getElementById('opnameTotalLoss'),
+    opnameItemCount: document.getElementById('opnameItemCount'),
     receiptModal: document.getElementById('receiptModal'),
     closeReceipt: document.getElementById('closeReceipt'),
     closeReceiptBottom: document.getElementById('closeReceiptBottom'),
@@ -2173,6 +2194,8 @@ const App = (() => {
           <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${criticalClass}">${product.stock} / min ${product.minStock || 5}</span></td>
           <td class="p-3 space-x-2">
             <button data-edit="${product.id}" class="rounded-2xl bg-slate-900 px-4 py-2 text-white text-sm">Edit</button>
+            <button data-adjust="${product.id}" class="rounded-2xl bg-amber-500 px-4 py-2 text-white text-sm">Atur Stok</button>
+            <button data-ledger="${product.id}" class="rounded-2xl bg-sky-600 px-4 py-2 text-white text-sm">Riwayat</button>
             <button data-delete="${product.id}" class="rounded-2xl bg-rose-600 px-4 py-2 text-white text-sm">Hapus</button>
           </td>
         </tr>
@@ -2181,6 +2204,12 @@ const App = (() => {
 
     dom.inventoryTable.querySelectorAll('[data-edit]').forEach(btn => {
       btn.addEventListener('click', () => openInventoryModal(btn.dataset.edit));
+    });
+    dom.inventoryTable.querySelectorAll('[data-adjust]').forEach(btn => {
+      btn.addEventListener('click', () => openAdjustmentModal(btn.dataset.adjust));
+    });
+    dom.inventoryTable.querySelectorAll('[data-ledger]').forEach(btn => {
+      btn.addEventListener('click', () => openLedgerModal(btn.dataset.ledger));
     });
     dom.inventoryTable.querySelectorAll('[data-delete]').forEach(btn => {
       btn.addEventListener('click', () => deleteProduct(btn.dataset.delete));
@@ -2306,6 +2335,219 @@ const App = (() => {
     syncStorage();
     renderInventory();
     renderProducts();
+  };
+
+  // ── Stock Adjustment ──────────────────────────────────────────────────────
+  const openAdjustmentModal = productId => {
+    const product = state.products.find(p => String(p.id) === String(productId));
+    if (!product) return;
+    dom.adjProductId.value = product.id;
+    dom.adjCurrentStock.textContent = product.stock;
+    dom.adjDirection.value = 'kurang';
+    dom.adjQty.value = '';
+    dom.adjReason.value = '';
+    dom.adjNote.value = '';
+    dom.adjustmentModal.classList.remove('hidden');
+    dom.adjustmentModal.style.display = 'flex';
+  };
+
+  const closeAdjustmentModalFn = () => {
+    dom.adjustmentModal.classList.add('hidden');
+    dom.adjustmentModal.style.display = 'none';
+  };
+
+  const handleAdjustmentSubmit = async e => {
+    e.preventDefault();
+    const productId = parseInt(dom.adjProductId.value);
+    const product = state.products.find(p => parseInt(p.id) === productId);
+    if (!product) return;
+
+    const qty = Number(dom.adjQty.value);
+    if (!qty || qty <= 0) { alert('Jumlah harus lebih dari 0'); return; }
+    const reason = dom.adjReason.value;
+    if (!reason) { alert('Pilih alasan penyesuaian'); return; }
+    const note = dom.adjNote.value.trim();
+    const direction = dom.adjDirection.value;
+    const qtyAdjusted = direction === 'kurang' ? -qty : qty;
+
+    // Cegah stok negatif
+    if (direction === 'kurang' && product.stock - qty < 0) {
+      alert('Stok tidak bisa kurang dari 0. Stok saat ini: ' + product.stock);
+      return;
+    }
+
+    // RPC ke Supabase
+    if (db) {
+      const { error } = await db.rpc('adjust_stock', {
+        p_product_id: productId,
+        p_qty_adjusted: qtyAdjusted,
+        p_reason: reason,
+        p_note: note || null,
+        p_cashier: state.activeCashier || 'Admin',
+        p_ref_type: 'adjustment'
+      });
+      if (error) { alert('Gagal simpan penyesuaian: ' + error.message); return; }
+    }
+
+    // Update local state
+    product.stock += qtyAdjusted;
+    syncStorage();
+    renderInventory();
+    renderProducts();
+    closeAdjustmentModalFn();
+    alert('✅ Penyesuaian stok berhasil. Stok baru: ' + product.stock);
+  };
+
+  // ── Stock Ledger (Kartu Stok) ─────────────────────────────────────────────
+  const openLedgerModal = async productId => {
+    const product = state.products.find(p => String(p.id) === String(productId));
+    if (!product) return;
+    dom.ledgerProductName.textContent = product.name + ' (Stok: ' + product.stock + ')';
+    dom.ledgerTableBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">Memuat...</td></tr>';
+    dom.ledgerModal.classList.remove('hidden');
+    dom.ledgerModal.style.display = 'flex';
+
+    // Fetch ledger dari Supabase
+    if (db) {
+      const numId = parseInt(productId);
+      const { data, error } = await db.from('stock_ledgers')
+        .select('*')
+        .eq('product_id', numId)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) {
+        dom.ledgerTableBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-rose-500">Gagal memuat data</td></tr>';
+        return;
+      }
+      if (!data || data.length === 0) {
+        dom.ledgerTableBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">Belum ada mutasi stok</td></tr>';
+        return;
+      }
+      dom.ledgerTableBody.innerHTML = data.map(row => {
+        const time = new Date(row.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const qtyClass = row.qty_changed >= 0 ? 'text-green-600' : 'text-red-600';
+        const qtySign = row.qty_changed >= 0 ? '+' : '';
+        const typeLabel = { sale: 'Penjualan', return: 'Retur', adjustment: 'Penyesuaian', purchase: 'Pembelian', opname: 'Opname' }[row.reference_type] || row.reference_type;
+        return `
+          <tr class="border-b border-slate-100">
+            <td class="p-3 text-xs">${time}</td>
+            <td class="p-3 text-xs">${esc(row.cashier_name || '-')}</td>
+            <td class="p-3 text-xs"><span class="rounded-full px-2 py-0.5 text-xs font-medium bg-slate-100">${typeLabel}</span></td>
+            <td class="p-3 text-xs font-semibold ${qtyClass}">${qtySign}${row.qty_changed}</td>
+            <td class="p-3 text-xs font-semibold">${row.balance_stock}</td>
+          </tr>
+        `;
+      }).join('');
+    } else {
+      dom.ledgerTableBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">Mode offline — data tidak tersedia</td></tr>';
+    }
+  };
+
+  const closeLedgerModalFn = () => {
+    dom.ledgerModal.classList.add('hidden');
+    dom.ledgerModal.style.display = 'none';
+  };
+
+  // ── Stok Opname ───────────────────────────────────────────────────────────
+  let opnameData = []; // { productId, name, systemStock, physicalStock, diff, cost }
+
+  const renderOpnameTable = () => {
+    if (opnameData.length === 0) {
+      dom.opnameTable.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">Klik "Mulai Stok Opname" untuk memuat data.</td></tr>';
+      dom.opnameSummary.classList.add('hidden');
+      return;
+    }
+    dom.opnameTable.innerHTML = opnameData.map((item, i) => {
+      const diffClass = item.diff < 0 ? 'text-red-600' : item.diff > 0 ? 'text-green-600' : 'text-slate-500';
+      const diffSign = item.diff > 0 ? '+' : '';
+      return `
+        <tr class="border-b border-slate-100">
+          <td class="p-3 text-sm">${esc(item.name)}</td>
+          <td class="p-3 text-sm font-semibold">${item.systemStock}</td>
+          <td class="p-3">
+            <input type="number" min="0" value="${item.physicalStock}" data-opname-idx="${i}"
+              class="w-24 rounded-xl border border-slate-300 px-3 py-2 text-sm text-center focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+          </td>
+          <td class="p-3 text-sm font-semibold ${diffClass}">${diffSign}${item.diff}</td>
+          <td class="p-3 text-sm text-slate-600">${item.diff !== 0 ? formatCurrency(Math.abs(item.diff) * item.cost) : '-'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    // Update selisih saat input fisik berubah
+    dom.opnameTable.querySelectorAll('[data-opname-idx]').forEach(input => {
+      input.addEventListener('input', () => {
+        const idx = parseInt(input.dataset.opnameIdx);
+        opnameData[idx].physicalStock = Number(input.value) || 0;
+        opnameData[idx].diff = opnameData[idx].physicalStock - opnameData[idx].systemStock;
+        renderOpnameSummary();
+      });
+    });
+    renderOpnameSummary();
+  };
+
+  const renderOpnameSummary = () => {
+    const selisihItems = opnameData.filter(item => item.diff !== 0);
+    if (selisihItems.length === 0) {
+      dom.opnameSummary.classList.add('hidden');
+      return;
+    }
+    const totalLoss = selisihItems.reduce((sum, item) => {
+      if (item.diff < 0) return sum + (Math.abs(item.diff) * item.cost);
+      return sum;
+    }, 0);
+    dom.opnameTotalLoss.textContent = formatCurrency(totalLoss);
+    dom.opnameItemCount.textContent = selisihItems.length + ' produk';
+    dom.opnameSummary.classList.remove('hidden');
+    dom.applyOpnameButton.classList.remove('hidden');
+  };
+
+  const startOpname = () => {
+    opnameData = state.products.map(p => ({
+      productId: p.id,
+      name: p.name,
+      systemStock: p.stock,
+      physicalStock: p.stock,
+      diff: 0,
+      cost: p.cost || 0
+    }));
+    renderOpnameTable();
+    dom.applyOpnameButton.classList.remove('hidden');
+  };
+
+  const applyOpname = async () => {
+    const selisihItems = opnameData.filter(item => item.diff !== 0);
+    if (selisihItems.length === 0) { alert('Tidak ada selisih yang perlu diterapkan.'); return; }
+    if (!confirm(`Terapkan hasil opname untuk ${selisihItems.length} produk? Ini akan mengubah stok di sistem.`)) return;
+
+    for (const item of selisihItems) {
+      if (db) {
+        const { error } = await db.rpc('adjust_stock', {
+          p_product_id: parseInt(item.productId),
+          p_qty_adjusted: item.diff,
+          p_reason: 'Opname',
+          p_note: `Stok opname: fisik ${item.physicalStock}, sistem ${item.systemStock}`,
+          p_cashier: state.activeCashier || 'Admin',
+          p_ref_type: 'opname'
+        });
+        if (error) {
+          alert('Gagal opname ' + item.name + ': ' + error.message);
+          return;
+        }
+      }
+      // Update local
+      const product = state.products.find(p => String(p.id) === String(item.productId));
+      if (product) product.stock = item.physicalStock;
+    }
+
+    syncStorage();
+    renderInventory();
+    renderProducts();
+    opnameData = [];
+    renderOpnameTable();
+    dom.applyOpnameButton.classList.add('hidden');
+    alert('✅ Hasil opname berhasil diterapkan!');
   };
 
   const BLOCKED_KEYWORDS = ['rokok', 'tembakau', 'cigarette', 'tobacco', 'vape', 'vaping', 'vapor', 'e-cig', 'ecig', 'shisha', 'hookah', 'marlboro', 'sampoerna', 'gudang garam', 'dji sam soe', 'la lights', 'camel', 'dunhill'];
@@ -3156,6 +3398,11 @@ ${txRows}
     dom.scanButton.addEventListener('click', () => openScannerModal('kasir'));
     dom.inventoryScanButton.addEventListener('click', () => openScannerModal('inventory'));
     dom.closeScanner.addEventListener('click', closeScannerModal);
+    dom.closeAdjustmentModal.addEventListener('click', closeAdjustmentModalFn);
+    if (dom.adjustmentForm) dom.adjustmentForm.addEventListener('submit', handleAdjustmentSubmit);
+    if (dom.closeLedgerModal) dom.closeLedgerModal.addEventListener('click', closeLedgerModalFn);
+    if (dom.startOpnameButton) dom.startOpnameButton.addEventListener('click', startOpname);
+    if (dom.applyOpnameButton) dom.applyOpnameButton.addEventListener('click', applyOpname);
     dom.startScanner.addEventListener('click', startBarcodeScanner);
     dom.stopScanner.addEventListener('click', stopBarcodeScanner);
     dom.manualBarcodeSubmit.addEventListener('click', () => {
@@ -3901,6 +4148,50 @@ ${txRows}
     const phone = debt.phone.replace(/[^0-9]/g, '').replace(/^0/, '62');
     const msg = `Halo ${debt.customer_name} 🙏\n\nMengingatkan kasbon di *${store.name}*:\nJumlah: *${formatCurrency(debt.amount)}*${debt.note ? '\nKeterangan: ' + debt.note : ''}\nTanggal: ${new Date(debt.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}\n\nMohon konfirmasinya ya. Terima kasih! 😊`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  // ── Toast Notification Umum ─────────────────────────────────────────
+  const showToast = (message, options = {}) => {
+    const { type = 'success', action, actionText, duration = 4000 } = options;
+    const colors = { success: '#059669', warning: '#d97706', error: '#e11d48', info: '#0284c7' };
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toastContainer';
+      container.className = 'fixed top-4 right-4 z-[300] flex flex-col gap-2 no-print';
+      container.style.maxWidth = '360px';
+      document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    toast.className = 'rounded-2xl px-5 py-4 text-white text-sm font-medium shadow-2xl transition-all duration-300 flex items-center gap-3';
+    toast.style.background = colors[type] || colors.success;
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-10px)';
+    const msgSpan = document.createElement('span');
+    msgSpan.className = 'flex-1';
+    msgSpan.textContent = message;
+    toast.appendChild(msgSpan);
+    if (action && actionText) {
+      const btn = document.createElement('button');
+      btn.textContent = actionText;
+      btn.className = 'bg-white/20 hover:bg-white/30 rounded-xl px-3 py-1.5 text-white text-xs font-semibold whitespace-nowrap transition';
+      btn.onclick = () => { action(); dismiss(); };
+      toast.appendChild(btn);
+    }
+    const dismiss = () => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(-10px)';
+      setTimeout(() => toast.remove(), 300);
+    };
+    container.appendChild(toast);
+    requestAnimationFrame(() => {
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateY(0)';
+    });
+    const timer = setTimeout(dismiss, duration);
+    toast._dismissTimer = timer;
+    toast.addEventListener('mouseenter', () => clearTimeout(timer));
+    toast.addEventListener('mouseleave', () => { toast._dismissTimer = setTimeout(dismiss, 2000); });
   };
 
   // ── Scanner Barcode Fisik (Bluetooth/USB, mode HID "keyboard wedge") ─────

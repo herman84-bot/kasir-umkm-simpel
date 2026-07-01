@@ -45,4 +45,7 @@ htmlcov/
 *.zip
 *.gz
 *.rar
+
+# Claude local settings (contains tokens)
+.claude/settings.local.json
 ```
