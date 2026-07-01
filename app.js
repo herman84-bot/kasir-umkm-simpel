@@ -500,6 +500,7 @@ const App = (() => {
   // Supabase row → app transaction object
   const fromDbTransaction = tx => ({
     id: 'INV' + tx.id,
+    dbId: tx.id,
     date: tx.created_at,
     cashier: tx.cashier_name || 'Kasir',
     items: (tx.transaction_items || []).map(item => ({
@@ -518,7 +519,14 @@ const App = (() => {
     change: Number(tx.change_amount),
     paymentMethod: tx.payment_method || 'Tunai',
     confirmedBy: tx.confirmed_by || null,
-    confirmedAt: tx.confirmed_at || null
+    confirmedAt: tx.confirmed_at || null,
+    status: tx.status || 'completed',
+    voidReason: tx.void_reason || null,
+    voidBy: tx.void_by || null,
+    voidAt: tx.void_at || null,
+    shiftId: tx.shift_id || null,
+    paymentCashAmount: Number(tx.payment_cash_amount) || 0,
+    paymentNoncashAmount: Number(tx.payment_noncash_amount) || 0
   });
 
   // ── Session ───────────────────────────────────────────────────────────────
@@ -1761,7 +1769,7 @@ const App = (() => {
     dom.paymentConfirmModal.style.display = '';
   };
 
-  const authenticateUser = (name, password) => {
+  const authenticateUser = async (name, password) => {
     const user = state.cashiers.find(item => item.name.toLowerCase() === name.toLowerCase() && item.password === password);
     if (!user) return false;
     state.activeUserId = user.id;
@@ -1771,9 +1779,14 @@ const App = (() => {
     hideLoginModal();
     // Terapkan hak akses operator baru; kasir tidak boleh tetap di layar admin
     applyRoleAccess();
+
+    await loadActiveShift();
+
     const currentScreen = document.querySelector('main section.screen:not(.hidden)')?.id;
     if (user.role !== 'admin' && ADMIN_SCREENS.includes(currentScreen)) {
       showScreen('kasir');
+    } else if (currentScreen === 'kasir') {
+      await checkOrOpenShift();
     }
     return true;
   };
@@ -2153,14 +2166,18 @@ const App = (() => {
     const taxable = Math.max(0, subtotal - discount);
     const tax = 0; // UMKM umumnya non-PKP: tidak memungut PPN
     const total = Math.max(0, taxable + tax);
-    const cash = Math.max(0, Number(state.cashAmount) || 0);
-    const change = Math.max(0, cash - total);
+    let cash = Math.max(0, Number(state.cashAmount) || 0);
+    let change = Math.max(0, cash - total);
+    if (state.paymentMethod === 'Split') {
+      cash = Number(document.getElementById('splitCashInput')?.value) || 0;
+      change = 0;
+    }
     return { subtotal, discount, tax, total, cash, change };
   };
 
   const updateDashboard = () => {
     const today = localDay(new Date());
-    const todayTransactions = state.transactions.filter(tx => localDay(tx.date) === today);
+    const todayTransactions = state.transactions.filter(tx => localDay(tx.date) === today && tx.status !== 'void');
     const totalSalesToday = todayTransactions.reduce((sum, tx) => sum + tx.total, 0);
     // Statistik dihitung dari transaksi HARI INI saja, laba pakai harga modal produk
     const productCost = id => state.products.find(p => p.id === id)?.cost || 0;
@@ -2168,9 +2185,29 @@ const App = (() => {
     const totalProfit = todayTransactions.reduce((sum, tx) =>
       sum + tx.items.reduce((itemSum, item) => itemSum + item.qty * (item.price - (item.cost || productCost(item.id))), 0) - (tx.discount || 0), 0);
 
-    dom.statSalesToday.textContent = formatCurrency(totalSalesToday);
-    dom.statProductsSold.textContent = totalProductsSold;
-    dom.statProfit.textContent = formatCurrency(totalProfit);
+    const updateUI = (refunds) => {
+      const finalSales = Math.max(0, totalSalesToday - refunds);
+      const finalProfit = Math.max(0, totalProfit - refunds);
+      dom.statSalesToday.textContent = formatCurrency(finalSales);
+      dom.statProductsSold.textContent = totalProductsSold;
+      dom.statProfit.textContent = formatCurrency(finalProfit);
+    };
+
+    if (db && state.storeId) {
+      db.from('transaction_returns')
+        .select('refund_amount')
+        .eq('store_id', state.storeId)
+        .gte('created_at', new Date(new Date().setHours(0,0,0,0)).toISOString())
+        .then(({ data }) => {
+          const refunds = (data || []).reduce((sum, r) => sum + Number(r.refund_amount || 0), 0);
+          updateUI(refunds);
+        }).catch(err => {
+          console.error(err);
+          updateUI(0);
+        });
+    } else {
+      updateUI(0);
+    }
   };
 
   const renderSalesChart = () => {
@@ -2182,7 +2219,7 @@ const App = (() => {
       const isoDate = localDay(date);
       dates.push(date.toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'short' }));
       const dayTotal = state.transactions
-        .filter(tx => localDay(tx.date) === isoDate)
+        .filter(tx => localDay(tx.date) === isoDate && tx.status !== 'void')
         .reduce((sum, tx) => sum + tx.total, 0);
       amounts.push(dayTotal);
     }
@@ -2370,8 +2407,14 @@ const App = (() => {
     dom.historyTable.innerHTML = transactions.map(tx => {
       const time = new Date(tx.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: 'short', year: 'numeric' });
       const productCount = tx.items.reduce((sum, item) => sum + item.qty, 0);
+      const isToday = new Date(tx.date).toDateString() === new Date().toDateString();
+      const diffDays = Math.ceil((new Date() - new Date(tx.date)) / (1000 * 60 * 60 * 24));
+      const canReturn = tx.status !== 'void' && diffDays <= 3;
+      const isVoided = tx.status === 'void';
+      const rowClass = isVoided ? 'border-b border-slate-200 opacity-60 bg-rose-50/20' : 'border-b border-slate-200';
+
       return `
-        <tr class="border-b border-slate-200">
+        <tr class="${rowClass}">
           <td class="p-3">${time}</td>
           <td class="p-3">#${esc(tx.id)}</td>
           <td class="p-3">${esc(tx.cashier || '-')}</td>
@@ -2380,7 +2423,15 @@ const App = (() => {
           <td class="p-3"><span class="rounded-full px-2 py-0.5 text-xs font-medium ${tx.paymentMethod === 'Tunai' ? 'bg-green-100 text-green-700' : tx.paymentMethod === 'QRIS' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">${esc(tx.paymentMethod || 'Tunai')}</span></td>
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.cash) : '-'}</td>
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.change) : '-'}</td>
-          <td class="p-3"><button data-reprint="${esc(tx.id)}" class="rounded-2xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 transition whitespace-nowrap">🖨 Struk</button></td>
+          <td class="p-3 space-x-1 whitespace-nowrap">
+            <button data-reprint="${esc(tx.id)}" class="rounded-2xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 transition whitespace-nowrap">🖨 Struk</button>
+            ${isVoided ? `
+              <span class="inline-block rounded-full bg-rose-100 text-rose-700 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider">VOID</span>
+            ` : `
+              ${isToday ? `<button data-void="${esc(tx.id)}" class="rounded-2xl bg-rose-50 border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-100 transition whitespace-nowrap">🚫 Void</button>` : ''}
+              ${canReturn ? `<button data-return="${esc(tx.id)}" class="rounded-2xl bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-100 transition whitespace-nowrap">↩️ Retur</button>` : ''}
+            `}
+          </td>
         </tr>
       `;
     }).join('') || '<tr><td colspan="9" class="p-8 text-center text-slate-500">Belum ada transaksi.</td></tr>';
@@ -2396,6 +2447,14 @@ const App = (() => {
         dom.receiptModal.style.display = 'flex';
       });
     });
+
+    // Void and Return click event listeners
+    dom.historyTable.querySelectorAll('[data-void]').forEach(btn => {
+      btn.addEventListener('click', () => voidTransaction(btn.dataset.void));
+    });
+    dom.historyTable.querySelectorAll('[data-return]').forEach(btn => {
+      btn.addEventListener('click', () => processReturn(btn.dataset.return));
+    });
   };
 
   const showScreen = screenId => {
@@ -2407,6 +2466,9 @@ const App = (() => {
     const activeOp = state.cashiers.find(c => c.id === state.selectedCashierId);
     if (activeOp && activeOp.role !== 'admin' && ADMIN_SCREENS.includes(screenId)) {
       screenId = 'kasir';
+    }
+    if (screenId === 'kasir' && db && state.authUser && state.storeId && !_isSuperAdmin) {
+      checkOrOpenShift();
     }
     dom.screens.forEach(screen => {
       screen.classList.toggle('hidden', screen.id !== screenId);
@@ -2665,7 +2727,16 @@ const App = (() => {
       alert('Total transaksi tidak valid. Periksa diskon dan jumlah produk.');
       return;
     }
-    if (state.paymentMethod === 'Tunai') {
+    if (state.paymentMethod === 'Split') {
+      const valCash = Number(document.getElementById('splitCashInput')?.value) || 0;
+      const valNonCash = Number(document.getElementById('splitNonCashInput')?.value) || 0;
+      if (valCash + valNonCash !== totals.total) {
+        alert('Total porsi split (Tunai + Non-Tunai) harus sama dengan Total Akhir: ' + formatCurrency(totals.total));
+        return;
+      }
+      const cashier = getSelectedCashier();
+      showPaymentConfirmModal('Split Payment', totals.total, cashier.name);
+    } else if (state.paymentMethod === 'Tunai') {
       if (totals.cash < totals.total) {
         alert('Jumlah tunai belum cukup. Mohon masukkan nominal yang sesuai.');
         return;
@@ -2681,7 +2752,11 @@ const App = (() => {
   };
 
   const _executePayment = async (cartItems, totals, confirmedBy, confirmedAt) => {
-    if (state.paymentMethod !== 'Tunai') {
+    if (state.paymentMethod === 'Split') {
+      const valCash = Number(document.getElementById('splitCashInput')?.value) || 0;
+      totals.cash = valCash;
+      totals.change = 0;
+    } else if (state.paymentMethod !== 'Tunai') {
       // QRIS/Transfer: nominal bayar otomatis = total, tanpa kembalian
       state.cashAmount = totals.total;
       totals.cash = totals.total;
@@ -2690,6 +2765,10 @@ const App = (() => {
 
     const cashier = getSelectedCashier();
     let invoiceId = `INV${Date.now()}`;
+    let dbTx = null;
+
+    const valCash = state.paymentMethod === 'Split' ? (Number(document.getElementById('splitCashInput')?.value) || 0) : (state.paymentMethod === 'Tunai' ? totals.total : 0);
+    const valNonCash = state.paymentMethod === 'Split' ? (Number(document.getElementById('splitNonCashInput')?.value) || 0) : (state.paymentMethod !== 'Tunai' ? totals.total : 0);
 
     if (db) {
       try {
@@ -2703,10 +2782,15 @@ const App = (() => {
           discount_amount: totals.discount || 0,
           payment_method: state.paymentMethod || 'Tunai',
           confirmed_by: confirmedBy,
-          confirmed_at: confirmedAt
+          confirmed_at: confirmedAt,
+          shift_id: state.activeShift ? state.activeShift.id : null,
+          status: 'completed',
+          payment_cash_amount: valCash,
+          payment_noncash_amount: valNonCash
         }).select().single();
         if (txErr) throw txErr;
 
+        dbTx = tx;
         invoiceId = 'INV' + tx.id;
 
         // Insert transaction items
@@ -2751,6 +2835,7 @@ const App = (() => {
 
     const transaction = {
       id: invoiceId,
+      dbId: dbTx ? dbTx.id : null,
       date: new Date().toISOString(),
       cashier: cashier.name,
       items: cartItems.map(item => ({ id: item.id, name: item.name, qty: item.qty, price: item.price, cost: item.cost, subtotal: item.qty * item.price })),
@@ -2762,7 +2847,11 @@ const App = (() => {
       change: totals.change,
       paymentMethod: state.paymentMethod || 'Tunai',
       confirmedBy: confirmedBy,
-      confirmedAt: confirmedAt
+      confirmedAt: confirmedAt,
+      status: 'completed',
+      paymentCashAmount: valCash,
+      paymentNoncashAmount: valNonCash,
+      shiftId: state.activeShift ? state.activeShift.id : null
     };
 
     state.transactions.unshift(transaction);
@@ -3065,21 +3154,139 @@ ${discountHtml}${taxHtml}
     win.document.close();
   };
 
-  // ── Feature: Shift / Tutup Kasir ─────────────────────────────────────────
-  const openShiftModal = () => {
+  // ── Feature: Shift / Tutup Kasir & Supervisor Otorisasi ───────────────────
+  const loadActiveShift = async () => {
+    if (!db || !state.storeId || !state.selectedCashierId) return null;
+    try {
+      const { data, error } = await db
+        .from('cashier_shifts')
+        .select('*')
+        .eq('store_id', state.storeId)
+        .eq('cashier_id', state.selectedCashierId)
+        .is('closed_at', null)
+        .order('opened_at', { ascending: false })
+        .limit(1);
+      if (!error && data && data.length > 0) {
+        state.activeShift = data[0];
+        state.shiftStartTime = new Date(state.activeShift.opened_at);
+        return state.activeShift;
+      }
+    } catch (e) {
+      console.error('Error loadActiveShift:', e);
+    }
+    state.activeShift = null;
+    state.shiftStartTime = null;
+    return null;
+  };
+
+  const checkOrOpenShift = async () => {
+    const active = await loadActiveShift();
+    if (!active) {
+      openBukaShiftModal();
+    } else {
+      hideBukaShiftModal();
+    }
+  };
+
+  const openBukaShiftModal = () => {
+    const modal = document.getElementById('openShiftModalEl');
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+      const input = document.getElementById('openShiftCashFloat');
+      if (input) {
+        input.value = '100000';
+        input.focus();
+      }
+    }
+  };
+
+  const hideBukaShiftModal = () => {
+    const modal = document.getElementById('openShiftModalEl');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.style.display = '';
+    }
+  };
+
+  const openTutupShiftModal = async () => {
     const cashier = getSelectedCashier();
-    const shiftStart = state.shiftStartTime || new Date(0);
-    const shiftTx = state.transactions.filter(tx => new Date(tx.date) >= shiftStart);
+    if (!state.activeShift) {
+      alert('Tidak ada shift aktif saat ini.');
+      return;
+    }
+
+    const shiftStart = new Date(state.activeShift.opened_at);
+    const shiftTx = state.transactions.filter(tx => 
+      tx.status !== 'void' && 
+      tx.shiftId === state.activeShift.id
+    );
     const totalSales = shiftTx.reduce((sum, tx) => sum + tx.total, 0);
     const totalItems = shiftTx.reduce((sum, tx) => sum + tx.items.reduce((s, i) => s + i.qty, 0), 0);
-    const startStr = shiftStart.getTime() === 0 ? 'Sejak aplikasi dibuka' :
-      shiftStart.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const startStr = shiftStart.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+    // Calculate Tunai sales + split cash portions
+    const cashSales = shiftTx.reduce((sum, tx) => {
+      if (tx.paymentMethod === 'Tunai') {
+        return sum + tx.total;
+      } else if (tx.paymentMethod === 'Split') {
+        return sum + (tx.paymentCashAmount || 0);
+      }
+      return sum;
+    }, 0);
+
+    // Calculate refunds in this shift
+    let refundAmount = 0;
+    if (db) {
+      const { data: shiftReturns } = await db
+        .from('transaction_returns')
+        .select('*')
+        .eq('store_id', state.storeId)
+        .gte('created_at', state.activeShift.opened_at);
+      refundAmount = (shiftReturns || []).reduce((sum, r) => sum + Number(r.refund_amount || 0), 0);
+    }
+
+    const expectedCash = Number(state.activeShift.cash_float_amount) + cashSales - refundAmount;
 
     if (dom.shiftCashierName) dom.shiftCashierName.textContent = cashier.name;
     if (dom.shiftTxCount) dom.shiftTxCount.textContent = shiftTx.length;
     if (dom.shiftTotalSales) dom.shiftTotalSales.textContent = formatCurrency(totalSales);
     if (dom.shiftItemsSold) dom.shiftItemsSold.textContent = totalItems;
     if (dom.shiftModalSubtitle) dom.shiftModalSubtitle.textContent = `Shift dimulai: ${startStr}`;
+
+    const elFloat = document.getElementById('shiftModalFloat');
+    const elCashSales = document.getElementById('shiftModalCashSales');
+    const elRefunds = document.getElementById('shiftModalRefunds');
+    const elExpected = document.getElementById('shiftModalExpected');
+    const elActual = document.getElementById('shiftActualCashInput');
+    const elDiscrepancy = document.getElementById('shiftDiscrepancy');
+    const elNote = document.getElementById('shiftNoteInput');
+
+    if (elFloat) elFloat.textContent = formatCurrency(state.activeShift.cash_float_amount);
+    if (elCashSales) elCashSales.textContent = formatCurrency(cashSales);
+    if (elRefunds) elRefunds.textContent = formatCurrency(refundAmount);
+    if (elExpected) elExpected.textContent = formatCurrency(expectedCash);
+    if (elActual) elActual.value = expectedCash;
+    if (elNote) elNote.value = '';
+
+    const recalculateClosingDiscrepancy = () => {
+      const actual = Number(elActual?.value) || 0;
+      const discrepancy = actual - expectedCash;
+      if (elDiscrepancy) {
+        elDiscrepancy.textContent = formatCurrency(discrepancy);
+        if (discrepancy === 0) {
+          elDiscrepancy.className = "text-green-600 font-bold text-sm";
+        } else if (discrepancy > 0) {
+          elDiscrepancy.className = "text-blue-600 font-bold text-sm";
+        } else {
+          elDiscrepancy.className = "text-rose-600 font-bold text-sm";
+        }
+      }
+    };
+
+    elActual?.removeEventListener('input', recalculateClosingDiscrepancy);
+    elActual?.addEventListener('input', recalculateClosingDiscrepancy);
+    recalculateClosingDiscrepancy();
 
     if (dom.shiftModal) {
       dom.shiftModal.classList.remove('hidden');
@@ -3094,14 +3301,39 @@ ${discountHtml}${taxHtml}
     }
   };
 
-  const printShiftReport = () => {
+  const printShiftReport = async () => {
     const store = getStoreSettings();
     const cashier = getSelectedCashier();
-    const shiftStart = state.shiftStartTime || new Date(0);
-    const shiftTx = state.transactions.filter(tx => new Date(tx.date) >= shiftStart);
+    if (!state.activeShift) return;
+
+    const shiftStart = new Date(state.activeShift.opened_at);
+    const shiftTx = state.transactions.filter(tx => 
+      tx.status !== 'void' && 
+      tx.shiftId === state.activeShift.id
+    );
     const totalSales = shiftTx.reduce((sum, tx) => sum + tx.total, 0);
     const totalItems = shiftTx.reduce((sum, tx) => sum + tx.items.reduce((s, i) => s + i.qty, 0), 0);
     const thermalCSS = document.getElementById('thermalStyle').textContent;
+
+    const cashSales = shiftTx.reduce((sum, tx) => {
+      if (tx.paymentMethod === 'Tunai') {
+        return sum + tx.total;
+      } else if (tx.paymentMethod === 'Split') {
+        return sum + (tx.paymentCashAmount || 0);
+      }
+      return sum;
+    }, 0);
+
+    let refundAmount = 0;
+    if (db) {
+      const { data: shiftReturns } = await db
+        .from('transaction_returns')
+        .select('*')
+        .eq('store_id', state.storeId)
+        .gte('created_at', state.activeShift.opened_at);
+      refundAmount = (shiftReturns || []).reduce((sum, r) => sum + Number(r.refund_amount || 0), 0);
+    }
+    const expected = Number(state.activeShift.cash_float_amount) + cashSales - refundAmount;
 
     const txRows = shiftTx.slice(0, 50).map(tx => {
       const time = new Date(tx.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -3114,12 +3346,18 @@ ${discountHtml}${taxHtml}
 <p class="center">LAPORAN SHIFT</p>
 <div class="separator"></div>
 <div class="row"><span>Kasir</span><span>${esc(cashier.name)}</span></div>
-<div class="row"><span>Cetak</span><span>${new Date().toLocaleString('id-ID', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
+<div class="row"><span>Mulai</span><span>${shiftStart.toLocaleString('id-ID')}</span></div>
+<div class="row"><span>Cetak</span><span>${new Date().toLocaleString('id-ID')}</span></div>
+<div class="separator"></div>
+<div class="row"><span>Modal Awal</span><span>${formatCurrency(state.activeShift.cash_float_amount)}</span></div>
+<div class="row"><span>Penjualan Tunai</span><span>${formatCurrency(cashSales)}</span></div>
+<div class="row"><span>Refund Tunai</span><span>${formatCurrency(refundAmount)}</span></div>
+<div class="row"><span>Sistem Total Kas</span><span>${formatCurrency(expected)}</span></div>
 <div class="separator"></div>
 <div class="row"><span>Transaksi</span><span>${shiftTx.length}</span></div>
 <div class="row"><span>Item Terjual</span><span>${totalItems}</span></div>
 <div class="separator-solid"></div>
-<div class="total-row"><span>TOTAL</span><span>${formatCurrency(totalSales)}</span></div>
+<div class="total-row"><span>TOTAL OMZET</span><span>${formatCurrency(totalSales)}</span></div>
 <div class="separator"></div>
 ${txRows}
 <br/><br/>
@@ -3132,12 +3370,370 @@ ${txRows}
     win.document.close();
   };
 
-  const resetShift = () => {
-    if (!confirm('Tutup dan reset shift ini? Shift baru akan dimulai sekarang.')) return;
-    state.shiftStartTime = new Date();
-    localStorage.setItem('shift_start_' + (state.storeId || ''), state.shiftStartTime.toISOString());
+  const submitTutupShift = async () => {
+    if (!state.activeShift) return;
+    if (!confirm('Tutup shift ini sekarang? Anda akan keluar dan shift baru harus dibuka sebelum bertransaksi kembali.')) return;
+    
+    const elActual = document.getElementById('shiftActualCashInput');
+    const elNote = document.getElementById('shiftNoteInput');
+    const actual = Number(elActual?.value) || 0;
+    
+    const shiftTx = state.transactions.filter(tx => 
+      tx.status !== 'void' && 
+      tx.shiftId === state.activeShift.id
+    );
+    const cashSales = shiftTx.reduce((sum, tx) => {
+      if (tx.paymentMethod === 'Tunai') {
+        return sum + tx.total;
+      } else if (tx.paymentMethod === 'Split') {
+        return sum + (tx.paymentCashAmount || 0);
+      }
+      return sum;
+    }, 0);
+
+    let refundAmount = 0;
+    if (db) {
+      const { data: shiftReturns } = await db
+        .from('transaction_returns')
+        .select('*')
+        .eq('store_id', state.storeId)
+        .gte('created_at', state.activeShift.opened_at);
+      refundAmount = (shiftReturns || []).reduce((sum, r) => sum + Number(r.refund_amount || 0), 0);
+    }
+    const expected = Number(state.activeShift.cash_float_amount) + cashSales - refundAmount;
+    const discrepancy = actual - expected;
+    const note = elNote?.value || '';
+
+    if (db) {
+      const { error } = await db
+        .from('cashier_shifts')
+        .update({
+          closed_at: new Date().toISOString(),
+          expected_cash: expected,
+          actual_cash: actual,
+          discrepancy: discrepancy,
+          note: note
+        })
+        .eq('id', state.activeShift.id);
+      if (error) {
+        alert('Gagal menutup shift di database: ' + error.message);
+        return;
+      }
+    }
+
+    state.activeShift = null;
+    state.shiftStartTime = null;
+    localStorage.removeItem('shift_start_' + (state.storeId || ''));
+    
     closeShiftModal();
-    alert('Shift berhasil direset. Shift baru dimulai sekarang.');
+    alert('Shift berhasil ditutup.');
+    
+    await checkOrOpenShift();
+  };
+
+  const requestAdminPin = () => {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('pinAuthModal');
+      const form = document.getElementById('pinAuthForm');
+      const input = document.getElementById('pinAuthInput');
+      const cancelBtn = document.getElementById('cancelPinAuth');
+
+      if (!modal || !form || !input) {
+        resolve(false);
+        return;
+      }
+
+      input.value = '';
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+      input.focus();
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        modal.style.display = '';
+        form.removeEventListener('submit', onSubmit);
+        cancelBtn.removeEventListener('click', onCancel);
+      };
+
+      const onSubmit = (e) => {
+        e.preventDefault();
+        const pin = input.value;
+        if (state.cashiers.some(c => c.role === 'admin' && c.password === pin)) {
+          cleanup();
+          resolve(true);
+        } else {
+          alert('PIN Admin salah atau tidak memiliki akses!');
+          input.value = '';
+          input.focus();
+        }
+      };
+
+      const onCancel = () => {
+        cleanup();
+        resolve(false);
+      };
+
+      form.addEventListener('submit', onSubmit);
+      cancelBtn.addEventListener('click', onCancel);
+    });
+  };
+
+  const requestVoidReason = () => {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('voidModal');
+      const form = document.getElementById('voidForm');
+      const input = document.getElementById('voidReasonInput');
+      const cancelBtn = document.getElementById('cancelVoidModal');
+
+      if (!modal || !form || !input) {
+        resolve(null);
+        return;
+      }
+
+      input.value = '';
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+      input.focus();
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        modal.style.display = '';
+        form.removeEventListener('submit', onSubmit);
+        cancelBtn.removeEventListener('click', onCancel);
+      };
+
+      const onSubmit = (e) => {
+        e.preventDefault();
+        const reason = input.value.trim();
+        cleanup();
+        resolve(reason);
+      };
+
+      const onCancel = () => {
+        cleanup();
+        resolve(null);
+      };
+
+      form.addEventListener('submit', onSubmit);
+      cancelBtn.addEventListener('click', onCancel);
+    });
+  };
+
+  const requestReturnDetails = (tx) => {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('returnModal');
+      const itemsList = document.getElementById('returnItemsList');
+      const reasonSelect = document.getElementById('returnReasonSelect');
+      const actionSelect = document.getElementById('returnActionSelect');
+      const submitBtn = document.getElementById('submitReturnBtn');
+      const cancelBtn = document.getElementById('cancelReturnModal');
+      const closeBtn = document.getElementById('closeReturnModal');
+
+      if (!modal || !itemsList || !reasonSelect || !actionSelect || !submitBtn) {
+        resolve(null);
+        return;
+      }
+
+      itemsList.innerHTML = tx.items.map(item => `
+        <div class="flex items-center justify-between border-b border-slate-100 py-3">
+          <div class="flex-1">
+            <p class="font-semibold text-slate-800">${esc(item.name)}</p>
+            <p class="text-xs text-slate-500">${formatCurrency(item.price)} • Beli: ${item.qty} pcs</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-400">Retur:</span>
+            <input type="number" min="0" max="${item.qty}" value="0" data-product-id="${item.id}" data-price="${item.price}" class="return-qty-input w-20 text-center rounded-xl border border-slate-300 px-2 py-1.5 focus:ring-2 focus:ring-sky-400" />
+          </div>
+        </div>
+      `).join('');
+
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        modal.style.display = '';
+        submitBtn.removeEventListener('click', onSubmit);
+        cancelBtn.removeEventListener('click', onCancel);
+        closeBtn.removeEventListener('click', onCancel);
+      };
+
+      const onSubmit = () => {
+        const returnedItems = [];
+        let totalRefund = 0;
+        const inputs = itemsList.querySelectorAll('.return-qty-input');
+        inputs.forEach(input => {
+          const qty = Number(input.value) || 0;
+          if (qty > 0) {
+            const price = Number(input.dataset.price) || 0;
+            returnedItems.push({
+              productId: input.dataset.productId,
+              qty: qty,
+              price: price
+            });
+            totalRefund += qty * price;
+          }
+        });
+
+        if (returnedItems.length === 0) {
+          alert('Mohon tentukan jumlah barang yang ingin diretur (minimal 1).');
+          return;
+        }
+
+        const reason = reasonSelect.value;
+        const action = actionSelect.value;
+
+        cleanup();
+        resolve({
+          items: returnedItems,
+          totalRefund: action === 'refund' ? totalRefund : 0,
+          reason: reason,
+          action: action
+        });
+      };
+
+      const onCancel = () => {
+        cleanup();
+        resolve(null);
+      };
+
+      submitBtn.addEventListener('click', onSubmit);
+      cancelBtn.addEventListener('click', onCancel);
+      closeBtn.addEventListener('click', onCancel);
+    });
+  };
+
+  const voidTransaction = async (txId) => {
+    const isAuthorized = await requestAdminPin();
+    if (!isAuthorized) return;
+
+    const reason = await requestVoidReason();
+    if (!reason) return;
+
+    const tx = state.transactions.find(t => t.id === txId);
+    if (!tx) {
+      alert('Transaksi tidak ditemukan.');
+      return;
+    }
+
+    const adminUser = state.cashiers.find(c => c.role === 'admin');
+    const adminName = adminUser ? adminUser.name : 'Supervisor';
+    const rawTxId = tx.dbId || parseInt(txId.replace('INV', ''));
+
+    if (db) {
+      try {
+        const { error: txErr } = await db
+          .from('transactions')
+          .update({
+            status: 'void',
+            void_reason: reason,
+            void_by: adminName,
+            void_at: new Date().toISOString()
+          })
+          .eq('id', rawTxId);
+        if (txErr) throw txErr;
+
+        for (const item of tx.items) {
+          const numId = parseInt(item.id);
+          if (isNaN(numId)) continue;
+          if (item.qty <= 0) continue;
+          const { error: stockErr } = await db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
+          if (stockErr) throw stockErr;
+        }
+
+        showAppToast('Transaksi berhasil dibatalkan (void)!', 'success');
+      } catch (err) {
+        logError('voidTransaction: gagal membatalkan transaksi', { txId }, err);
+        alert('Gagal membatalkan transaksi di database: ' + err.message);
+        return;
+      }
+    }
+
+    tx.status = 'void';
+    tx.voidReason = reason;
+    tx.voidBy = adminName;
+    tx.voidAt = new Date().toISOString();
+
+    tx.items.forEach(item => {
+      const product = state.products.find(p => p.id === item.id);
+      if (product) product.stock = Number(product.stock) + Number(item.qty);
+    });
+
+    syncStorage();
+    renderInventory();
+    renderHistory();
+    updateDashboard();
+    renderSalesChart();
+  };
+
+  const processReturn = async (txId) => {
+    const isAuthorized = await requestAdminPin();
+    if (!isAuthorized) return;
+
+    const tx = state.transactions.find(t => t.id === txId);
+    if (!tx) {
+      alert('Transaksi tidak ditemukan.');
+      return;
+    }
+
+    const result = await requestReturnDetails(tx);
+    if (!result) return;
+
+    const adminUser = state.cashiers.find(c => c.role === 'admin');
+    const adminName = adminUser ? adminUser.name : 'Supervisor';
+    const cashier = getSelectedCashier();
+    const rawTxId = tx.dbId || parseInt(txId.replace('INV', ''));
+
+    if (db) {
+      try {
+        const { data: ret, error: retErr } = await db
+          .from('transaction_returns')
+          .insert({
+            transaction_id: rawTxId,
+            store_id: state.storeId,
+            cashier_name: cashier.name,
+            refund_amount: result.totalRefund,
+            return_reason: result.reason,
+            authorized_by: adminName
+          })
+          .select()
+          .single();
+        if (retErr) throw retErr;
+
+        const returnItemRows = result.items.map(item => ({
+          return_id: ret.id,
+          product_id: parseInt(item.productId) || null,
+          quantity: item.qty,
+          price_at_return: item.price
+        }));
+        const { error: itemsErr } = await db.from('return_items').insert(returnItemRows);
+        if (itemsErr) throw itemsErr;
+
+        for (const item of result.items) {
+          const numId = parseInt(item.productId);
+          if (isNaN(numId)) continue;
+          const { error: stockErr } = await db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
+          if (stockErr) throw stockErr;
+        }
+
+        showAppToast('Retur barang berhasil diproses!', 'success');
+      } catch (err) {
+        logError('processReturn: gagal memproses retur', { txId }, err);
+        alert('Gagal memproses retur di database: ' + err.message);
+        return;
+      }
+    }
+
+    result.items.forEach(item => {
+      const product = state.products.find(p => p.id === item.productId);
+      if (product) product.stock = Number(product.stock) + Number(item.qty);
+    });
+
+    syncStorage();
+    renderInventory();
+    renderHistory();
+    updateDashboard();
+    renderSalesChart();
   };
 
   // ── Feature: Onboarding ──────────────────────────────────────────────────
@@ -3184,14 +3780,25 @@ ${txRows}
     state.paymentMethod = method;
     document.querySelectorAll('.paymethod-btn').forEach(btn => {
       const active = btn.dataset.paymethod === method;
-      btn.className = `paymethod-btn flex-1 rounded-2xl border-2 px-3 py-3 text-sm font-semibold transition ${active ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'}`;
+      btn.className = `paymethod-btn flex-1 rounded-2xl border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'}`;
     });
+    const splitWrapper = document.getElementById('splitInputWrapper');
     if (dom.cashInputWrapper) {
       dom.cashInputWrapper.style.display = method === 'Tunai' ? '' : 'none';
     }
-    if (method !== 'Tunai') {
+    if (splitWrapper) {
+      splitWrapper.style.display = method === 'Split' ? 'block' : 'none';
+    }
+    if (method !== 'Tunai' && method !== 'Split') {
       const totals = calculateCart();
       state.cashAmount = totals.total;
+    }
+    if (method === 'Split') {
+      const totals = calculateCart();
+      const splitCash = document.getElementById('splitCashInput');
+      const splitNonCash = document.getElementById('splitNonCashInput');
+      if (splitCash) splitCash.value = Math.round(totals.total / 2);
+      if (splitNonCash) splitNonCash.value = totals.total - Math.round(totals.total / 2);
     }
     if (method === 'QRIS') {
       const totalsCheck = calculateCart();
@@ -3380,9 +3987,10 @@ ${txRows}
     dom.exportDataButton.addEventListener('click', exportAppBackup);
     dom.importDataButton.addEventListener('click', () => dom.backupFileInput.click());
     dom.backupFileInput.addEventListener('change', importAppBackup);
-    dom.loginForm.addEventListener('submit', event => {
+    dom.loginForm.addEventListener('submit', async event => {
       event.preventDefault();
-      if (!authenticateUser(dom.loginName.value.trim(), dom.loginPassword.value.trim())) {
+      const success = await authenticateUser(dom.loginName.value.trim(), dom.loginPassword.value.trim());
+      if (!success) {
         alert('Nama atau password salah. Coba lagi.');
       }
     });
@@ -3646,14 +4254,79 @@ ${txRows}
     });
 
     // ── Feature 5: Shift / Tutup Kasir ──
-    dom.tutupKasirBtn?.addEventListener('click', openShiftModal);
+    dom.tutupKasirBtn?.addEventListener('click', openTutupShiftModal);
     dom.closeShiftModal?.addEventListener('click', closeShiftModal);
     dom.cancelShiftModal?.addEventListener('click', closeShiftModal);
     dom.printShiftBtn?.addEventListener('click', printShiftReport);
-    dom.resetShiftBtn?.addEventListener('click', resetShift);
+    dom.resetShiftBtn?.addEventListener('click', submitTutupShift);
     document.addEventListener('click', e => {
       if (e.target === dom.shiftModal) closeShiftModal();
     });
+
+    const openShiftForm = document.getElementById('openShiftForm');
+    openShiftForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const floatVal = Number(document.getElementById('openShiftCashFloat').value) || 0;
+      if (db) {
+        const { data, error } = await db
+          .from('cashier_shifts')
+          .insert({
+            store_id: state.storeId,
+            cashier_id: state.selectedCashierId,
+            opened_at: new Date().toISOString(),
+            cash_float_amount: floatVal,
+            expected_cash: floatVal,
+            actual_cash: 0,
+            discrepancy: 0,
+            note: ''
+          })
+          .select()
+          .single();
+        if (error) {
+          alert('Gagal membuka shift: ' + error.message);
+          return;
+        }
+        state.activeShift = data;
+        state.shiftStartTime = new Date(data.opened_at);
+        localStorage.setItem('shift_start_' + (state.storeId || ''), state.shiftStartTime.toISOString());
+        hideBukaShiftModal();
+        showAppToast('Shift berhasil dibuka!', 'success');
+      } else {
+        state.activeShift = {
+          id: 'offline-' + Date.now(),
+          store_id: state.storeId,
+          cashier_id: state.selectedCashierId,
+          opened_at: new Date().toISOString(),
+          cash_float_amount: floatVal
+        };
+        state.shiftStartTime = new Date();
+        localStorage.setItem('shift_start_' + (state.storeId || ''), state.shiftStartTime.toISOString());
+        hideBukaShiftModal();
+      }
+    });
+
+    const splitCash = document.getElementById('splitCashInput');
+    const splitNonCash = document.getElementById('splitNonCashInput');
+    const splitRem = document.getElementById('splitRemaining');
+
+    const updateSplitAmounts = () => {
+      const totals = calculateCart();
+      const valCash = Number(splitCash?.value) || 0;
+      const valNonCash = Number(splitNonCash?.value) || 0;
+      const remaining = totals.total - (valCash + valNonCash);
+      
+      if (splitRem) {
+        splitRem.textContent = formatCurrency(remaining);
+        if (remaining === 0) {
+          splitRem.className = "font-semibold text-green-600";
+        } else {
+          splitRem.className = "font-semibold text-rose-600";
+        }
+      }
+    };
+
+    splitCash?.addEventListener('input', updateSplitAmounts);
+    splitNonCash?.addEventListener('input', updateSplitAmounts);
 
     // ── Feature 4: Export PDF ──
     dom.exportPdfBtn?.addEventListener('click', async () => {
@@ -3818,11 +4491,9 @@ ${txRows}
       }
     }
 
-    // Pulihkan waktu mulai shift dari penyimpanan agar tidak hilang saat reload
-    if (!state.shiftStartTime) {
-      const saved = localStorage.getItem('shift_start_' + (state.storeId || ''));
-      state.shiftStartTime = saved ? new Date(saved) : new Date();
-      if (!saved) localStorage.setItem('shift_start_' + (state.storeId || ''), state.shiftStartTime.toISOString());
+    await loadActiveShift();
+    if (db && state.authUser && state.storeId && !_isSuperAdmin) {
+      await checkOrOpenShift();
     }
 
     // Freemium: aplikasi tidak pernah dikunci — hanya tampilkan banner pengingat trial

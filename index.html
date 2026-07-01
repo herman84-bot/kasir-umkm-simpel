@@ -507,6 +507,7 @@
                   <button type="button" data-paymethod="Tunai" class="paymethod-btn flex-1 rounded-2xl border-2 border-sky-500 bg-sky-50 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-sky-700 transition">💵 Tunai</button>
                   <button type="button" data-paymethod="QRIS" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-slate-600 transition hover:border-sky-300">📱 QRIS</button>
                   <button type="button" data-paymethod="Transfer" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-slate-600 transition hover:border-sky-300">🏦 Transfer</button>
+                  <button type="button" data-paymethod="Split" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-slate-600 transition hover:border-sky-300">⚖️ Split</button>
                 </div>
               </div>
               <div id="cashInputWrapper">
@@ -516,6 +517,22 @@
                 </label>
                 <div class="flex items-center justify-between text-slate-600 mt-2">
                   <span>Kembalian</span><span id="cashChange">Rp0</span>
+                </div>
+              </div>
+              <div id="splitInputWrapper" class="hidden space-y-3">
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <label class="block">
+                    <span class="text-slate-700 text-sm">Porsi Tunai (Cash)</span>
+                    <input id="splitCashInput" type="number" min="0" value="0" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" />
+                  </label>
+                  <label class="block">
+                    <span class="text-slate-700 text-sm">Porsi Non-Tunai</span>
+                    <input id="splitNonCashInput" type="number" min="0" value="0" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" />
+                  </label>
+                </div>
+                <div class="flex items-center justify-between text-sm text-slate-600 mt-2">
+                  <span>Sisa Belum Dialokasikan</span>
+                  <span id="splitRemaining" class="font-semibold text-slate-900">Rp0</span>
                 </div>
               </div>
               <button id="payButton" class="w-full rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition">Bayar & Simpan Transaksi</button>
@@ -1288,7 +1305,7 @@
         </div>
         <button id="closeShiftModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
       </div>
-      <div class="p-6 space-y-4">
+      <div class="p-6 space-y-4 overflow-y-auto max-h-[75vh]">
         <div class="grid grid-cols-2 gap-3">
           <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-center">
             <p class="text-xs text-slate-500 uppercase tracking-wide">Kasir</p>
@@ -1307,11 +1324,157 @@
             <p class="text-lg font-bold mt-1 text-sky-700" id="shiftItemsSold">0</p>
           </div>
         </div>
+
+        <div class="border-t border-slate-200 pt-4 mt-2 space-y-3">
+          <h4 class="text-sm font-semibold text-slate-800 uppercase tracking-wider">Pencocokan Kas (Closing Count)</h4>
+          <div class="space-y-2">
+            <div class="flex justify-between text-sm">
+              <span class="text-slate-600">Modal Awal:</span>
+              <span id="shiftModalFloat" class="font-semibold text-slate-800">Rp0</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-slate-600">Penjualan Tunai (System):</span>
+              <span id="shiftModalCashSales" class="font-semibold text-slate-800">Rp0</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-slate-600">Refund Tunai (System):</span>
+              <span id="shiftModalRefunds" class="font-semibold text-slate-800">Rp0</span>
+            </div>
+            <div class="flex justify-between text-base font-semibold border-t border-slate-100 pt-2 text-slate-900">
+              <span>Total Uang Kas (System):</span>
+              <span id="shiftModalExpected">Rp0</span>
+            </div>
+          </div>
+          <div>
+            <label class="block text-slate-700 text-sm font-medium mb-1">Total Tunai Fisik di Laci</label>
+            <input id="shiftActualCashInput" type="number" min="0" value="0" class="w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
+          </div>
+          <div class="flex justify-between text-base font-semibold text-slate-900">
+            <span>Selisih:</span>
+            <span id="shiftDiscrepancy" class="text-slate-900 font-bold">Rp0</span>
+          </div>
+          <div>
+            <label class="block text-slate-700 text-sm font-medium mb-1">Catatan Selisih / Memo</label>
+            <textarea id="shiftNoteInput" rows="2" placeholder="Tulis alasan jika ada selisih kas..." class="w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 text-sm"></textarea>
+          </div>
+        </div>
+
         <div class="flex gap-3 pt-2">
-          <button id="printShiftBtn" class="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-white font-semibold hover:bg-slate-800 transition text-sm">🖨 Cetak Laporan</button>
-          <button id="resetShiftBtn" class="flex-1 rounded-2xl bg-amber-600 px-4 py-3 text-white font-semibold hover:bg-amber-700 transition text-sm">🔄 Tutup & Reset</button>
+          <button id="printShiftBtn" class="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-white font-semibold hover:bg-slate-800 transition text-sm">🖨 Cetak Struk</button>
+          <button id="resetShiftBtn" class="flex-1 rounded-2xl bg-amber-600 px-4 py-3 text-white font-semibold hover:bg-amber-700 transition text-sm">🔒 Tutup Shift & Selesai</button>
         </div>
         <button id="cancelShiftModal" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-slate-700 hover:bg-slate-100 transition text-sm">Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Buka Shift (Open Shift) -->
+  <div id="openShiftModalEl" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/80 px-4 py-6">
+    <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden p-6 space-y-4">
+      <div class="text-center">
+        <div class="text-4xl mb-2">🔓</div>
+        <h3 class="text-xl font-bold">Mulai Shift Baru</h3>
+        <p class="text-slate-500 text-sm">Masukkan nominal uang modal awal di laci kasir.</p>
+      </div>
+      <form id="openShiftForm" class="space-y-4">
+        <div>
+          <label class="block text-slate-700 text-sm font-medium mb-2">Uang Modal Awal (Cash Float)</label>
+          <input id="openShiftCashFloat" type="number" min="0" value="100000" required class="w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
+        </div>
+        <button type="submit" class="w-full rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition">
+          Mulai Shift & Mulai Jualan
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Otorisasi PIN Admin -->
+  <div id="pinAuthModal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-sm rounded-3xl bg-white shadow-2xl overflow-hidden p-6 space-y-4">
+      <div class="text-center">
+        <div class="text-4xl mb-2">🔑</div>
+        <h3 class="text-xl font-bold">Otorisasi Supervisor</h3>
+        <p class="text-slate-500 text-sm">Masukkan PIN Admin/Supervisor untuk melanjutkan.</p>
+      </div>
+      <form id="pinAuthForm" class="space-y-4">
+        <div>
+          <input id="pinAuthInput" type="password" placeholder="Masukkan PIN" required class="w-full text-center text-2xl tracking-widest rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
+        </div>
+        <div class="flex gap-3">
+          <button type="submit" class="flex-1 rounded-2xl bg-sky-600 px-4 py-3 text-white font-semibold hover:bg-sky-700 transition text-sm">
+            Verifikasi
+          </button>
+          <button type="button" id="cancelPinAuth" class="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-700 hover:bg-slate-100 transition text-sm">
+            Batal
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Void Transaksi -->
+  <div id="voidModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-sm rounded-3xl bg-white shadow-2xl overflow-hidden p-6 space-y-4">
+      <div class="text-center">
+        <div class="text-4xl mb-2">🚫</div>
+        <h3 class="text-xl font-bold">Batalkan Transaksi</h3>
+        <p class="text-slate-500 text-sm" id="voidModalSubtitle">Masukkan alasan pembatalan transaksi ini.</p>
+      </div>
+      <form id="voidForm" class="space-y-4">
+        <div>
+          <label class="block text-slate-700 text-sm font-medium mb-1">Alasan Void</label>
+          <input id="voidReasonInput" type="text" placeholder="Misal: Salah Input, Pelanggan Batal" required class="w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
+        </div>
+        <div class="flex gap-3">
+          <button type="submit" class="flex-1 rounded-2xl bg-rose-600 px-4 py-3 text-white font-semibold hover:bg-rose-700 transition text-sm">
+            Batalkan Transaksi
+          </button>
+          <button type="button" id="cancelVoidModal" class="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-700 hover:bg-slate-100 transition text-sm">
+            Batal
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Retur Barang -->
+  <div id="returnModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-lg rounded-3xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+        <div>
+          <h3 class="text-xl font-semibold">↩️ Retur Barang</h3>
+          <p class="text-slate-500 text-sm" id="returnModalSubtitle">Pilih item yang ingin diretur</p>
+        </div>
+        <button id="closeReturnModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
+      </div>
+      <div class="p-6 space-y-4 overflow-y-auto flex-1">
+        <div class="space-y-3" id="returnItemsList">
+          <!-- Dinamis di-render via JS -->
+        </div>
+        <div>
+          <label class="block text-slate-700 text-sm font-medium mb-1">Alasan Retur</label>
+          <select id="returnReasonSelect" class="w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white">
+            <option value="Barang Cacat">Barang Cacat / Rusak</option>
+            <option value="Salah Beli">Salah Beli</option>
+            <option value="Kedaluwarsa">Kedaluwarsa</option>
+            <option value="Lainnya">Lainnya</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-slate-700 text-sm font-medium mb-1">Metode Penyelesaian</label>
+          <select id="returnActionSelect" class="w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white">
+            <option value="refund">Kembali Dana (Refund Tunai)</option>
+            <option value="restock">Kembali Stok (Tanpa Refund Uang)</option>
+          </select>
+        </div>
+      </div>
+      <div class="border-t border-slate-200 p-5 bg-slate-50 flex gap-3">
+        <button id="submitReturnBtn" class="flex-1 rounded-2xl bg-amber-600 px-5 py-3 text-white font-semibold hover:bg-amber-700 transition">
+          Proses Retur
+        </button>
+        <button id="cancelReturnModal" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">
+          Batal
+        </button>
       </div>
     </div>
   </div>
