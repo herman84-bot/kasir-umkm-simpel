@@ -423,12 +423,11 @@ const App = (() => {
   // Supabase row → app purchase object
   const fromDbPurchase = p => ({
     id: p.id,
-    supplier: p.supplier,
+    supplier: p.supplier || '',
     date: p.created_at,
-    total: Number(p.total),
+    total: Number(p.total) || 0,
     status: p.status || 'Diterima',
     items: (p.purchase_items || []).map(item => ({
-      id: String(item.product_id || ''),
       name: item.product_name,
       qty: Number(item.quantity),
       price: Number(item.price),
@@ -699,6 +698,12 @@ const App = (() => {
     purchaseModal: document.getElementById('purchaseModal'),
     closePurchaseModal: document.getElementById('closePurchaseModal'),
     cancelPurchase: document.getElementById('cancelPurchase'),
+    returnPurchaseModal: document.getElementById('returnPurchaseModal'),
+    returnPurchaseInvoice: document.getElementById('returnPurchaseInvoice'),
+    closeReturnPurchaseModal: document.getElementById('closeReturnPurchaseModal'),
+    returnItemsList: document.getElementById('returnItemsList'),
+    returnReason: document.getElementById('returnReason'),
+    returnPurchaseForm: document.getElementById('returnPurchaseForm'),
     purchaseSupplier: document.getElementById('purchaseSupplier'),
     purchaseInvoice: document.getElementById('purchaseInvoice'),
     purchaseProduct: document.getElementById('purchaseProduct'),
@@ -1560,9 +1565,18 @@ const App = (() => {
           <td class="p-3 font-semibold">${formatCurrency(order.total)}</td>
           <td class="p-3">${esc(order.items.length)} produk</td>
           <td class="p-3">${esc(order.status)}</td>
+          <td class="p-3">
+            ${order.status !== 'Diretur' ? `<button data-retur="${esc(order.id)}" class="rounded-xl bg-red-50 border border-red-200 px-3 py-1.5 text-red-700 text-xs font-medium hover:bg-red-100 transition">📤 Retur</button>` : '<span class="text-slate-400 text-xs">Selesai Diretur</span>'}
+          </td>
         </tr>
       `;
-    }).join('') || '<tr><td colspan="6" class="p-8 text-center text-slate-500">Belum ada data pembelian.</td></tr>';
+    }).join('') || '<tr><td colspan="7" class="p-8 text-center text-slate-500">Belum ada data pembelian.</td></tr>';
+    
+    dom.purchaseTable.onclick = event => {
+      const btn = event.target.closest('button[data-retur]');
+      if (!btn) return;
+      openReturnPurchaseModal(btn.dataset.retur);
+    };
   };
 
   const getActiveUser = () => {
@@ -1818,10 +1832,8 @@ const App = (() => {
     // Ada produk - tampilkan dalam dropdown
     dom.purchaseProduct.disabled = false;
     const options = state.products.map(product => {
-      const isOutOfStock = product.stock <= 0;
-      const disabledAttr = isOutOfStock ? 'disabled' : '';
-      const stockInfo = isOutOfStock ? ' - HABIS' : ` - Stok: ${product.stock}`;
-      return `<option value="${product.id}" ${disabledAttr}>${esc(product.name)}${stockInfo}</option>`;
+      const stockInfo = product.stock <= 0 ? ' - HABIS' : ` - Stok: ${product.stock}`;
+      return `<option value="${product.id}">${esc(product.name)}${stockInfo}</option>`;
     }).join('');
     
     dom.purchaseProduct.innerHTML = '<option value="">-- Pilih Produk --</option>' + options;
@@ -1866,6 +1878,116 @@ const App = (() => {
 
   const closePurchaseModal = () => {
     dom.purchaseModal.classList.add('hidden');
+  };
+
+  const openReturnPurchaseModal = (purchaseId) => {
+    const order = state.purchases.find(p => String(p.id) === String(purchaseId));
+    if (!order) return;
+    dom.returnPurchaseInvoice.textContent = `Invoice: #${order.id} — ${order.supplier}`;
+    dom.returnItemsList.innerHTML = order.items.map(item => {
+      const maxReturn = (item.qty || 0) - (item.returnedQty || 0);
+      if (maxReturn <= 0) return '';
+      return `
+        <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 border border-slate-200">
+          <div class="flex-1">
+            <p class="font-semibold text-sm">${esc(item.name)}</p>
+            <p class="text-slate-500 text-xs">Qty Beli: ${item.qty} | Sudah Diretur: ${item.returnedQty || 0} | Bisa Diretur: ${maxReturn}</p>
+          </div>
+          <div class="w-24">
+            <input 
+              type="number" 
+              min="0" 
+              max="${maxReturn}" 
+              value="0" 
+              data-product-id="${esc(item.id)}" 
+              data-product-name="${esc(item.name)}" 
+              class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-center text-sm focus:ring-2 focus:ring-red-400 focus:outline-none"
+            />
+          </div>
+        </div>
+      `;
+    }).join('');
+    if (!dom.returnItemsList.innerHTML.trim()) {
+      dom.returnItemsList.innerHTML = '<p class="text-slate-400 text-center py-4">Semua item sudah diretur.</p>';
+    }
+    dom.returnReason.value = '';
+    dom.returnPurchaseModal.dataset.purchaseId = purchaseId;
+    dom.returnPurchaseModal.classList.remove('hidden');
+    dom.returnPurchaseModal.style.display = 'flex';
+  };
+
+  const closeReturnPurchaseModalFn = () => {
+    dom.returnPurchaseModal.classList.add('hidden');
+    dom.returnPurchaseModal.style.display = 'none';
+  };
+
+  const handleReturnPurchaseSubmit = async (e) => {
+    e.preventDefault();
+    const purchaseId = dom.returnPurchaseModal.dataset.purchaseId;
+    const reason = dom.returnReason.value.trim();
+    if (!reason) { alert('Isi alasan retur terlebih dahulu.'); return; }
+
+    const inputs = dom.returnItemsList.querySelectorAll('input[type="number"]');
+    const returItems = [];
+    inputs.forEach(inp => {
+      const qty = Number(inp.value);
+      if (qty > 0) {
+        returItems.push({ productId: inp.dataset.productId, productName: inp.dataset.productName, qty });
+      }
+    });
+
+    if (!returItems.length) {
+      alert('Pilih minimal 1 item dengan jumlah retur lebih dari 0.');
+      return;
+    }
+
+    const cashier = state.activeCashier || 'Admin';
+
+    if (db) {
+      for (const ri of returItems) {
+        const numId = parseInt(ri.productId, 10);
+        if (isNaN(numId)) {
+          console.warn('Skip retur: produk offline ID', ri.productId);
+          continue;
+        }
+        const { error } = await db.rpc('return_purchase_item', {
+          p_purchase_id: purchaseId,
+          p_product_id: numId,
+          p_qty_to_return: ri.qty,
+          p_cashier: cashier,
+          p_reason: reason
+        });
+        if (error) { alert('Gagal retur: ' + error.message); return; }
+      }
+    }
+
+    // Update local state
+    const order = state.purchases.find(p => String(p.id) === String(purchaseId));
+    if (order) {
+      let allReturned = true;
+      let anyReturned = false;
+      returItems.forEach(ri => {
+        const item = order.items.find(it => String(it.id) === String(ri.productId));
+        if (item) {
+          item.returnedQty = (item.returnedQty || 0) + ri.qty;
+          anyReturned = true;
+        }
+        const product = state.products.find(p => String(p.id) === String(ri.productId));
+        if (product) product.stock -= ri.qty;
+      });
+      order.items.forEach(it => {
+        if ((it.returnedQty || 0) < it.qty) allReturned = false;
+      });
+      if (anyReturned) {
+        order.status = allReturned ? 'Diretur' : 'Sebagian Diretur';
+      }
+    }
+
+    syncStorage();
+    renderInventory();
+    renderPurchaseHistory();
+    closeReturnPurchaseModalFn();
+    alert('✅ Retur berhasil diproses.');
   };
 
   const autoFillPurchasePrice = () => {
@@ -1924,27 +2046,24 @@ const App = (() => {
 
     if (db) {
       try {
-        // Insert purchase header
-        const { error: poErr } = await db.from('purchases').insert({
-          id: purchaseId,
-          store_id: state.storeId,
-          supplier: purchase.supplier,
-          total,
-          status: 'Diterima'
+        const itemsForRpc = state.draftPurchase.items
+          .filter(item => !isNaN(parseInt(item.id, 10)))
+          .map(item => ({
+            product_id: parseInt(item.id, 10),
+            product_name: item.name,
+            quantity: item.qty,
+            price: item.price
+          }));
+        
+        const { error: rpcErr } = await db.rpc('receive_purchase_order', {
+          p_purchase_id: purchaseId,
+          p_store_id: state.storeId,
+          p_supplier: purchase.supplier,
+          p_total: total,
+          p_items: JSON.stringify(itemsForRpc),
+          p_cashier: state.activeCashier || 'Admin'
         });
-        if (poErr) throw poErr;
-
-        // Insert purchase items
-        const itemRows = state.draftPurchase.items.map(item => ({
-          purchase_id: purchaseId,
-          product_id: parseInt(item.id) || null,
-          product_name: item.name,
-          quantity: item.qty,
-          price: item.price,
-          subtotal: item.qty * item.price
-        }));
-        const { error: itemsErr } = await db.from('purchase_items').insert(itemRows);
-        if (itemsErr) throw itemsErr;
+        if (rpcErr) throw rpcErr;
       } catch (err) {
         alert('Gagal menyimpan pembelian: ' + err.message);
         return;
@@ -1958,12 +2077,6 @@ const App = (() => {
       const product = state.products.find(prod => prod.id === item.id);
       if (product) {
         product.stock += item.qty;
-        if (db) {
-          const numId = parseInt(product.id);
-          if (!isNaN(numId)) {
-            await db.from('products').update({ stock: product.stock }).eq('id', numId);
-          }
-        }
       }
     }
 
@@ -3406,6 +3519,8 @@ ${txRows}
     dom.closeAdjustmentModal?.addEventListener('click', closeAdjustmentModalFn);
     if (dom.adjustmentForm) dom.adjustmentForm.addEventListener('submit', handleAdjustmentSubmit);
     if (dom.closeLedgerModal) dom.closeLedgerModal.addEventListener('click', closeLedgerModalFn);
+    if (dom.closeReturnPurchaseModal) dom.closeReturnPurchaseModal.addEventListener('click', closeReturnPurchaseModalFn);
+    if (dom.returnPurchaseForm) dom.returnPurchaseForm.addEventListener('submit', handleReturnPurchaseSubmit);
     if (dom.startOpnameButton) dom.startOpnameButton.addEventListener('click', startOpname);
     if (dom.applyOpnameButton) dom.applyOpnameButton.addEventListener('click', applyOpname);
     dom.startScanner?.addEventListener('click', startBarcodeScanner);
