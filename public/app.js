@@ -2401,7 +2401,7 @@ const App = (() => {
     });
     if (screenId === 'kelolaKasir') renderCashierManagement();
     if (screenId === 'pengaturan') renderSettings();
-    if (screenId === 'kasbon') renderKasbon();
+    if (screenId === 'kasbon') { if (window.renderKasbon) window.renderKasbon(); }
     if (screenId === 'dashboard') renderDashboardPusat();
   };
 
@@ -3861,13 +3861,13 @@ ${txRows}
     bindOnboarding();
 
     // ── Kasbon ──
-    document.getElementById('addDebtBtn')?.addEventListener('click', openAddDebtModal);
-    document.getElementById('closeDebtModal')?.addEventListener('click', closeDebtModal);
+    document.getElementById('addDebtBtn')?.addEventListener('click', (e) => { if (window.openDebtModal) window.openDebtModal(e); });
+    document.getElementById('closeDebtModal')?.addEventListener('click', (e) => { if (window.closeDebtModal) window.closeDebtModal(e); });
     dom.debtForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      await saveDebt();
+      if (window.saveDebt) await window.saveDebt(e);
     });
-    document.getElementById('debtSearchInput')?.addEventListener('input', renderKasbon);
+    document.getElementById('debtSearchInput')?.addEventListener('input', () => { if (window.renderKasbon) window.renderKasbon(); });
 
     // ── Struk WhatsApp ──
     document.getElementById('waReceiptBtn')?.addEventListener('click', () => {
