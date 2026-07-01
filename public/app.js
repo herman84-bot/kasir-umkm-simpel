@@ -2203,18 +2203,14 @@ const App = (() => {
       `;
     }).join('');
 
-    dom.inventoryTable.querySelectorAll('[data-edit]').forEach(btn => {
-      btn.addEventListener('click', () => openInventoryModal(btn.dataset.edit));
-    });
-    dom.inventoryTable.querySelectorAll('[data-adjust]').forEach(btn => {
-      btn.addEventListener('click', () => openAdjustmentModal(btn.dataset.adjust));
-    });
-    dom.inventoryTable.querySelectorAll('[data-ledger]').forEach(btn => {
-      btn.addEventListener('click', () => openLedgerModal(btn.dataset.ledger));
-    });
-    dom.inventoryTable.querySelectorAll('[data-delete]').forEach(btn => {
-      btn.addEventListener('click', () => deleteProduct(btn.dataset.delete));
-    });
+    dom.inventoryTable.onclick = event => {
+      const btn = event.target.closest('button');
+      if (!btn) return;
+      if (btn.dataset.edit) openInventoryModal(btn.dataset.edit);
+      if (btn.dataset.adjust) openAdjustmentModal(btn.dataset.adjust);
+      if (btn.dataset.ledger) openLedgerModal(btn.dataset.ledger);
+      if (btn.dataset.delete) deleteProduct(btn.dataset.delete);
+    };
   };
 
   const renderHistory = () => {
