@@ -28,8 +28,8 @@ BEGIN
   RETURNING id INTO v_debt_id;
 
   -- 2. Insert into transactions (status: Hutang)
-  INSERT INTO public.transactions (store_id, total_amount, subtotal, tax_amount, discount_amount, payment_method, cashier_name, client_id)
-  VALUES (p_store_id, p_amount, p_amount, 0, 0, 'Hutang', p_cashier_name, 'D-' || v_debt_id)
+  INSERT INTO public.transactions (store_id, total_amount, discount_amount, payment_method, cashier_name, client_id)
+  VALUES (p_store_id, p_amount, 0, 'Hutang', p_cashier_name, 'D-' || v_debt_id)
   RETURNING id INTO v_transaction_id;
 
   -- 3. Loop items to insert transaction_items and decrement stock
@@ -52,9 +52,9 @@ BEGIN
 
     IF v_new_stock IS NOT NULL THEN
       INSERT INTO public.stock_ledgers (
-        store_id, product_id, reference_type, reference_id, qty_changed, balance_stock, cashier_name, reason
+        store_id, product_id, reference_type, qty_changed, balance_stock, cashier_name, reason, note
       ) VALUES (
-        p_store_id, v_product_id, 'kasbon', v_debt_id::text, -v_qty, v_new_stock, p_cashier_name, 'Kasbon'
+        p_store_id, v_product_id, 'kasbon', -v_qty, v_new_stock, p_cashier_name, 'Kasbon', 'Ref: D-' || v_debt_id
       );
     END IF;
   END LOOP;
