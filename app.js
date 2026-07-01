@@ -470,6 +470,7 @@ const App = (() => {
     cost: Number(p.cost) || 0,
     stock: Number(p.stock) || 0,
     minStock: Number(p.min_stock) || 5,
+    expiry_date: p.expiry_date || null,
     image: 'https://via.placeholder.com/260?text=' + encodeURIComponent(p.name)
   });
 
@@ -2286,9 +2287,31 @@ const App = (() => {
     });
   };
 
+  const isExpired = (expiryDate) => {
+    if (!expiryDate) return false;
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    return today > new Date(expiryDate);
+  };
+
+  const getExpiryStatus = (expiryDate) => {
+    if (!expiryDate) return { label: '-', class: 'text-slate-500' };
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const exp = new Date(expiryDate);
+    const diffDays = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) return { label: 'KEDALUWARSA', class: 'bg-rose-100 text-rose-800' };
+    if (diffDays < 30) return { label: `Dekat (${diffDays} hr)`, class: 'bg-amber-100 text-amber-800' };
+    return { label: 'Aman', class: 'bg-emerald-100 text-emerald-800' };
+  };
+
   const addToCart = productId => {
     const product = state.products.find(item => item.id === productId);
     if (!product || product.stock <= 0) return;
+    if (product.expiry_date && isExpired(product.expiry_date)) {
+        alert('Produk ini sudah kedaluwarsa dan diblokir dari penjualan!');
+        return;
+    }
 
     if (!state.cart[productId]) {
       state.cart[productId] = { ...product, qty: 1 };
@@ -2378,6 +2401,7 @@ const App = (() => {
       const isLowStock = product.stock <= (product.minStock || 5);
       const criticalClass = isLowStock ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800';
       const rowClass = isLowStock ? 'border-b border-rose-200 bg-rose-50/30' : 'border-b border-slate-200';
+      const expStatus = getExpiryStatus(product.expiry_date);
       return `
         <tr class="${rowClass}">
           <td class="p-3 font-semibold">${esc(product.code)}</td>
@@ -2386,7 +2410,10 @@ const App = (() => {
           <td class="p-3">${esc(product.category)}</td>
           <td class="p-3">${formatCurrency(product.price)}</td>
           <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${criticalClass}">${product.stock} / min ${product.minStock || 5}</span></td>
-          <td class="p-3 space-x-2">
+          <td class="p-3"><span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold ${expStatus.class}">${expStatus.label}</span></td>
+          <td class="p-3 space-x-2 whitespace-nowrap">
+            <button data-adjust="${product.id}" class="rounded-2xl bg-amber-600 px-4 py-2 text-white text-sm" title="Sesuaikan Stok">⚙️</button>
+            <button data-ledger="${product.id}" class="rounded-2xl bg-sky-600 px-4 py-2 text-white text-sm" title="Kartu Stok">📋</button>
             <button data-edit="${product.id}" class="rounded-2xl bg-slate-900 px-4 py-2 text-white text-sm">Edit</button>
             <button data-delete="${product.id}" class="rounded-2xl bg-rose-600 px-4 py-2 text-white text-sm">Hapus</button>
           </td>
@@ -2399,6 +2426,12 @@ const App = (() => {
     });
     dom.inventoryTable.querySelectorAll('[data-delete]').forEach(btn => {
       btn.addEventListener('click', () => deleteProduct(btn.dataset.delete));
+    });
+    dom.inventoryTable.querySelectorAll('[data-adjust]').forEach(btn => {
+      btn.addEventListener('click', () => openAdjustmentModal(btn.dataset.adjust));
+    });
+    dom.inventoryTable.querySelectorAll('[data-ledger]').forEach(btn => {
+      btn.addEventListener('click', () => openLedgerModal(btn.dataset.ledger));
     });
   };
 
@@ -2478,7 +2511,13 @@ const App = (() => {
       button.classList.toggle('text-white', button.dataset.screen === screenId);
     });
     // Update bottom nav active state
-    document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
+    document.getElementById('closeAdjustmentModal')?.addEventListener('click', closeAdjustmentModal);
+    document.getElementById('adjustmentForm')?.addEventListener('submit', saveAdjustment);
+    document.getElementById('closeLedgerModal')?.addEventListener('click', closeLedgerModal);
+    document.getElementById('startOpnameButton')?.addEventListener('click', startOpname);
+    document.getElementById('applyOpnameButton')?.addEventListener('click', applyOpname);
+
+    document.querySelectorAll('.menu-btn, .bottom-nav-btn').forEach(btn => {
       const isActive = btn.dataset.screen === screenId;
       btn.classList.toggle('text-white', isActive);
       btn.classList.toggle('text-slate-400', !isActive);
@@ -2523,6 +2562,7 @@ const App = (() => {
       dom.productId.value = '';
       dom.productCode.value = generateProductCode();
       dom.productImage.value = 'https://via.placeholder.com/200';
+      if (document.getElementById('productExpiry')) document.getElementById('productExpiry').value = '';
       showInventoryModal('Tambah Produk');
       return;
     }
@@ -2538,6 +2578,7 @@ const App = (() => {
     dom.productImage.value = product.image || 'https://via.placeholder.com/200';
     dom.productBarcode.value = product.barcode || '';
     if (dom.productMinStock) dom.productMinStock.value = product.minStock || 5;
+    if (document.getElementById('productExpiry')) document.getElementById('productExpiry').value = product.expiry_date || '';
     showInventoryModal('Edit Produk');
   };
 
@@ -2566,6 +2607,7 @@ const App = (() => {
       alert('❌ Produk tembakau dan vape tidak diizinkan di aplikasi ini.');
       return;
     }
+    const pExp = document.getElementById('productExpiry');
     const dbPayload = {
       name,
       barcode: dom.productBarcode.value.trim() || null,
@@ -2573,7 +2615,8 @@ const App = (() => {
       price: Number(dom.productPrice.value) || 0,
       cost: Number(dom.productCost.value) || 0,
       stock: Number(dom.productStock.value) || 0,
-      min_stock: Number(dom.productMinStock ? dom.productMinStock.value : 5) || 5
+      min_stock: Number(dom.productMinStock ? dom.productMinStock.value : 5) || 5,
+      expiry_date: pExp && pExp.value ? pExp.value : null
     };
 
     let finalId = existingId;
@@ -2603,6 +2646,7 @@ const App = (() => {
       cost: dbPayload.cost,
       stock: dbPayload.stock,
       minStock: dbPayload.min_stock || 5,
+      expiry_date: dbPayload.expiry_date,
       image: dom.productImage.value.trim() || 'https://via.placeholder.com/260'
     };
 
@@ -3841,6 +3885,195 @@ ${txRows}
       }
     }
     renderCart();
+  };
+
+  // --- INVENTORY RULES LOGIC ---
+  let opnameData = [];
+
+  const openAdjustmentModal = (productId) => {
+    const product = state.products.find(p => p.id === productId);
+    if (!product) return;
+    document.getElementById('adjProductId').value = product.id;
+    document.getElementById('adjCurrentStock').textContent = product.stock;
+    document.getElementById('adjustmentForm').reset();
+    document.getElementById('adjDirection').value = 'kurang';
+    document.getElementById('adjustmentModalTitle').textContent = `Sesuaikan Stok: ${product.name}`;
+    document.getElementById('adjustmentModal').classList.remove('hidden');
+    document.getElementById('adjustmentModal').classList.add('flex');
+  };
+
+  const closeAdjustmentModal = () => {
+    document.getElementById('adjustmentModal').classList.add('hidden');
+    document.getElementById('adjustmentModal').classList.remove('flex');
+  };
+
+  const saveAdjustment = async (e) => {
+    e.preventDefault();
+    const pid = document.getElementById('adjProductId').value;
+    const direction = document.getElementById('adjDirection').value;
+    const qty = parseInt(document.getElementById('adjQty').value, 10);
+    const reason = document.getElementById('adjReason').value;
+    const note = document.getElementById('adjNote').value;
+    const product = state.products.find(p => p.id === pid);
+
+    if (!product || !qty || !reason) return;
+    const adjustedQty = direction === 'kurang' ? -qty : qty;
+    if (product.stock + adjustedQty < 0) {
+      alert('Stok tidak boleh negatif!');
+      return;
+    }
+
+    if (db) {
+      const { error } = await db.rpc('adjust_stock', {
+        p_product_id: parseInt(pid, 10),
+        p_qty_adjusted: adjustedQty,
+        p_reason: reason,
+        p_note: note,
+        p_cashier: activeCashierName(),
+        p_ref_type: 'adjustment'
+      });
+      if (error) { alert('Gagal sesuaikan stok: ' + friendlyError(error)); return; }
+    }
+    
+    product.stock += adjustedQty;
+    syncStorage();
+    renderInventory();
+    renderProducts();
+    closeAdjustmentModal();
+    alert('Stok berhasil disesuaikan!');
+  };
+
+  const openLedgerModal = async (productId) => {
+    const product = state.products.find(p => p.id === productId);
+    if (!product) return;
+    document.getElementById('ledgerProductName').textContent = product.name;
+    const tbody = document.getElementById('ledgerTableBody');
+    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center">Memuat riwayat...</td></tr>';
+    document.getElementById('ledgerModal').classList.remove('hidden');
+    document.getElementById('ledgerModal').classList.add('flex');
+
+    if (db) {
+      const { data, error } = await db.from('stock_ledgers').select('*').eq('product_id', parseInt(productId, 10)).order('created_at', { ascending: false }).limit(50);
+      if (error) {
+        tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500">Gagal memuat data</td></tr>';
+      } else if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center">Belum ada riwayat mutasi</td></tr>';
+      } else {
+        tbody.innerHTML = data.map(row => {
+          const time = new Date(row.created_at).toLocaleString('id-ID');
+          const typeMap = { sale: 'Penjualan', purchase: 'Pembelian', return: 'Retur', void: 'Batal', adjustment: 'Penyesuaian', opname: 'Opname' };
+          const typeName = typeMap[row.reference_type] || row.reference_type;
+          const qtyText = row.qty_changed > 0 ? `<span class="text-emerald-600 font-bold">+${row.qty_changed}</span>` : `<span class="text-rose-600 font-bold">${row.qty_changed}</span>`;
+          return `
+            <tr class="border-b border-slate-100 hover:bg-slate-50">
+              <td class="p-3">${time}</td>
+              <td class="p-3">${esc(row.cashier_name || '-')}</td>
+              <td class="p-3">${esc(typeName)}</td>
+              <td class="p-3">${qtyText}</td>
+              <td class="p-3 font-semibold">${row.balance_stock}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    } else {
+      tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center">Offline mode tidak mendukung Kartu Stok</td></tr>';
+    }
+  };
+
+  const closeLedgerModal = () => {
+    document.getElementById('ledgerModal').classList.add('hidden');
+    document.getElementById('ledgerModal').classList.remove('flex');
+  };
+
+  const startOpname = () => {
+    opnameData = state.products.map(p => ({
+      ...p,
+      physical: ''
+    }));
+    renderOpnameTable();
+    document.getElementById('applyOpnameButton').classList.remove('hidden');
+    document.getElementById('opnameSummary').classList.remove('hidden');
+  };
+
+  const renderOpnameTable = () => {
+    const tbody = document.getElementById('opnameTable');
+    let totalLoss = 0;
+    let diffCount = 0;
+    tbody.innerHTML = opnameData.map(p => {
+      let diff = 0;
+      let loss = 0;
+      if (p.physical !== '') {
+        diff = parseInt(p.physical, 10) - p.stock;
+        loss = diff * (p.cost || 0);
+        if (diff !== 0) {
+            totalLoss += loss;
+            diffCount++;
+        }
+      }
+      const lossText = loss === 0 ? '-' : (loss < 0 ? `<span class="text-rose-600">${formatCurrency(Math.abs(loss))}</span>` : `<span class="text-emerald-600">+${formatCurrency(loss)}</span>`);
+      const diffText = diff === 0 ? '-' : (diff < 0 ? `<span class="text-rose-600">${diff}</span>` : `<span class="text-emerald-600">+${diff}</span>`);
+      return `
+        <tr class="border-b border-slate-100 hover:bg-slate-50">
+          <td class="p-3 font-medium">${esc(p.name)}</td>
+          <td class="p-3">${p.stock}</td>
+          <td class="p-3"><input type="number" min="0" value="${p.physical}" data-opname-id="${p.id}" class="opname-input w-24 rounded border border-slate-300 px-2 py-1 focus:ring-2 focus:ring-sky-400" /></td>
+          <td class="p-3">${p.physical === '' ? '-' : diffText}</td>
+          <td class="p-3">${p.physical === '' ? '-' : lossText}</td>
+        </tr>
+      `;
+    }).join('');
+
+    document.getElementById('opnameTotalLoss').innerHTML = totalLoss < 0 ? `<span class="text-rose-600 font-bold">${formatCurrency(Math.abs(totalLoss))} (Rugi)</span>` : `<span class="text-emerald-600 font-bold">${formatCurrency(totalLoss)} (Untung)</span>`;
+    document.getElementById('opnameItemCount').textContent = diffCount;
+
+    document.querySelectorAll('.opname-input').forEach(input => {
+      input.addEventListener('change', (e) => {
+        const id = e.target.dataset.opnameId;
+        const item = opnameData.find(i => i.id === id);
+        if (item) item.physical = e.target.value;
+        renderOpnameTable();
+      });
+    });
+  };
+
+  const applyOpname = async () => {
+    const changes = opnameData.filter(p => p.physical !== '' && parseInt(p.physical, 10) !== p.stock);
+    if (changes.length === 0) { alert('Tidak ada selisih stok untuk diterapkan.'); return; }
+    
+    const pin = prompt('Masukkan PIN/Password Admin untuk konfirmasi opname:');
+    if (!pin) return;
+    
+    if (db) {
+      const user = state.cashiers.find(c => c.id === state.selectedCashierId);
+      if (user && user.role !== 'admin') {
+         alert('Hanya admin yang bisa konfirmasi stok opname!'); return;
+      }
+      
+      for (const p of changes) {
+        const diff = parseInt(p.physical, 10) - p.stock;
+        await db.rpc('adjust_stock', {
+            p_product_id: parseInt(p.id, 10),
+            p_qty_adjusted: diff,
+            p_reason: 'Koreksi Administratif',
+            p_note: 'Hasil Stok Opname',
+            p_cashier: activeCashierName(),
+            p_ref_type: 'opname'
+        });
+        const realP = state.products.find(rp => rp.id === p.id);
+        if (realP) realP.stock = parseInt(p.physical, 10);
+      }
+      syncStorage();
+      renderInventory();
+      renderProducts();
+      alert('Hasil stok opname berhasil diterapkan!');
+      
+      document.getElementById('applyOpnameButton').classList.add('hidden');
+      document.getElementById('opnameSummary').classList.add('hidden');
+      document.getElementById('opnameTable').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500">Stok opname selesai.</td></tr>';
+      opnameData = [];
+    } else {
+        alert('Tidak bisa stok opname dalam mode offline.');
+    }
   };
 
   const bindEvents = () => {

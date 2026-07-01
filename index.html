@@ -258,6 +258,7 @@
         <button data-screen="dashboard" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 transition">📊 Dashboard</button>
         <button data-screen="kasir" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">🧾 Kasir</button>
         <button data-screen="inventory" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📦 Inventory</button>
+        <button data-screen="opname" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📋 Stok Opname</button>
         <button data-screen="pembelian" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">🛍 Pembelian</button>
         <button data-screen="riwayat" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📋 Riwayat</button>
         <button data-screen="kasbon" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📒 Kasbon</button>
@@ -295,6 +296,10 @@
       <button data-screen="inventory" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">📦</span>
         <span class="text-[10px] mt-0.5 leading-tight">Inventory</span>
+      </button>
+      <button data-screen="opname" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+        <span class="text-xl leading-none">📋</span>
+        <span class="text-[10px] mt-0.5 leading-tight">Opname</span>
       </button>
       <button data-screen="pembelian" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">🛍</span>
@@ -563,10 +568,45 @@
                 <th class="p-3">Kategori</th>
                 <th class="p-3">Harga</th>
                 <th class="p-3">Stok</th>
+                <th class="p-3">Kedaluwarsa</th>
                 <th class="p-3">Aksi</th>
               </tr>
             </thead>
             <tbody id="inventoryTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="opname" class="screen hidden">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
+          <div>
+            <h3 class="text-2xl font-semibold">Stok Opname</h3>
+            <p class="text-slate-500">Pencocokan stok fisik harian/bulanan di toko dengan data di sistem.</p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <button id="applyOpnameButton" class="rounded-2xl bg-sky-600 px-5 py-3 text-white hover:bg-sky-700 font-semibold transition hidden">Terapkan Hasil Opname</button>
+            <button id="startOpnameButton" class="rounded-2xl bg-slate-900 px-5 py-3 text-white hover:bg-slate-800 transition">Mulai Stok Opname</button>
+          </div>
+        </div>
+        <div id="opnameSummary" class="hidden mb-6 rounded-3xl bg-amber-50 border border-amber-200 p-5">
+            <p class="text-amber-800 font-semibold">Ringkasan Selisih:</p>
+            <p class="text-amber-700 mt-2">Total Kerugian Finansial: <span id="opnameTotalLoss" class="font-bold">Rp0</span></p>
+            <p class="text-amber-700">Produk Selisih: <span id="opnameItemCount" class="font-bold">0</span></p>
+        </div>
+        <div class="overflow-x-auto rounded-3xl bg-white p-4 shadow-xl border border-slate-200">
+          <table class="w-full text-left text-sm">
+            <thead class="border-b border-slate-200 text-slate-500">
+              <tr>
+                <th class="p-3">Produk</th>
+                <th class="p-3">Stok Sistem</th>
+                <th class="p-3">Jumlah Fisik</th>
+                <th class="p-3">Selisih</th>
+                <th class="p-3">Nilai Selisih (Kerugian)</th>
+              </tr>
+            </thead>
+            <tbody id="opnameTable">
+              <tr><td colspan="5" class="p-4 text-center text-slate-500">Klik "Mulai Stok Opname" untuk memuat data produk.</td></tr>
+            </tbody>
           </table>
         </div>
       </section>
@@ -1215,12 +1255,89 @@
             <button type="button" id="inventoryScanButton" class="mb-0.5 rounded-2xl bg-sky-600 px-4 py-3 text-white hover:bg-sky-700 transition whitespace-nowrap">📷</button>
           </div>
         </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Tanggal Kedaluwarsa (Opsional)</span>
+            <input id="productExpiry" type="date" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+          </label>
+        </div>
         <input type="hidden" id="productImage" value="https://via.placeholder.com/200" />
         <div class="flex gap-3 pt-3">
           <button type="submit" class="flex-1 rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">Simpan Produk</button>
           <button type="button" id="cancelInventory" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal Penyesuaian Stok (Manual Stock Adjustment) -->
+  <div id="adjustmentModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-semibold" id="adjustmentModalTitle">Sesuaikan Stok</h3>
+        <button id="closeAdjustmentModal" class="rounded-full bg-slate-100 p-2 hover:bg-slate-200">×</button>
+      </div>
+      <form id="adjustmentForm" class="space-y-4">
+        <input type="hidden" id="adjProductId" />
+        <p class="text-sm text-slate-500">Stok Saat Ini: <span id="adjCurrentStock" class="font-bold text-slate-800">0</span></p>
+        <div class="grid grid-cols-2 gap-4">
+            <label class="block">
+                <span class="text-slate-700 font-medium text-sm">Arah Penyesuaian</span>
+                <select id="adjDirection" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
+                    <option value="kurang">Kurangi (-)</option>
+                    <option value="tambah">Tambah (+)</option>
+                </select>
+            </label>
+            <label class="block">
+                <span class="text-slate-700 font-medium text-sm">Jumlah (Unit) <span class="text-red-500">*</span></span>
+                <input id="adjQty" type="number" min="1" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="1" />
+            </label>
+        </div>
+        <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Alasan <span class="text-red-500">*</span></span>
+            <select id="adjReason" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
+                <option value="">Pilih Alasan</option>
+                <option value="Rusak / Cacat">Rusak / Cacat</option>
+                <option value="Kedaluwarsa">Kedaluwarsa</option>
+                <option value="Hilang / Dicuri">Hilang / Dicuri</option>
+                <option value="Koreksi Administratif">Koreksi Administratif</option>
+                <option value="Lainnya">Lainnya</option>
+            </select>
+        </label>
+        <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Catatan / Memo</span>
+            <input id="adjNote" type="text" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="Tambahkan memo jika perlu" />
+        </label>
+        <button type="submit" class="w-full rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">Simpan Penyesuaian</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Kartu Stok (Stock Ledger) -->
+  <div id="ledgerModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-3xl rounded-3xl bg-white shadow-2xl p-6 flex flex-col max-h-[90vh]">
+      <div class="flex items-center justify-between mb-4 shrink-0">
+        <div>
+            <h3 class="text-xl font-semibold">Kartu Stok (Mutasi)</h3>
+            <p id="ledgerProductName" class="text-slate-500 font-medium"></p>
+        </div>
+        <button id="closeLedgerModal" class="rounded-full bg-slate-100 p-2 hover:bg-slate-200">×</button>
+      </div>
+      <div class="overflow-auto flex-1 border border-slate-200 rounded-xl">
+        <table class="w-full text-left text-sm whitespace-nowrap">
+          <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 sticky top-0">
+            <tr>
+              <th class="p-3">Waktu</th>
+              <th class="p-3">Kasir</th>
+              <th class="p-3">Jenis Mutasi</th>
+              <th class="p-3">Kuantitas</th>
+              <th class="p-3">Stok Akhir</th>
+            </tr>
+          </thead>
+          <tbody id="ledgerTableBody">
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
