@@ -1413,6 +1413,27 @@
     </form>
   </div>
 
+    <!-- Modal Retur Pembelian -->
+    <div id="returnPurchaseModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/70 px-4 py-6">
+      <div class="w-full max-w-lg rounded-3xl bg-white shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        <div class="flex items-center justify-between border-b border-slate-200 p-5">
+          <div>
+            <h3 class="text-xl font-semibold">Proses Retur Pembelian</h3>
+            <p id="returnPurchaseInvoice" class="text-sm text-slate-500 mt-0.5"></p>
+          </div>
+          <button id="closeReturnPurchaseModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">&times;</button>
+        </div>
+        <form id="returnPurchaseForm" class="p-6 space-y-4 overflow-y-auto flex-1">
+          <div id="returnItemsList" class="space-y-4"></div>
+          <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Alasan Retur</span>
+            <input id="returnReason" type="text" required maxlength="150" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-red-400 focus:outline-none" placeholder="Contoh: Barang rusak, salah kirim, kadaluarsa" />
+          </label>
+          <button type="submit" class="w-full rounded-2xl bg-red-600 px-5 py-3 text-white font-semibold hover:bg-red-700 transition">📤 Kirim Retur ke Supplier</button>
+        </form>
+      </div>
+    </div>
+
   <script src="app.js"></script>
 </body>
 </html>
