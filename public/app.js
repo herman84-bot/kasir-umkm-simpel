@@ -409,7 +409,7 @@ const App = (() => {
     cost: Number(p.cost) || 0,
     stock: Number(p.stock) || 0,
     minStock: Number(p.min_stock) || 5,
-    image: 'https://via.placeholder.com/260?text=' + encodeURIComponent(p.name)
+    image: p.image || ''
   });
 
   // Supabase row → app cashier object
@@ -597,12 +597,12 @@ const App = (() => {
   // ─────────────────────────────────────────────────────────────────────────
 
   const sampleProducts = [
-    { id: 'P001', code: 'P001', barcode: '8991234000011', name: 'Nasi Goreng Spesial', category: 'Makanan', price: 22000, cost: 14000, stock: 12, image: 'https://via.placeholder.com/260?text=Nasi+Goreng' },
-    { id: 'P002', code: 'P002', barcode: '8991234000028', name: 'Es Teh Manis', category: 'Minuman', price: 8000, cost: 2500, stock: 20, image: 'https://via.placeholder.com/260?text=Es+Teh' },
-    { id: 'P003', code: 'P003', barcode: '8991234000035', name: 'Beras 5kg', category: 'Sembako', price: 65000, cost: 53000, stock: 8, image: 'https://via.placeholder.com/260?text=Beras' },
-    { id: 'P004', code: 'P004', barcode: '8991234000042', name: 'Pensil 2B', category: 'ATK', price: 1500, cost: 700, stock: 25, image: 'https://via.placeholder.com/260?text=Pensil' },
-    { id: 'P005', code: 'P005', barcode: '8991234000059', name: 'Roti Tawar', category: 'Makanan', price: 12000, cost: 7000, stock: 5, image: 'https://via.placeholder.com/260?text=Roti+Tawar' },
-    { id: 'P006', code: 'P006', barcode: '8991234000066', name: 'Mineral Water', category: 'Minuman', price: 5000, cost: 2000, stock: 30, image: 'https://via.placeholder.com/260?text=Air+Mineral' }
+    { id: 'P001', code: 'P001', barcode: '8991234000011', name: 'Nasi Goreng Spesial', category: 'Makanan', price: 22000, cost: 14000, stock: 12, image: '' },
+    { id: 'P002', code: 'P002', barcode: '8991234000028', name: 'Es Teh Manis', category: 'Minuman', price: 8000, cost: 2500, stock: 20, image: '' },
+    { id: 'P003', code: 'P003', barcode: '8991234000035', name: 'Beras 5kg', category: 'Sembako', price: 65000, cost: 53000, stock: 8, image: '' },
+    { id: 'P004', code: 'P004', barcode: '8991234000042', name: 'Pensil 2B', category: 'ATK', price: 1500, cost: 700, stock: 25, image: '' },
+    { id: 'P005', code: 'P005', barcode: '8991234000059', name: 'Roti Tawar', category: 'Makanan', price: 12000, cost: 7000, stock: 5, image: '' },
+    { id: 'P006', code: 'P006', barcode: '8991234000066', name: 'Mineral Water', category: 'Minuman', price: 5000, cost: 2000, stock: 30, image: '' }
   ];
 
   const sampleCashiers = [
@@ -2288,7 +2288,7 @@ const App = (() => {
     dom.inventoryForm.reset();
     dom.productId.value = '';
     dom.productCode.value = '';
-    dom.productImage.value = 'https://via.placeholder.com/200';
+    dom.productImage.value = '';
   };
 
   const generateProductCode = () => {
@@ -2304,7 +2304,7 @@ const App = (() => {
       dom.inventoryForm.reset();
       dom.productId.value = '';
       dom.productCode.value = generateProductCode();
-      dom.productImage.value = 'https://via.placeholder.com/200';
+      dom.productImage.value = '';
       showInventoryModal('Tambah Produk');
       return;
     }
@@ -2317,7 +2317,7 @@ const App = (() => {
     dom.productPrice.value = product.price;
     dom.productCost.value = product.cost;
     dom.productStock.value = product.stock;
-    dom.productImage.value = product.image || 'https://via.placeholder.com/200';
+    dom.productImage.value = product.image || '';
     dom.productBarcode.value = product.barcode || '';
     if (dom.productMinStock) dom.productMinStock.value = product.minStock || 5;
     showInventoryModal('Edit Produk');
@@ -2604,7 +2604,7 @@ const App = (() => {
       cost: dbPayload.cost,
       stock: dbPayload.stock,
       minStock: dbPayload.min_stock || 5,
-      image: dom.productImage.value.trim() || 'https://via.placeholder.com/260'
+      image: dom.productImage.value.trim() || ''
     };
 
     const existingIndex = state.products.findIndex(item => item.id === existingId);
