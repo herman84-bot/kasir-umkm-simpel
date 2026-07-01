@@ -428,10 +428,11 @@ const App = (() => {
     total: Number(p.total) || 0,
     status: p.status || 'Diterima',
     items: (p.purchase_items || []).map(item => ({
-      name: item.product_name,
-      qty: Number(item.quantity),
-      price: Number(item.price),
-      subtotal: Number(item.subtotal)
+      id: String(item.product_id),
+      name: item.product_name || '',
+      qty: Number(item.quantity) || 0,
+      price: Number(item.price) || 0,
+      returnedQty: Number(item.returned_qty) || 0
     }))
   });
 
