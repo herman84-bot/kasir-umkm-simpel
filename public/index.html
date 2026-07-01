@@ -1318,6 +1318,80 @@
     </div>
   </div>
 
+  <!-- Modal Atur Stok (Adjustment) -->
+  <div id="adjustmentModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/70 px-4 py-6">
+    <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+        <h3 id="adjustmentModalTitle" class="text-xl font-semibold">Atur Stok</h3>
+        <button id="closeAdjustmentModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
+      </div>
+      <form id="adjustmentForm" class="p-6 space-y-4">
+        <input type="hidden" id="adjProductId" />
+        <div class="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+          <span class="text-sm text-slate-500">Stok Saat Ini</span>
+          <span id="adjCurrentStock" class="text-xl font-bold text-slate-800">0</span>
+        </div>
+        <label class="block">
+          <span class="text-slate-700 font-medium text-sm">Jenis Penyesuaian</span>
+          <select id="adjDirection" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-amber-400 focus:outline-none bg-white">
+            <option value="kurang">Kurangi Stok</option>
+            <option value="tambah">Tambah Stok</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class="text-slate-700 font-medium text-sm">Jumlah</span>
+          <input id="adjQty" type="number" min="1" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-amber-400 focus:outline-none" placeholder="Masukkan jumlah" />
+        </label>
+        <label class="block">
+          <span class="text-slate-700 font-medium text-sm">Alasan</span>
+          <select id="adjReason" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-amber-400 focus:outline-none bg-white">
+            <option value="">-- Pilih Alasan --</option>
+            <option value="koreksi">Koreksi</option>
+            <option value="rusak">Barang Rusak</option>
+            <option value="hilang">Barang Hilang</option>
+            <option value="pembelian">Pembelian Baru</option>
+            <option value="retur">Retur Barang</option>
+            <option value="lainnya">Lainnya</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class="text-slate-700 font-medium text-sm">Catatan <span class="text-slate-400">(opsional)</span></span>
+          <input id="adjNote" type="text" maxlength="150" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-amber-400 focus:outline-none" placeholder="Catatan tambahan..." />
+        </label>
+        <button type="submit" class="w-full rounded-2xl bg-amber-500 px-5 py-3 text-white font-semibold hover:bg-amber-600 transition">💾 Simpan Penyesuaian</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Riwayat Stok (Ledger) -->
+  <div id="ledgerModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/70 px-4 py-6">
+    <div class="w-full max-w-3xl rounded-3xl bg-white shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+        <div>
+          <h3 class="text-xl font-semibold">Riwayat Mutasi Stok</h3>
+          <p id="ledgerProductName" class="text-sm text-slate-500 mt-0.5"></p>
+        </div>
+        <button id="closeLedgerModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
+      </div>
+      <div class="overflow-auto flex-1 p-4">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs text-slate-500 border-b border-slate-200">
+              <th class="p-3">Waktu</th>
+              <th class="p-3">Kasir</th>
+              <th class="p-3">Jenis</th>
+              <th class="p-3">Perubahan</th>
+              <th class="p-3">Stok Akhir</th>
+            </tr>
+          </thead>
+          <tbody id="ledgerTableBody">
+            <tr><td colspan="5" class="p-4 text-center text-slate-400">Memuat...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- Chat Bantuan -->
   <button id="helpChatFab" class="hidden fixed bottom-20 md:bottom-6 right-4 z-[90] h-14 w-14 rounded-full bg-gradient-to-br from-teal-400 to-sky-600 text-3xl shadow-xl hover:scale-110 transition-transform flex items-center justify-center no-print" title="Tanya Aisyah">🧕</button>
   <div id="helpChatPanel" class="hidden fixed bottom-36 md:bottom-24 right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm rounded-3xl bg-white border border-slate-200 shadow-2xl flex flex-col overflow-hidden no-print" style="height:28rem">
