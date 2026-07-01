@@ -911,7 +911,7 @@ const App = (() => {
     const _now = Date.now();
     const _bizExpiries = ['trial_ends_at', 'business_until'].map(c => primary[c]).filter(Boolean).map(d => new Date(d).getTime());
     const bizActiveForLoad = _bizExpiries.length === 0 ? true : Math.max(..._bizExpiries) > _now;
-    if (!db || !state.storeId) {
+    if (!db) {
       state.products = JSON.parse(localStorage.getItem(STORAGE.products) || '[]');
       state.transactions = JSON.parse(localStorage.getItem(STORAGE.transactions) || '[]');
       state.cashiers = JSON.parse(localStorage.getItem(STORAGE.cashiers) || '[]');
