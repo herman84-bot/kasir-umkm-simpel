@@ -49,3 +49,11 @@ htmlcov/
 # Claude local settings (contains tokens)
 .claude/settings.local.json
 ```
+.claw/
+.sandbox-home/
+*.jsonl
+scratch*
+litellm_config.yaml
+proxy.py
+setup_litellm.py
+.claude-todos.json

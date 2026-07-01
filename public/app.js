@@ -394,6 +394,7 @@ const App = (() => {
       db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       return true;
     }
+    console.warn('[Supabase] CDN belum ter-load. window.supabase tidak tersedia.');
     return false;
   };
 
@@ -3395,23 +3396,23 @@ ${txRows}
     dom.closeInventoryModal.addEventListener('click', hideInventoryModal);
     dom.cancelInventory.addEventListener('click', hideInventoryModal);
     dom.inventoryForm.addEventListener('submit', saveProduct);
-    dom.scanButton.addEventListener('click', () => openScannerModal('kasir'));
-    dom.inventoryScanButton.addEventListener('click', () => openScannerModal('inventory'));
-    dom.closeScanner.addEventListener('click', closeScannerModal);
-    dom.closeAdjustmentModal.addEventListener('click', closeAdjustmentModalFn);
+    dom.scanButton?.addEventListener('click', () => openScannerModal('kasir'));
+    dom.inventoryScanButton?.addEventListener('click', () => openScannerModal('inventory'));
+    dom.closeScanner?.addEventListener('click', closeScannerModal);
+    dom.closeAdjustmentModal?.addEventListener('click', closeAdjustmentModalFn);
     if (dom.adjustmentForm) dom.adjustmentForm.addEventListener('submit', handleAdjustmentSubmit);
     if (dom.closeLedgerModal) dom.closeLedgerModal.addEventListener('click', closeLedgerModalFn);
     if (dom.startOpnameButton) dom.startOpnameButton.addEventListener('click', startOpname);
     if (dom.applyOpnameButton) dom.applyOpnameButton.addEventListener('click', applyOpname);
-    dom.startScanner.addEventListener('click', startBarcodeScanner);
-    dom.stopScanner.addEventListener('click', stopBarcodeScanner);
-    dom.manualBarcodeSubmit.addEventListener('click', () => {
+    dom.startScanner?.addEventListener('click', startBarcodeScanner);
+    dom.stopScanner?.addEventListener('click', stopBarcodeScanner);
+    dom.manualBarcodeSubmit?.addEventListener('click', () => {
       handleScannedCode(dom.manualBarcodeInput.value);
     });
-    dom.manualBarcodeInput.addEventListener('keydown', e => {
+    dom.manualBarcodeInput?.addEventListener('keydown', e => {
       if (e.key === 'Enter') handleScannedCode(dom.manualBarcodeInput.value);
     });
-    dom.barcodeInput.addEventListener('keydown', e => {
+    dom.barcodeInput?.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         const code = dom.barcodeInput.value.trim();
         if (!code) return;
