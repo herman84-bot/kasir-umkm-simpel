@@ -2355,8 +2355,8 @@ const App = (() => {
 
   const handleAdjustmentSubmit = async e => {
     e.preventDefault();
-    const productId = parseInt(dom.adjProductId.value);
-    const product = state.products.find(p => parseInt(p.id) === productId);
+    const productId = dom.adjProductId.value;
+    const product = state.products.find(p => String(p.id) === String(productId));
     if (!product) return;
 
     const qty = Number(dom.adjQty.value);
@@ -2373,10 +2373,13 @@ const App = (() => {
       return;
     }
 
-    // RPC ke Supabase
-    if (db) {
+    // Cek apakah produk sudah tersimpan di Supabase (ID harus angka murni)
+    const numId = parseInt(productId, 10);
+    const isDbProduct = !isNaN(numId) && String(numId) === String(productId);
+
+    if (db && isDbProduct) {
       const { error } = await db.rpc('adjust_stock', {
-        p_product_id: productId,
+        p_product_id: numId,
         p_qty_adjusted: qtyAdjusted,
         p_reason: reason,
         p_note: note || null,
@@ -2384,6 +2387,9 @@ const App = (() => {
         p_ref_type: 'adjustment'
       });
       if (error) { alert('Gagal simpan penyesuaian: ' + error.message); return; }
+    } else if (!isDbProduct) {
+      // Produk offline — update local saja, tampilkan info
+      console.warn('Produk offline (ID:', productId, ') — stok diupdate lokal saja.');
     }
 
     // Update local state
