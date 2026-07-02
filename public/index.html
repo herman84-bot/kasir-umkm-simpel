@@ -3,20 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kasir UMKM Simpel</title>
+  <title>Kasir UMKM Simpel — Aplikasi Kasir Gratis untuk Warung &amp; Toko</title>
+  <meta name="description" content="Aplikasi kasir gratis untuk warung dan toko UMKM Indonesia. Solusi POS mudah dan kasir online gratis: kelola penjualan, stok, dan laporan dengan cepat." />
+  <meta name="keywords" content="aplikasi kasir gratis, kasir UMKM, aplikasi POS mudah, kasir online gratis, aplikasi kasir untuk warung, kasir toko UMKM, point of sale, stok, inventory, umkm" />
+  <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#0f172a" />
-  <meta name="color-scheme" content="light dark" />
+  <link rel="canonical" href="https://www.simpelkasir.my.id/" />
+  <meta property="og:title" content="Kasir UMKM Simpel — Aplikasi Kasir Gratis untuk Warung &amp; Toko" />
+  <meta property="og:description" content="Aplikasi kasir gratis dan kasir online gratis untuk UMKM. Solusi aplikasi POS mudah untuk mengelola penjualan, stok, dan laporan toko Anda." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.simpelkasir.my.id/" />
+  <meta property="og:site_name" content="Kasir UMKM Simpel" />
+  <meta property="og:locale" content="id_ID" />
+  <meta property="og:image" content="https://www.simpelkasir.my.id/icons/icon-192.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Kasir UMKM Simpel — Aplikasi Kasir Gratis untuk Warung &amp; Toko" />
+  <meta name="twitter:description" content="Aplikasi kasir gratis untuk warung dan kasir UMKM. Solusi aplikasi POS mudah dan kasir online gratis." />
+  <meta name="twitter:image" content="https://www.simpelkasir.my.id/icons/icon-192.png" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="tailwind.css" />
-  <!-- Bootstrap JS for Modal -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <link rel="stylesheet" href="tailwind.css?v=3" />
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <style>
     html, body {
       overflow-x: hidden;
@@ -44,7 +54,15 @@
     body.dark .bg-slate-900 {
       background-color: #0f172a !important;
     }
+    body.dark .bg-sky-50 {
+      background-color: #1e293b !important;
+    }
     body.dark .text-slate-900 {
+      color: #f8fafc !important;
+    }
+    body.dark .text-slate-700,
+    body.dark .text-sky-800,
+    body.dark .text-slate-800 {
       color: #f8fafc !important;
     }
     body.dark .text-slate-500,
@@ -55,20 +73,96 @@
     body.dark .border-slate-300 {
       border-color: #334155 !important;
     }
+    /* Badge/banner berlatar terang: gelapkan latar + terangkan teks agar tetap kontras di dark mode */
+    body.dark .bg-slate-200 {
+      background-color: #334155 !important;
+    }
+    body.dark .bg-sky-100 {
+      background-color: #0c4a6e !important;
+    }
+    body.dark .border-sky-100,
+    body.dark .border-sky-200 {
+      border-color: #075985 !important;
+    }
+    body.dark .text-sky-700,
+    body.dark .text-sky-600 {
+      color: #7dd3fc !important;
+    }
+    body.dark .bg-amber-50,
+    body.dark .bg-amber-100 {
+      background-color: #451a03 !important;
+    }
+    body.dark .border-amber-200 {
+      border-color: #92400e !important;
+    }
+    body.dark .text-amber-800,
+    body.dark .text-amber-700,
+    body.dark .text-amber-600 {
+      color: #fcd34d !important;
+    }
+    body.dark .bg-green-50,
+    body.dark .bg-green-100,
+    body.dark .bg-emerald-50,
+    body.dark .bg-emerald-100 {
+      background-color: #064e3b !important;
+    }
+    body.dark .border-green-200,
+    body.dark .border-emerald-200 {
+      border-color: #065f46 !important;
+    }
+    body.dark .text-green-800,
+    body.dark .text-green-700,
+    body.dark .text-green-600,
+    body.dark .text-emerald-700,
+    body.dark .text-emerald-600 {
+      color: #6ee7b7 !important;
+    }
+    body.dark .bg-red-50,
+    body.dark .bg-rose-50,
+    body.dark .bg-rose-100,
+    body.dark .bg-rose-200 {
+      background-color: #450a0a !important;
+    }
+    body.dark .hover\:bg-rose-100:hover,
+    body.dark .hover\:bg-rose-200:hover {
+      background-color: #7f1d1d !important;
+    }
+    body.dark .bg-blue-100 {
+      background-color: #172554 !important;
+    }
+    body.dark .text-blue-700 {
+      color: #93c5fd !important;
+    }
+    body.dark .border-red-200,
+    body.dark .border-rose-200 {
+      border-color: #991b1b !important;
+    }
+    body.dark .text-red-700,
+    body.dark .text-red-600,
+    body.dark .text-rose-700,
+    body.dark .text-rose-600 {
+      color: #fca5a5 !important;
+    }
+    body.dark .text-red-500 {
+      color: #f87171 !important;
+    }
+    body.dark .bg-purple-100 {
+      background-color: #3b0764 !important;
+    }
+    body.dark .text-purple-700 {
+      color: #d8b4fe !important;
+    }
     body.dark input,
     body.dark select,
     body.dark textarea {
-      background-color: #0f172a !important;
-      color: #f8fafc !important;
+      background-color: #1e293b !important;
+      color: #ffffff !important;
       border-color: #334155 !important;
     }
     body.dark input::placeholder,
     body.dark textarea::placeholder,
     body.dark select::placeholder {
       color: #94a3b8 !important;
-    }
-    body.dark button {
-      color: #f8fafc !important;
     }
     body.dark .shadow-sm {
       box-shadow: 0 1px 2px rgba(15,23,42,0.3);
@@ -84,6 +178,30 @@
     }
 
   </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Kasir UMKM Simpel",
+    "url": "https://www.simpelkasir.my.id/",
+    "description": "Aplikasi kasir gratis untuk warung dan toko UMKM Indonesia. Kelola penjualan, stok, dan laporan dengan mudah.",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": ["Web", "Android", "iOS"],
+    "offers": [
+      {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "IDR"
+      },
+      {
+        "@type": "Offer",
+        "price": "29000",
+        "priceCurrency": "IDR"
+      }
+    ],
+    "featureList": "Kasir cepat, Manajemen stok, Laporan penjualan, Pemindai barcode, Multi-outlet, Cetak struk"
+  }
+  </script>
   <!-- Thermal Receipt Print Style (dipakai di window baru) -->
   <style id="thermalStyle" type="text/plain">
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -104,20 +222,9 @@
       body { width: 58mm; }
       @page { size: 58mm auto; margin: 0; }
     }
-    html, body {
-      overscroll-behavior-y: none;
-    }
   </style>
-  <script>
-    try {
-      const s = JSON.parse(localStorage.getItem('pos_settings') || '{}');
-      if (s.darkMode || (s.darkMode === undefined && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
-      }
-    } catch(e) {}
-  </script>
 </head>
-<body class="bg-slate-50 text-slate-900 transition-colors duration-300">
+<body class="bg-slate-50 text-slate-900">
 
   <!-- Loading Overlay -->
   <div id="loadingOverlay" class="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-slate-900 text-white transition-opacity duration-300">
@@ -140,8 +247,8 @@
       <div class="bg-white rounded-3xl shadow-2xl p-8">
         <!-- Tab switch -->
         <div class="flex rounded-2xl bg-slate-100 p-1 mb-6">
-          <button id="tabLogin" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-slate-900 shadow-sm transition">Masuk</button>
-          <button id="tabRegister" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 transition">Daftar Toko</button>
+          <button id="tabLogin" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-slate-900 shadow-sm transition min-h-[44px]">Masuk</button>
+          <button id="tabRegister" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 transition min-h-[44px]">Daftar Toko</button>
         </div>
 
         <div id="authError" class="hidden mb-4 rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
@@ -176,7 +283,7 @@
             <p class="text-sm font-medium text-sky-800">Masukkan email untuk reset password:</p>
             <input id="resetEmail" type="email" placeholder="email@toko.com"
               class="w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none text-sm" />
-            <button type="button" id="sendResetBtn" class="w-full rounded-2xl bg-sky-600 px-4 py-2.5 text-white text-sm font-semibold hover:bg-sky-700 transition">
+            <button type="button" id="sendResetBtn" class="w-full rounded-2xl bg-sky-600 px-4 py-2.5 text-white text-sm font-semibold hover:bg-sky-700 transition min-h-[44px]">
               Kirim Link Reset
             </button>
           </div>
@@ -224,17 +331,18 @@
     </div>
   </div>
 
-  <div id="appContainer" class="hidden min-h-screen flex flex-col md:flex-row">
+  <div id="appContainer" class="hidden min-h-screen flex flex-col md:flex-row overflow-x-hidden">
     <!-- Sidebar: hidden on mobile, visible on md+ -->
     <aside id="mainSidebar" class="hidden md:flex md:w-72 bg-slate-900 text-white px-5 py-6 shadow-lg flex-col transition-all duration-300 shrink-0">
       <div class="mb-8">
-        <h1 class="text-2xl font-semibold">Kasir UMKM</h1>
+        <h1 class="text-2xl font-semibold">Kasir UMKM (v3)</h1>
         <p class="text-slate-300 text-sm mt-1">Point of Sale & Inventory</p>
       </div>
       <nav class="space-y-2 flex-1">
         <button data-screen="dashboard" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 transition">📊 Dashboard</button>
         <button data-screen="kasir" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">🧾 Kasir</button>
         <button data-screen="inventory" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📦 Inventory</button>
+        <button data-screen="opname" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📋 Stok Opname</button>
         <button data-screen="pembelian" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">🛍 Pembelian</button>
         <button data-screen="riwayat" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📋 Riwayat</button>
         <button data-screen="kasbon" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 transition">📒 Kasbon</button>
@@ -257,8 +365,10 @@
       </div>
     </aside>
 
+    <!-- Gradient scroll indicator untuk mobile bottom nav agar user tahu bisa di-scroll -->
+    <div class="fixed bottom-0 right-0 z-50 w-12 h-[56px] md:hidden pointer-events-none bg-gradient-to-l from-slate-900 to-transparent"></div>
     <!-- Bottom Navigation Bar: visible on mobile only -->
-    <nav id="bottomNav" class="fixed bottom-0 left-0 right-0 z-40 bg-slate-900 md:hidden flex items-stretch border-t border-slate-700 overflow-x-auto">
+    <nav id="bottomNav" class="fixed bottom-0 left-0 right-0 z-40 bg-slate-900 md:hidden flex items-stretch border-t border-slate-700 overflow-x-auto scroll-smooth hide-scrollbar" style="-webkit-overflow-scrolling: touch; scrollbar-width: none;">
       <button data-screen="dashboard" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">📊</span>
         <span class="text-[10px] mt-0.5 leading-tight">Dashboard</span>
@@ -270,6 +380,10 @@
       <button data-screen="inventory" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">📦</span>
         <span class="text-[10px] mt-0.5 leading-tight">Inventory</span>
+      </button>
+      <button data-screen="opname" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
+        <span class="text-xl leading-none">📋</span>
+        <span class="text-[10px] mt-0.5 leading-tight">Opname</span>
       </button>
       <button data-screen="pembelian" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">🛍</span>
@@ -289,7 +403,7 @@
       </button>
       <button data-screen="pengaturan" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">⚙️</span>
-        <span class="text-[10px] mt-0.5 leading-tight">Setting</span>
+        <span class="text-[10px] mt-0.5 leading-tight">Atur</span>
       </button>
       <button data-screen="tentang" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-slate-400 hover:text-white transition min-h-[56px]">
         <span class="text-xl leading-none">ℹ️</span>
@@ -297,7 +411,7 @@
       </button>
     </nav>
 
-    <main class="flex-1 min-w-0 max-w-full overflow-x-hidden p-3 md:p-6 pb-20 md:pb-6">
+    <main class="flex-1 min-w-0 max-w-full relative overflow-visible p-3 md:p-6 pb-20 md:pb-6">
       <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-3">
           <button id="sidebarToggleBtn" class="hidden md:flex items-center gap-2 text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl font-medium transition shadow-sm border border-slate-200" title="Toggle Sidebar">
@@ -309,22 +423,22 @@
             <p class="text-slate-500 text-sm mt-0.5" id="todayDate"></p>
           </div>
         </div>
-        <div class="flex flex-wrap items-center gap-2 text-sm">
-          <div class="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm text-slate-600" id="storeSwitcherWrapper" style="display:none">
-            <span class="font-medium text-slate-500">🏪 Cabang:</span>
-            <select id="storeSwitcher" class="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-slate-900 text-sm max-w-[140px] sm:max-w-none"></select>
+        <div class="flex flex-wrap items-center gap-2 text-sm w-full sm:w-auto mt-2 sm:mt-0">
+          <div class="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm text-slate-600 w-full sm:w-auto overflow-hidden" id="storeSwitcherWrapper" style="display:none">
+            <span class="font-medium text-slate-500 whitespace-nowrap">🏪 Cabang:</span>
+            <select id="storeSwitcher" class="flex-1 rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-slate-900 text-sm min-w-0 truncate"></select>
           </div>
           <div class="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm text-slate-600" id="cashierSelectWrapper">
             <span class="font-medium text-slate-500">Kasir:</span>
             <select id="cashierSelect" class="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-slate-900 text-sm max-w-[120px] sm:max-w-none"></select>
           </div>
-          <button id="themeToggle" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Tema">
+          <button id="themeToggle" class="rounded-2xl bg-white px-3 py-3 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Tema">
             <span>🌙</span><span class="hidden sm:inline"> Tema</span>
           </button>
-          <button id="exportDataButton" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Backup">
+          <button id="exportDataButton" class="rounded-2xl bg-white px-3 py-3 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Backup">
             <span>💾</span><span class="hidden sm:inline"> Backup</span>
           </button>
-          <button id="importDataButton" class="rounded-2xl bg-white px-3 py-2 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Restore">
+          <button id="importDataButton" class="rounded-2xl bg-white px-3 py-3 text-slate-700 shadow-sm hover:bg-slate-100 transition text-sm" title="Restore">
             <span>📂</span><span class="hidden sm:inline"> Restore</span>
           </button>
         </div>
@@ -426,7 +540,7 @@
           <div></div>
           <button id="tutupKasirBtn" class="rounded-2xl bg-amber-600 px-4 py-2.5 text-white text-sm font-semibold hover:bg-amber-700 transition">🔒 Tutup Kasir</button>
         </div>
-        <div class="grid gap-6 xl:grid-cols-[1.4fr_0.9fr] mb-6">
+        <div class="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1fr_1fr] 2xl:grid-cols-[1.2fr_0.8fr] mb-6">
           <div class="rounded-3xl bg-white p-6 shadow-xl border border-slate-200">
             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-5">
               <div>
@@ -448,13 +562,13 @@
             </div>
             <div id="productGrid" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"></div>
           </div>
-          <div class="rounded-3xl bg-white p-6 shadow-xl border border-slate-200 flex flex-col h-full" style="max-height: calc(100vh - 8rem);">
-            <div class="flex items-center justify-between mb-4 flex-shrink-0">
+          <div class="rounded-3xl bg-white p-6 shadow-xl border border-slate-200 flex flex-col">
+            <div class="flex items-center justify-between mb-4">
               <h3 class="text-xl font-semibold">Keranjang Belanja</h3>
               <span id="cartCount" class="rounded-full bg-slate-100 px-3 py-1 text-slate-700">0 item</span>
             </div>
-            <div class="space-y-3 mb-5 overflow-y-auto flex-grow" id="cartList" style="min-height: 100px;"></div>
-            <div class="rounded-3xl bg-slate-100 p-4 space-y-4 flex-shrink-0">
+            <div class="space-y-3 mb-5 overflow-y-auto max-h-[40vh] lg:max-h-[50vh]" id="cartList"></div>
+            <div class="rounded-3xl bg-slate-100 p-4 space-y-4 mt-auto">
               <div class="flex items-center justify-between text-sm text-slate-600">
                 <span>Subtotal</span><span id="cartSubtotal">Rp0</span>
               </div>
@@ -475,13 +589,14 @@
                 <span>Total Akhir</span><span id="cartTotal">Rp0</span>
               </div>
             </div>
-            <div class="mt-5 space-y-4 flex-shrink-0 pb-4">
+            <div class="mt-5 space-y-4">
               <div>
                 <span class="text-slate-700 text-sm font-medium block mb-2">Metode Pembayaran</span>
                 <div class="flex gap-2">
                   <button type="button" data-paymethod="Tunai" class="paymethod-btn flex-1 rounded-2xl border-2 border-sky-500 bg-sky-50 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-sky-700 transition">💵 Tunai</button>
                   <button type="button" data-paymethod="QRIS" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-slate-600 transition hover:border-sky-300">📱 QRIS</button>
                   <button type="button" data-paymethod="Transfer" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-slate-600 transition hover:border-sky-300">🏦 Transfer</button>
+                  <button type="button" data-paymethod="Split" class="paymethod-btn flex-1 rounded-2xl border-2 border-slate-200 bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-slate-600 transition hover:border-sky-300">⚖️ Split</button>
                 </div>
               </div>
               <div id="cashInputWrapper">
@@ -491,6 +606,22 @@
                 </label>
                 <div class="flex items-center justify-between text-slate-600 mt-2">
                   <span>Kembalian</span><span id="cashChange">Rp0</span>
+                </div>
+              </div>
+              <div id="splitInputWrapper" class="hidden space-y-3">
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <label class="block">
+                    <span class="text-slate-700 text-sm">Porsi Tunai (Cash)</span>
+                    <input id="splitCashInput" type="number" min="0" value="0" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" />
+                  </label>
+                  <label class="block">
+                    <span class="text-slate-700 text-sm">Porsi Non-Tunai</span>
+                    <input id="splitNonCashInput" type="number" min="0" value="0" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" />
+                  </label>
+                </div>
+                <div class="flex items-center justify-between text-sm text-slate-600 mt-2">
+                  <span>Sisa Belum Dialokasikan</span>
+                  <span id="splitRemaining" class="font-semibold text-slate-900">Rp0</span>
                 </div>
               </div>
               <button id="payButton" class="w-full rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition">Bayar & Simpan Transaksi</button>
@@ -507,6 +638,7 @@
             <p class="text-slate-500">Tambah, edit, dan hapus produk dengan mudah.</p>
           </div>
           <div class="flex flex-wrap gap-3">
+            <button data-screen="opname" class="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">📋 Stok Opname</button>
             <button id="exportInventory" class="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Export CSV</button>
             <button id="addProductButton" class="rounded-2xl bg-slate-900 px-5 py-3 text-white hover:bg-slate-800 transition">Tambah Produk</button>
           </div>
@@ -521,10 +653,45 @@
                 <th class="p-3">Kategori</th>
                 <th class="p-3">Harga</th>
                 <th class="p-3">Stok</th>
+                <th class="p-3">Kedaluwarsa</th>
                 <th class="p-3">Aksi</th>
               </tr>
             </thead>
             <tbody id="inventoryTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="opname" class="screen hidden">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
+          <div>
+            <h3 class="text-2xl font-semibold">Stok Opname</h3>
+            <p class="text-slate-500">Pencocokan stok fisik harian/bulanan di toko dengan data di sistem.</p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <button id="applyOpnameButton" class="rounded-2xl bg-sky-600 px-5 py-3 text-white hover:bg-sky-700 font-semibold transition hidden">Terapkan Hasil Opname</button>
+            <button id="startOpnameButton" class="rounded-2xl bg-slate-900 px-5 py-3 text-white hover:bg-slate-800 transition">Mulai Stok Opname</button>
+          </div>
+        </div>
+        <div id="opnameSummary" class="hidden mb-6 rounded-3xl bg-amber-50 border border-amber-200 p-5">
+            <p class="text-amber-800 font-semibold">Ringkasan Selisih:</p>
+            <p class="text-amber-700 mt-2">Total Kerugian Finansial: <span id="opnameTotalLoss" class="font-bold">Rp0</span></p>
+            <p class="text-amber-700">Produk Selisih: <span id="opnameItemCount" class="font-bold">0</span></p>
+        </div>
+        <div class="overflow-x-auto rounded-3xl bg-white p-4 shadow-xl border border-slate-200">
+          <table class="w-full text-left text-sm">
+            <thead class="border-b border-slate-200 text-slate-500">
+              <tr>
+                <th class="p-3">Produk</th>
+                <th class="p-3">Stok Sistem</th>
+                <th class="p-3">Jumlah Fisik</th>
+                <th class="p-3">Selisih</th>
+                <th class="p-3">Nilai Selisih (Kerugian)</th>
+              </tr>
+            </thead>
+            <tbody id="opnameTable">
+              <tr><td colspan="5" class="p-4 text-center text-slate-500">Klik "Mulai Stok Opname" untuk memuat data produk.</td></tr>
+            </tbody>
           </table>
         </div>
       </section>
@@ -619,7 +786,7 @@
         </div>
 
         <!-- Multi-Cabang -->
-        <div class="max-w-xl mb-6">
+        <div id="branchSettingsSection" class="max-w-xl mb-6">
           <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
             <div class="flex items-center justify-between gap-3 mb-1">
               <h4 class="text-lg font-semibold">🏪 Cabang Toko</h4>
@@ -632,49 +799,51 @@
 
         <div class="max-w-xl">
           <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-4">
-            <label class="block">
-              <span class="text-slate-700 font-medium text-sm">Nama Toko</span>
-              <input id="settingStoreName" maxlength="100" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Warung Barokah" />
-            </label>
-            <label class="block">
-              <span class="text-slate-700 font-medium text-sm">Alamat</span>
-              <input id="settingStoreAddress" maxlength="200" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Jl. Merdeka No. 10, Jakarta" />
-            </label>
-            <label class="block">
-              <span class="text-slate-700 font-medium text-sm">No. Telepon / WhatsApp</span>
-              <input id="settingStorePhone" maxlength="20" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: 08123456789" />
-            </label>
-            <label class="block">
-              <span class="text-slate-700 font-medium text-sm">Pesan di struk (footer)</span>
-              <input id="settingStoreNote" maxlength="150" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Terima kasih, selamat datang kembali!" />
-            </label>
-            <label class="block">
-              <span class="text-slate-700 font-medium text-sm">Ukuran Kertas Struk</span>
-              <select id="settingPaperSize" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
-                <option value="58">58mm (Standar printer thermal kecil)</option>
-                <option value="80">80mm (Printer thermal besar)</option>
-              </select>
-            </label>
-            <div class="border-t border-slate-100 pt-4">
-              <p class="font-semibold text-slate-700 text-sm mb-1">🔲 QRIS Statis</p>
-              <p class="text-xs text-slate-500 mb-3">Upload gambar QRIS toko Anda. Akan muncul otomatis di layar saat kasir memilih metode bayar QRIS.</p>
+            <div id="storeFormFields">
               <label class="block">
-                <span class="text-slate-700 font-medium text-sm">Upload Gambar QRIS</span>
-                <input type="file" id="qrisFileInput" accept="image/*" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none bg-white" />
+                <span class="text-slate-700 font-medium text-sm">Nama Toko</span>
+                <input id="settingStoreName" maxlength="100" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Warung Barokah" />
               </label>
-              <div id="qrisPreviewWrapper" class="mt-3 hidden">
-                <p class="text-xs text-slate-500 mb-2">Preview QRIS tersimpan:</p>
-                <img id="qrisPreviewImg" src="" alt="QRIS" class="w-40 h-40 object-contain border border-slate-200 rounded-2xl bg-white p-2" />
-                <button type="button" id="qrisDeleteBtn" class="mt-2 text-xs text-red-500 hover:text-red-700">🗑 Hapus QRIS</button>
+              <label class="block mt-4">
+                <span class="text-slate-700 font-medium text-sm">Alamat</span>
+                <input id="settingStoreAddress" maxlength="200" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Jl. Merdeka No. 10, Jakarta" />
+              </label>
+              <label class="block mt-4">
+                <span class="text-slate-700 font-medium text-sm">No. Telepon / WhatsApp</span>
+                <input id="settingStorePhone" maxlength="20" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: 08123456789" />
+              </label>
+              <label class="block mt-4">
+                <span class="text-slate-700 font-medium text-sm">Pesan di struk (footer)</span>
+                <input id="settingStoreNote" maxlength="150" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="contoh: Terima kasih, selamat datang kembali!" />
+              </label>
+              <label class="block mt-4">
+                <span class="text-slate-700 font-medium text-sm">Ukuran Kertas Struk</span>
+                <select id="settingPaperSize" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
+                  <option value="58">58mm (Standar printer thermal kecil)</option>
+                  <option value="80">80mm (Printer thermal besar)</option>
+                </select>
+              </label>
+              <div class="border-t border-slate-100 pt-4 mt-4">
+                <p class="font-semibold text-slate-700 text-sm mb-1">🔲 QRIS Statis</p>
+                <p class="text-xs text-slate-500 mb-3">Upload gambar QRIS toko Anda. Akan muncul otomatis di layar saat kasir memilih metode bayar QRIS.</p>
+                <label class="block">
+                  <span class="text-slate-700 font-medium text-sm">Upload Gambar QRIS</span>
+                  <input type="file" id="qrisFileInput" accept="image/*" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none bg-white" />
+                </label>
+                <div id="qrisPreviewWrapper" class="mt-3 hidden">
+                  <p class="text-xs text-slate-500 mb-2">Preview QRIS tersimpan:</p>
+                  <img id="qrisPreviewImg" src="" alt="QRIS" class="w-40 h-40 object-contain border border-slate-200 rounded-2xl bg-white p-2" />
+                  <button type="button" id="qrisDeleteBtn" class="mt-2 text-xs text-red-500 hover:text-red-700">🗑 Hapus QRIS</button>
+                </div>
               </div>
+              <button id="saveSettingsBtn" class="mt-4 w-full rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">💾 Simpan Pengaturan</button>
+              <div id="settingsSaved" class="hidden text-center text-green-600 text-sm font-medium mt-2">✅ Pengaturan berhasil disimpan!</div>
             </div>
-            <button id="saveSettingsBtn" class="w-full rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">💾 Simpan Pengaturan</button>
-            <div id="settingsSaved" class="hidden text-center text-green-600 text-sm font-medium">✅ Pengaturan berhasil disimpan!</div>
             <button id="openSuperAdminBtn" data-role="superadmin" class="hidden w-full rounded-2xl bg-violet-700 px-5 py-3 text-white font-semibold hover:bg-violet-800 transition">🛡 Admin Panel</button>
           </div>
 
           <!-- Preview struk -->
-          <div class="mt-6 rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
+          <div id="struPreviewSection" class="mt-6 rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
             <p class="text-sm font-medium text-slate-500 mb-4">Preview Struk</p>
             <div class="mx-auto bg-white border border-dashed border-slate-300 p-4 font-mono text-xs leading-relaxed" style="width:220px">
               <p class="text-center font-bold text-sm" id="previewStoreName">NAMA TOKO</p>
@@ -690,6 +859,45 @@
               <div class="border-t border-dashed border-slate-400 my-2"></div>
               <p class="text-center" id="previewStoreNote">Terima kasih!</p>
             </div>
+          </div>
+        </div>
+
+        <!-- Informasi Aplikasi -->
+        <div class="mt-6 max-w-xl" data-role="admin">
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
+            <h4 class="text-lg font-semibold text-slate-800 mb-1">Informasi Aplikasi</h4>
+            <p class="text-slate-500 text-sm mb-4">Versi aplikasi dan alat pemeliharaan cache.</p>
+            <div class="flex items-center gap-2 mb-4">
+              <span class="text-slate-600 text-sm">Versi:</span>
+              <span id="appVersionDisplay" class="font-mono font-semibold text-slate-700 text-sm">-</span>
+            </div>
+            <button id="clearCacheBtn" class="rounded-2xl border border-slate-200 px-5 py-3 text-slate-600 font-semibold hover:bg-slate-50 transition text-sm">Bersihkan Cache Aplikasi</button>
+            <p class="text-xs text-slate-400 mt-2">Membersihkan cache lokal dan memuat ulang halaman. Gunakan jika aplikasi terasa lambat atau tidak terupdate.</p>
+          </div>
+        </div>
+
+        <!-- Hapus Akun -->
+        <div id="deleteAccountSection" class="mt-6 max-w-xl" data-role="admin">
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
+            <h4 class="text-lg font-semibold text-slate-800 mb-1">🔒 Tutup Akun</h4>
+            <p class="text-slate-500 text-sm mb-4">Menutup akun akan menghapus seluruh data toko Anda secara permanen dan tidak dapat dibatalkan.</p>
+            <button id="deleteAccountBtn" class="rounded-2xl border border-red-200 px-5 py-3 text-red-600 font-semibold hover:bg-rose-100 transition">Tutup Akun</button>
+          </div>
+        </div>
+
+        <!-- Akun & Logout (mobile only) -->
+        <div class="mt-6 max-w-xl md:hidden">
+          <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 rounded-full bg-sky-600 flex items-center justify-center text-white font-bold text-lg shrink-0" id="mobileUserAvatar">K</div>
+              <div class="min-w-0">
+                <p class="font-semibold text-sm text-slate-900 truncate" id="mobileUserName">Kasir</p>
+                <span id="mobileUserRole" class="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">Kasir</span>
+              </div>
+            </div>
+            <button id="mobileLogoutButton" class="shrink-0 rounded-2xl border border-slate-200 px-4 py-2.5 min-h-[44px] text-sm font-medium text-slate-600 hover:bg-slate-50 transition">
+              🚪 Keluar
+            </button>
           </div>
         </div>
       </section>
@@ -743,6 +951,11 @@
             <span class="inline-block mt-2 rounded-full bg-sky-100 text-sky-700 px-4 py-1 text-sm font-semibold">Versi 1.0.0</span>
             <p class="mt-4 text-slate-600">Aplikasi kasir lengkap untuk UMKM Indonesia. Point of Sale, Inventory, Laporan, dan lebih banyak fitur dalam satu aplikasi.</p>
             <p class="mt-2 text-slate-500 text-sm font-medium">Dikembangkan untuk UMKM Indonesia</p>
+            <div class="mt-4 flex flex-wrap justify-center gap-2">
+              <a href="about.html" class="text-sm text-sky-600 hover:underline">Tentang</a>
+              <a href="features.html" class="text-sm text-sky-600 hover:underline">Fitur</a>
+              <a href="privacy.html" class="text-sm text-sky-600 hover:underline">Privasi</a>
+            </div>
           </div>
           <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-3">
             <h4 class="font-semibold text-slate-900">Kebijakan Privasi</h4>
@@ -754,9 +967,9 @@
           <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-2">
             <h4 class="font-semibold text-slate-900">Dukungan & Kontak</h4>
             <a href="https://t.me/+veK2jeQuBkQwNzU1" target="_blank" rel="noopener noreferrer"
-              class="inline-flex items-center gap-2 rounded-xl bg-sky-50 border border-sky-200 px-4 py-2 text-sm font-medium text-sky-700 hover:bg-sky-100 transition">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-sky-500"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-              Hubungi via Telegram
+              class="inline-flex items-center gap-2 rounded-2xl bg-sky-50 border border-sky-200 px-3 py-2.5 min-h-[44px] text-sm font-medium text-sky-700 hover:bg-sky-100 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-sky-500 shrink-0"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+              Telegram
             </a>
           </div>
         </div>
@@ -823,12 +1036,25 @@
             <p class="text-slate-400 text-sm">Memuat data...</p>
           </div>
         </div>
+
+        <!-- Log Error Aplikasi -->
+        <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-6">
+          <h4 class="text-lg font-semibold mb-1">Log Error Aplikasi</h4>
+          <p class="text-slate-500 text-sm mb-4">Pantau error yang terjadi di sisi klien dari semua toko.</p>
+          <button id="superAdminLoadLogsBtn" class="rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition text-sm">Muat Log</button>
+          <div id="superAdminErrorLogsWrapper" class="mt-4"></div>
+          <div id="superAdminCopyLogsWrapper" class="hidden mt-3 flex items-center gap-3">
+            <button id="superAdminCopyLogsBtn" class="rounded-2xl border border-slate-200 px-4 py-3 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">Salin Semua (JSON)</button>
+            <span id="superAdminCopiedMsg" class="hidden text-emerald-600 text-sm font-medium">Tersalin!</span>
+          </div>
+        </div>
       </section>
     </main>
   </div>
 
   <!-- Modal Tambah/Edit Kasir -->
-  <div id="cashierModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="cashierModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-200 p-5">
         <div>
@@ -871,10 +1097,12 @@
         </div>
       </form>
     </div>
+    </div>
   </div>
 
   <!-- Modal Konfirmasi Pembayaran QRIS/Transfer -->
-  <div id="paymentConfirmModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="paymentConfirmModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-200 p-5">
         <div>
@@ -904,9 +1132,11 @@
         </div>
       </div>
     </div>
+    </div>
   </div>
 
-  <div id="loginModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="loginModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
       <div class="border-b border-slate-200 p-5">
         <h3 class="text-xl font-semibold">Ganti Operator Kasir</h3>
@@ -920,6 +1150,7 @@
           <button type="button" id="loginCancel" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
         </div>
       </form>
+    </div>
     </div>
   </div>
 
@@ -962,8 +1193,8 @@
         <div class="mt-3">
           <label class="block text-sm text-slate-600 mb-1">Atau ketik kode barcode manual:</label>
           <div class="flex gap-2">
-            <input id="manualBarcodeInput" type="text" placeholder="Masukkan kode barcode..." class="flex-1 rounded-2xl border border-slate-300 px-4 py-2 focus:ring-2 focus:ring-sky-400" />
-            <button id="manualBarcodeSubmit" type="button" class="rounded-2xl bg-slate-800 px-4 py-2 text-white hover:bg-slate-700 transition">Cari</button>
+            <input id="manualBarcodeInput" type="text" placeholder="Masukkan kode barcode..." class="flex-1 rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
+            <button id="manualBarcodeSubmit" type="button" class="rounded-2xl bg-slate-800 px-4 py-3 text-white hover:bg-slate-700 transition">Cari</button>
           </div>
         </div>
       </div>
@@ -985,12 +1216,8 @@
           <label class="block"><span class="text-slate-700">ID Invoice</span><input id="purchaseInvoice" value="" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="INV-001" /></label>
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
-          <label class="block"><span class="text-slate-700">Pilih Produk</span><select id="purchaseProduct" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white"></select><div id="purchaseProductHelp" class="min-h-[24px]"></div></label>
+          <label class="block"><span class="text-slate-700">Pilih Produk</span><select id="purchaseProduct" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white"></select></label>
           <label class="block"><span class="text-slate-700">Jumlah Beli</span><input id="purchaseQty" type="number" min="1" value="1" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" /></label>
-        </div>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <label class="block"><span class="text-slate-700">Harga Beli per Unit</span><input id="purchasePrice" type="number" min="0" value="0" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="Isi harga otomatis dari inventory" /></label>
-          <label class="block flex items-end"><span class="text-slate-700">&nbsp;</span><button id="autoFillPrice" class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-700 hover:bg-slate-100 transition" type="button">Ambil Harga Inventory</button></label>
         </div>
         <button id="addPurchaseItem" class="rounded-2xl bg-slate-900 px-5 py-3 text-white hover:bg-slate-800 transition">Tambah Item Pembelian</button>
         <div class="rounded-3xl bg-slate-50 p-4 border border-slate-200" id="purchaseItemsList">
@@ -1008,7 +1235,8 @@
     </div>
   </div>
 
-  <div id="receiptModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="receiptModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-200 p-5 no-print">
         <div>
@@ -1048,6 +1276,7 @@
         <button id="printReceipt" class="flex-1 rounded-2xl bg-white border border-slate-300 px-4 py-3 text-slate-700 hover:bg-slate-100 transition text-sm">🖨 Cetak Biasa</button>
         <button id="closeReceiptBottom" class="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-700 hover:bg-slate-100 transition text-sm">Tutup</button>
       </div>
+    </div>
     </div>
   </div>
 
@@ -1119,12 +1348,91 @@
             <button type="button" id="inventoryScanButton" class="mb-0.5 rounded-2xl bg-sky-600 px-4 py-3 text-white hover:bg-sky-700 transition whitespace-nowrap">📷</button>
           </div>
         </div>
-        <input type="hidden" id="productImage" value="" />
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Tanggal Kedaluwarsa (Opsional)</span>
+            <input id="productExpiry" type="date" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+          </label>
+        </div>
+        <input type="hidden" id="productImage" value="https://via.placeholder.com/200" />
         <div class="flex gap-3 pt-3">
           <button type="submit" class="flex-1 rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">Simpan Produk</button>
           <button type="button" id="cancelInventory" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal Penyesuaian Stok (Manual Stock Adjustment) -->
+  <div id="adjustmentModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-semibold" id="adjustmentModalTitle">Sesuaikan Stok</h3>
+        <button id="closeAdjustmentModal" class="rounded-full bg-slate-100 p-2 hover:bg-slate-200">×</button>
+      </div>
+      <form id="adjustmentForm" class="space-y-4">
+        <input type="hidden" id="adjProductId" />
+        <p class="text-sm text-slate-500">Stok Saat Ini: <span id="adjCurrentStock" class="font-bold text-slate-800">0</span></p>
+        <div class="grid grid-cols-2 gap-4">
+            <label class="block">
+                <span class="text-slate-700 font-medium text-sm">Arah Penyesuaian</span>
+                <select id="adjDirection" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
+                    <option value="kurang">Kurangi (-)</option>
+                    <option value="tambah">Tambah (+)</option>
+                </select>
+            </label>
+            <label class="block">
+                <span class="text-slate-700 font-medium text-sm">Jumlah (Unit) <span class="text-red-500">*</span></span>
+                <input id="adjQty" type="number" min="1" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="1" />
+            </label>
+        </div>
+        <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Alasan <span class="text-red-500">*</span></span>
+            <select id="adjReason" required class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white focus:ring-2 focus:ring-sky-400 focus:outline-none">
+                <option value="">Pilih Alasan</option>
+                <option value="Rusak / Cacat">Rusak / Cacat</option>
+                <option value="Kedaluwarsa">Kedaluwarsa</option>
+                <option value="Hilang / Dicuri">Hilang / Dicuri</option>
+                <option value="Koreksi Administratif">Koreksi Administratif</option>
+                <option value="Lainnya">Lainnya</option>
+            </select>
+        </label>
+        <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Catatan / Memo</span>
+            <input id="adjNote" type="text" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none" placeholder="Tambahkan memo jika perlu" />
+        </label>
+        <button type="submit" class="w-full rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">Simpan Penyesuaian</button>
+      </form>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal Kartu Stok (Stock Ledger) -->
+  <div id="ledgerModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-3xl rounded-3xl bg-white shadow-2xl p-6 flex flex-col max-h-[90vh]">
+      <div class="flex items-center justify-between mb-4 shrink-0">
+        <div>
+            <h3 class="text-xl font-semibold">Kartu Stok (Mutasi)</h3>
+            <p id="ledgerProductName" class="text-slate-500 font-medium"></p>
+        </div>
+        <button id="closeLedgerModal" class="rounded-full bg-slate-100 p-2 hover:bg-slate-200">×</button>
+      </div>
+      <div class="overflow-auto flex-1 border border-slate-200 rounded-xl">
+        <table class="w-full text-left text-sm whitespace-nowrap">
+          <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 sticky top-0">
+            <tr>
+              <th class="p-3">Waktu</th>
+              <th class="p-3">Kasir</th>
+              <th class="p-3">Jenis Mutasi</th>
+              <th class="p-3">Kuantitas</th>
+              <th class="p-3">Stok Akhir</th>
+            </tr>
+          </thead>
+          <tbody id="ledgerTableBody">
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -1174,7 +1482,8 @@
   </div>
 
   <!-- Modal QRIS -->
-  <div id="qrisModal" class="fixed inset-0 z-[110] hidden items-center justify-center bg-black/70 px-6 py-8">
+  <div id="qrisModal" class="fixed inset-0 z-[110] hidden overflow-y-auto bg-black/70">
+    <div class="flex min-h-full w-full items-center justify-center p-6">
     <div class="w-full max-w-xs rounded-3xl bg-white shadow-2xl p-6 flex flex-col items-center gap-4">
       <div class="flex items-center justify-between w-full">
         <div>
@@ -1197,10 +1506,12 @@
       </button>
       <p class="text-xs text-slate-400 text-center">Pastikan notifikasi pembayaran masuk sebelum konfirmasi</p>
     </div>
+    </div>
   </div>
 
   <!-- Modal Tutup Kasir / Laporan Shift -->
-  <div id="shiftModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="shiftModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-200 p-5">
         <div>
@@ -1209,7 +1520,7 @@
         </div>
         <button id="closeShiftModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
       </div>
-      <div class="p-6 space-y-4">
+      <div class="p-6 space-y-4 overflow-y-auto max-h-[75vh]">
         <div class="grid grid-cols-2 gap-3">
           <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-center">
             <p class="text-xs text-slate-500 uppercase tracking-wide">Kasir</p>
@@ -1228,11 +1539,164 @@
             <p class="text-lg font-bold mt-1 text-sky-700" id="shiftItemsSold">0</p>
           </div>
         </div>
+
+        <div class="border-t border-slate-200 pt-4 mt-2 space-y-3">
+          <h4 class="text-sm font-semibold text-slate-800 uppercase tracking-wider">Pencocokan Kas (Closing Count)</h4>
+          <div class="space-y-2">
+            <div class="flex justify-between text-sm">
+              <span class="text-slate-600">Modal Awal:</span>
+              <span id="shiftModalFloat" class="font-semibold text-slate-800">Rp0</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-slate-600">Penjualan Tunai (System):</span>
+              <span id="shiftModalCashSales" class="font-semibold text-slate-800">Rp0</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-slate-600">Refund Tunai (System):</span>
+              <span id="shiftModalRefunds" class="font-semibold text-slate-800">Rp0</span>
+            </div>
+            <div class="flex justify-between text-base font-semibold border-t border-slate-100 pt-2 text-slate-900">
+              <span>Total Uang Kas (System):</span>
+              <span id="shiftModalExpected">Rp0</span>
+            </div>
+          </div>
+          <div>
+            <label class="block text-slate-700 text-sm font-medium mb-1">Total Tunai Fisik di Laci</label>
+            <input id="shiftActualCashInput" type="number" min="0" value="0" class="w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
+          </div>
+          <div class="flex justify-between text-base font-semibold text-slate-900">
+            <span>Selisih:</span>
+            <span id="shiftDiscrepancy" class="text-slate-900 font-bold">Rp0</span>
+          </div>
+          <div>
+            <label class="block text-slate-700 text-sm font-medium mb-1">Catatan Selisih / Memo</label>
+            <textarea id="shiftNoteInput" rows="2" placeholder="Tulis alasan jika ada selisih kas..." class="w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 text-sm"></textarea>
+          </div>
+        </div>
+
         <div class="flex gap-3 pt-2">
-          <button id="printShiftBtn" class="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-white font-semibold hover:bg-slate-800 transition text-sm">🖨 Cetak Laporan</button>
-          <button id="resetShiftBtn" class="flex-1 rounded-2xl bg-amber-600 px-4 py-3 text-white font-semibold hover:bg-amber-700 transition text-sm">🔄 Tutup & Reset</button>
+          <button id="printShiftBtn" class="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-white font-semibold hover:bg-slate-800 transition text-sm">🖨 Cetak Struk</button>
+          <button id="resetShiftBtn" class="flex-1 rounded-2xl bg-amber-600 px-4 py-3 text-white font-semibold hover:bg-amber-700 transition text-sm">🔒 Tutup Shift & Selesai</button>
         </div>
         <button id="cancelShiftModal" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-slate-700 hover:bg-slate-100 transition text-sm">Batal</button>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal Buka Shift (Open Shift) -->
+  <div id="openShiftModalEl" class="fixed inset-0 z-[60] hidden overflow-y-auto bg-black/80">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden p-6 space-y-4">
+      <div class="text-center">
+        <div class="text-4xl mb-2">🔓</div>
+        <h3 class="text-xl font-bold">Mulai Shift Baru</h3>
+        <p class="text-slate-500 text-sm">Masukkan nominal uang modal awal di laci kasir.</p>
+      </div>
+      <form id="openShiftForm" class="space-y-4">
+        <div>
+          <label class="block text-slate-700 text-sm font-medium mb-2">Uang Modal Awal (Cash Float)</label>
+          <input id="openShiftCashFloat" type="number" min="0" value="100000" required class="w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
+        </div>
+        <button type="submit" class="w-full rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition">
+          Mulai Shift & Mulai Jualan
+        </button>
+      </form>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal Otorisasi PIN Admin -->
+  <div id="pinAuthModal" class="fixed inset-0 z-[70] hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-sm rounded-3xl bg-white shadow-2xl overflow-hidden p-6 space-y-4">
+      <div class="text-center">
+        <div class="text-4xl mb-2">🔑</div>
+        <h3 class="text-xl font-bold">Otorisasi Supervisor</h3>
+        <p class="text-slate-500 text-sm">Masukkan PIN Admin/Supervisor untuk melanjutkan.</p>
+      </div>
+      <form id="pinAuthForm" class="space-y-4">
+        <div>
+          <input id="pinAuthInput" type="password" placeholder="Masukkan PIN" required class="w-full text-center text-2xl tracking-widest rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
+        </div>
+        <div class="flex gap-3">
+          <button type="submit" class="flex-1 rounded-2xl bg-sky-600 px-4 py-3 text-white font-semibold hover:bg-sky-700 transition text-sm">
+            Verifikasi
+          </button>
+          <button type="button" id="cancelPinAuth" class="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-700 hover:bg-slate-100 transition text-sm">
+            Batal
+          </button>
+        </div>
+      </form>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal Void Transaksi -->
+  <div id="voidModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-sm rounded-3xl bg-white shadow-2xl overflow-hidden p-6 space-y-4">
+      <div class="text-center">
+        <div class="text-4xl mb-2">🚫</div>
+        <h3 class="text-xl font-bold">Batalkan Transaksi</h3>
+        <p class="text-slate-500 text-sm" id="voidModalSubtitle">Masukkan alasan pembatalan transaksi ini.</p>
+      </div>
+      <form id="voidForm" class="space-y-4">
+        <div>
+          <label class="block text-slate-700 text-sm font-medium mb-1">Alasan Void</label>
+          <input id="voidReasonInput" type="text" placeholder="Misal: Salah Input, Pelanggan Batal" required class="w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400" />
+        </div>
+        <div class="flex gap-3">
+          <button type="submit" class="flex-1 rounded-2xl bg-rose-600 px-4 py-3 text-white font-semibold hover:bg-rose-700 transition text-sm">
+            Batalkan Transaksi
+          </button>
+          <button type="button" id="cancelVoidModal" class="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-700 hover:bg-slate-100 transition text-sm">
+            Batal
+          </button>
+        </div>
+      </form>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal Retur Barang -->
+  <div id="returnModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-lg rounded-3xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+        <div>
+          <h3 class="text-xl font-semibold">↩️ Retur Barang</h3>
+          <p class="text-slate-500 text-sm" id="returnModalSubtitle">Pilih item yang ingin diretur</p>
+        </div>
+        <button id="closeReturnModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
+      </div>
+      <div class="p-6 space-y-4 overflow-y-auto flex-1">
+        <div class="space-y-3" id="returnItemsList">
+          <!-- Dinamis di-render via JS -->
+        </div>
+        <div>
+          <label class="block text-slate-700 text-sm font-medium mb-1">Alasan Retur</label>
+          <select id="returnReasonSelect" class="w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white">
+            <option value="Barang Cacat">Barang Cacat / Rusak</option>
+            <option value="Salah Beli">Salah Beli</option>
+            <option value="Kedaluwarsa">Kedaluwarsa</option>
+            <option value="Lainnya">Lainnya</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-slate-700 text-sm font-medium mb-1">Metode Penyelesaian</label>
+          <select id="returnActionSelect" class="w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white">
+            <option value="refund">Kembali Dana (Refund Tunai)</option>
+            <option value="restock">Kembali Stok (Tanpa Refund Uang)</option>
+          </select>
+        </div>
+      </div>
+      <div class="border-t border-slate-200 p-5 bg-slate-50 flex gap-3">
+        <button id="submitReturnBtn" class="flex-1 rounded-2xl bg-amber-600 px-5 py-3 text-white font-semibold hover:bg-amber-700 transition">
+          Proses Retur
+        </button>
+        <button id="cancelReturnModal" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">
+          Batal
+        </button>
       </div>
     </div>
   </div>
@@ -1268,133 +1732,100 @@
 
   <input type="file" id="backupFileInput" accept="application/json" class="hidden" />
   <!-- Modal Kasbon -->
-  <div id="debtModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 py-6">
-    <div class="w-full max-w-lg rounded-3xl bg-white shadow-2xl">
-      <div class="flex items-center justify-between border-b border-slate-200 p-5">
-        <h3 class="text-lg font-bold">Catat Kasbon Baru</h3>
-        <button id="closeDebtModal" type="button" class="rounded-full bg-slate-100 p-2 hover:bg-slate-200 text-xl leading-none">×</button>
-      </div>
-      <form id="debtForm" class="space-y-3 p-6">
-        <p id="debtFormError" class="hidden rounded-2xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-600"></p>
-        
-        <!-- Input Dinamis Produk -->
-        <div class="border rounded-2xl p-3 bg-slate-50">
-          <label class="block mb-2">
-            <span class="text-slate-700 font-semibold text-sm">Produk & Qty</span>
+  <div id="debtModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full items-center justify-center p-4">
+      <form id="debtForm" class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl flex flex-col">
+        <div class="flex shrink-0 items-center justify-between border-b border-slate-200 p-5">
+          <h3 class="text-lg font-bold">Catat Kasbon Baru</h3>
+          <button id="closeDebtModal" type="button" class="rounded-full bg-slate-100 p-2 hover:bg-slate-200 text-xl leading-none">×</button>
+        </div>
+        <div class="p-6 space-y-3">
+          <p id="debtFormError" class="hidden rounded-2xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-600"></p>
+          
+          <!-- Input Dinamis Produk -->
+          <div class="border rounded-2xl p-3 bg-slate-50">
+            <label class="block mb-2">
+              <span class="text-slate-700 font-semibold text-sm">Produk & Qty</span>
+            </label>
+            <div id="debtItemsContainer" class="space-y-2"></div>
+            <button type="button" onclick="addDebtItemRow()" class="mt-2 text-xs text-sky-600 font-semibold hover:underline">+ Tambah Produk Lain</button>
+          </div>
+
+          <!-- Total -->
+          <div class="flex justify-between items-center bg-sky-50 p-3 rounded-2xl border border-sky-100 dark:bg-sky-900/30 dark:border-sky-800">
+            <span id="debtTotalDisplay" class="font-bold text-sky-800 dark:text-sky-300">Total Hutang: Rp 0</span>
+            <input type="hidden" id="debtFormAmount" value="0" />
+          </div>
+
+          <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Nama Pelanggan</span>
+            <input id="debtFormName" required maxlength="80" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-600 bg-white" placeholder="contoh: Bu Siti" />
           </label>
-          <div id="debtItemsContainer" class="space-y-2"></div>
-          <button type="button" onclick="addDebtItemRow()" class="mt-2 text-xs text-sky-600 font-semibold hover:underline">+ Tambah Produk Lain</button>
+          <label class="block">
+            <span class="text-slate-700 font-medium text-sm">No. WhatsApp <span class="text-slate-400">(opsional, untuk tagih)</span></span>
+            <input 
+              id="debtFormPhone" 
+              type="tel"
+              pattern="[0-9]*" 
+              inputmode="numeric" 
+              maxlength="20" 
+              oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+              class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-600 bg-white" 
+              placeholder="contoh: 08123456789" 
+            />
+          </label>
+          <label class="block">
+            <span class="text-slate-700 font-medium text-sm">Catatan <span class="text-slate-400">(opsional)</span></span>
+            <input id="debtFormNote" maxlength="150" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-600 bg-white" placeholder="catatan tambahan" />
+          </label>
         </div>
-
-        <!-- Total -->
-        <div class="flex justify-between items-center bg-sky-50 p-3 rounded-2xl border border-sky-100">
-          <span id="debtTotalDisplay" class="font-bold text-sky-800">Total Hutang: Rp 0</span>
-          <input type="hidden" id="debtFormAmount" value="0" />
+        <div class="p-5 border-t border-slate-200 shrink-0">
+          <button type="submit" class="w-full rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition">💾 Simpan Kasbon</button>
         </div>
-
-        <label class="block">
-          <span class="text-slate-700 font-medium text-sm">Nama Pelanggan</span>
-          <input id="debtFormName" required maxlength="80" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-600 bg-white" placeholder="contoh: Bu Siti" />
-        </label>
-        <label class="block">
-          <span class="text-slate-700 font-medium text-sm">No. WhatsApp <span class="text-slate-400">(opsional, untuk tagih)</span></span>
-          <input 
-            id="debtFormPhone" 
-            type="tel"
-            pattern="[0-9]*" 
-            inputmode="numeric" 
-            maxlength="20" 
-            oninput="this.value = this.value.replace(/[^0-9]/g, '')"
-            class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-600 bg-white" 
-            placeholder="contoh: 08123456789" 
-          />
-        </label>
-        <label class="block">
-          <span class="text-slate-700 font-medium text-sm">Catatan <span class="text-slate-400">(opsional)</span></span>
-          <input id="debtFormNote" maxlength="150" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-600 bg-white" placeholder="catatan tambahan" />
-        </label>
-        <button type="submit" class="w-full rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition">💾 Simpan Kasbon</button>
       </form>
     </div>
   </div>
 
-  <!-- Modal Atur Stok (Adjustment) -->
-  <div id="adjustmentModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/70 px-4 py-6">
-    <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
-      <div class="flex items-center justify-between border-b border-slate-200 p-5">
-        <h3 id="adjustmentModalTitle" class="text-xl font-semibold">Atur Stok</h3>
-        <button id="closeAdjustmentModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
-      </div>
-      <form id="adjustmentForm" class="p-6 space-y-4">
-        <input type="hidden" id="adjProductId" />
-        <div class="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-          <span class="text-sm text-slate-500">Stok Saat Ini</span>
-          <span id="adjCurrentStock" class="text-xl font-bold text-slate-800">0</span>
-        </div>
-        <label class="block">
-          <span class="text-slate-700 font-medium text-sm">Jenis Penyesuaian</span>
-          <select id="adjDirection" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-amber-400 focus:outline-none bg-white">
-            <option value="kurang">Kurangi Stok</option>
-            <option value="tambah">Tambah Stok</option>
-          </select>
-        </label>
-        <label class="block">
-          <span class="text-slate-700 font-medium text-sm">Jumlah</span>
-          <input id="adjQty" type="number" min="1" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-amber-400 focus:outline-none" placeholder="Masukkan jumlah" />
-        </label>
-        <label class="block">
-          <span class="text-slate-700 font-medium text-sm">Alasan</span>
-          <select id="adjReason" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-amber-400 focus:outline-none bg-white">
-            <option value="">-- Pilih Alasan --</option>
-            <option value="koreksi">Koreksi</option>
-            <option value="rusak">Barang Rusak</option>
-            <option value="hilang">Barang Hilang</option>
-            <option value="pembelian">Pembelian Baru</option>
-            <option value="retur">Retur Barang</option>
-            <option value="lainnya">Lainnya</option>
-          </select>
-        </label>
-        <label class="block">
-          <span class="text-slate-700 font-medium text-sm">Catatan <span class="text-slate-400">(opsional)</span></span>
-          <input id="adjNote" type="text" maxlength="150" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-amber-400 focus:outline-none" placeholder="Catatan tambahan..." />
-        </label>
-        <button type="submit" class="w-full rounded-2xl bg-amber-500 px-5 py-3 text-white font-semibold hover:bg-amber-600 transition">💾 Simpan Penyesuaian</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Modal Riwayat Stok (Ledger) -->
-  <div id="ledgerModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/70 px-4 py-6">
-    <div class="w-full max-w-3xl rounded-3xl bg-white shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+  <!-- Modal Hapus Akun -->
+  <div id="deleteAccountModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-200 p-5">
         <div>
-          <h3 class="text-xl font-semibold">Riwayat Mutasi Stok</h3>
-          <p id="ledgerProductName" class="text-sm text-slate-500 mt-0.5"></p>
+          <h3 class="text-xl font-semibold text-slate-800">Konfirmasi Penutupan Akun</h3>
+          <p class="text-slate-500 text-sm">Tindakan ini tidak dapat dibatalkan.</p>
         </div>
-        <button id="closeLedgerModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
+        <button id="closeDeleteAccountModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
       </div>
-      <div class="overflow-auto flex-1 p-4">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="text-left text-xs text-slate-500 border-b border-slate-200">
-              <th class="p-3">Waktu</th>
-              <th class="p-3">Kasir</th>
-              <th class="p-3">Jenis</th>
-              <th class="p-3">Perubahan</th>
-              <th class="p-3">Stok Akhir</th>
-            </tr>
-          </thead>
-          <tbody id="ledgerTableBody">
-            <tr><td colspan="5" class="p-4 text-center text-slate-400">Memuat...</td></tr>
-          </tbody>
-        </table>
+      <div class="p-6 space-y-4">
+        <div class="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          <p class="font-semibold mb-1">⚠️ Data berikut akan dihapus permanen:</p>
+          <ul class="list-disc list-inside space-y-0.5 text-amber-700">
+            <li>Toko, produk, dan transaksi</li>
+            <li>Kasir dan kasbon</li>
+            <li>Riwayat, langganan, dan semua data terkait</li>
+          </ul>
+        </div>
+        <label class="block">
+          <span class="text-slate-700 font-medium text-sm">Ketik ulang email Anda untuk konfirmasi</span>
+          <input id="deleteAccountEmailInput" type="email" autocomplete="off"
+            class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+            placeholder="email@contoh.com" />
+        </label>
+        <div id="deleteAccountError" class="hidden rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+        <button id="deleteAccountConfirmBtn" disabled
+          class="w-full rounded-2xl bg-slate-200 px-5 py-3 text-slate-400 font-semibold transition cursor-not-allowed">
+          Hapus Akun Saya
+        </button>
+        <button type="button" id="cancelDeleteAccountModal" class="w-full rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
       </div>
+    </div>
     </div>
   </div>
 
   <!-- Chat Bantuan -->
   <button id="helpChatFab" class="hidden fixed bottom-20 md:bottom-6 right-4 z-[90] h-14 w-14 rounded-full bg-gradient-to-br from-teal-400 to-sky-600 text-3xl shadow-xl hover:scale-110 transition-transform flex items-center justify-center no-print" title="Tanya Aisyah">🧕</button>
-  <div id="helpChatPanel" class="hidden fixed bottom-36 md:bottom-24 right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm rounded-3xl bg-white border border-slate-200 shadow-2xl flex flex-col overflow-hidden no-print" style="height:28rem">
+  <div id="helpChatPanel" class="hidden fixed bottom-36 md:bottom-24 right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm h-[28rem] max-h-[calc(100vh-10rem)] rounded-3xl bg-white border border-slate-200 shadow-2xl flex flex-col overflow-hidden no-print">
     <div class="bg-gradient-to-r from-teal-600 to-sky-700 text-white px-5 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <span class="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-2xl">🧕</span>
@@ -1413,37 +1844,7 @@
     </form>
   </div>
 
-    <!-- Modal Retur Pembelian -->
-    <div id="returnPurchaseModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/70 px-4 py-6">
-      <div class="w-full max-w-lg rounded-3xl bg-white shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-        <div class="flex items-center justify-between border-b border-slate-200 p-5">
-          <div>
-            <h3 class="text-xl font-semibold">Proses Retur Pembelian</h3>
-            <p id="returnPurchaseInvoice" class="text-sm text-slate-500 mt-0.5"></p>
-          </div>
-          <button id="closeReturnPurchaseModal" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">&times;</button>
-        </div>
-        <form id="returnPurchaseForm" class="flex flex-col flex-1 overflow-hidden">
-          <div class="p-6 space-y-4 overflow-y-auto flex-1">
-            <div id="returnItemsList" class="space-y-4"></div>
-            <label class="block">
-              <span class="text-slate-700 font-medium text-sm">Alasan Retur</span>
-              <input id="returnReason" type="text" required maxlength="150" class="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-red-400 focus:outline-none" placeholder="Contoh: Barang rusak, salah kirim, kadaluarsa" />
-            </label>
-          </div>
-          <div class="p-5 border-t border-slate-100 flex justify-end bg-slate-50">
-            <button type="submit" class="rounded-2xl bg-red-600 px-6 py-2.5 text-white font-semibold hover:bg-red-700 transition flex items-center gap-2 shadow-sm shadow-red-200">
-              <span>Kirim Retur ke Supplier</span>
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
-              </svg>
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
 
-  <script src="app.js"></script>
-  <script src="kasbon.js"></script>
+  <script src="app.js?v=5" defer></script>
 </body>
 </html>

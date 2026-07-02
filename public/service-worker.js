@@ -1,31 +1,28 @@
-const CACHE_NAME = "kasir-umkm-v10";
+const CACHE_NAME = 'kasir-umkm-cache-v26';
 // CATATAN PENTING: jangan masukkan 'index.html' di sini. Vercel cleanUrls=true
 // me-redirect /index.html -> / (308); Cache API menolak menyimpan response
 // hasil redirect sehingga cache.addAll() reject dan install SW GAGAL TOTAL —
-// akibatnya SW lama tidak pernah tergantikan dan aset basi (termasuk kasbon.js
-// versi lama tanpa guard UUID) terus disajikan ke user.
+// akibatnya SW lama tidak pernah tergantikan dan aset basi terus disajikan.
 // Root './' melayani index tanpa redirect. HTML tetap di-cache runtime (network-first).
+// CDN di bawah memakai Promise.allSettled sehingga redirect/404 tidak membatalkan install.
 const ASSETS = [
   './',
   'app.js',
-  'kasbon.js',
-  'tailwind.css',
   'manifest.json',
   'icons/icon-192.png',
   'icons/icon-512.png',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
   'https://cdn.jsdelivr.net/npm/chart.js',
-  'https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
-  'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js',
-  'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js'
+  'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js',
+  'https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js',
+  'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'
 ];
 
 self.addEventListener('install', event => {
   self.skipWaiting();
   // allSettled + cache:'reload': install TIDAK boleh gagal hanya karena satu aset
-  // redirect/404/offline. SW baru selalu berhasil terpasang & aktif, memutus
-  // kebuntuan SW lama yang tidak pernah ter-update.
+  // redirect/404. Ini memastikan SW baru selalu berhasil terpasang & aktif,
+  // memutus kebuntuan SW lama yang tidak pernah ter-update.
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache =>
       Promise.allSettled(

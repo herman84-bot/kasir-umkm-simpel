@@ -1442,13 +1442,11 @@ const App = (() => {
       dom.cashierFormPassword.placeholder = 'Masukkan password';
     }
     dom.cashierModal.classList.remove('hidden');
-    dom.cashierModal.style.display = 'flex';
     dom.cashierFormName.focus();
   };
 
   const closeCashierModalFn = () => {
     dom.cashierModal.classList.add('hidden');
-    dom.cashierModal.style.display = '';
   };
 
   const openDeleteAccountModal = () => {
@@ -1458,13 +1456,11 @@ const App = (() => {
     dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'hover:bg-rose-700', 'text-white', 'cursor-pointer');
     dom.deleteAccountConfirmBtn.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
     dom.deleteAccountModal.classList.remove('hidden');
-    dom.deleteAccountModal.style.display = 'flex';
     dom.deleteAccountEmailInput.focus();
   };
 
   const closeDeleteAccountModal = () => {
     dom.deleteAccountModal.classList.add('hidden');
-    dom.deleteAccountModal.style.display = '';
   };
 
   const handleDeleteAccount = async () => {
@@ -1778,12 +1774,10 @@ const App = (() => {
     dom.paymentConfirmTotal.textContent = formatCurrency(total);
     dom.paymentConfirmCashier.textContent = cashierName;
     dom.paymentConfirmModal.classList.remove('hidden');
-    dom.paymentConfirmModal.style.display = 'flex';
   };
 
   const hidePaymentConfirmModal = () => {
     dom.paymentConfirmModal.classList.add('hidden');
-    dom.paymentConfirmModal.style.display = '';
   };
 
   const authenticateUser = async (name, password) => {
@@ -2493,7 +2487,6 @@ const App = (() => {
         populateReceipt(tx);
         if (dom.printThermalBtn) dom.printThermalBtn._receiptData = tx;
         dom.receiptModal.classList.remove('hidden');
-        dom.receiptModal.style.display = 'flex';
       });
     });
 
@@ -2930,7 +2923,6 @@ const App = (() => {
     populateReceipt(transaction);
     if (dom.printThermalBtn) dom.printThermalBtn._receiptData = transaction;
     dom.receiptModal.classList.remove('hidden');
-    dom.receiptModal.style.display = 'flex';
   };
 
   const openReceipt = () => {
@@ -2948,7 +2940,6 @@ const App = (() => {
     populateReceipt(receiptData);
     if (dom.printThermalBtn) dom.printThermalBtn._receiptData = receiptData;
     dom.receiptModal.classList.remove('hidden');
-    dom.receiptModal.style.display = 'flex';
   };
 
   const populateReceipt = (data) => {
@@ -3141,7 +3132,6 @@ ${discountHtml}${taxHtml}
 
   const closeReceipt = () => {
     dom.receiptModal.classList.add('hidden');
-    dom.receiptModal.style.display = '';
   };
 
   // ── Feature: Export PDF Laporan ──────────────────────────────────────────
@@ -3247,7 +3237,6 @@ ${discountHtml}${taxHtml}
     const modal = document.getElementById('openShiftModalEl');
     if (modal) {
       modal.classList.remove('hidden');
-      modal.style.display = 'flex';
       const input = document.getElementById('openShiftCashFloat');
       if (input) {
         input.value = '100000';
@@ -3260,7 +3249,6 @@ ${discountHtml}${taxHtml}
     const modal = document.getElementById('openShiftModalEl');
     if (modal) {
       modal.classList.add('hidden');
-      modal.style.display = '';
     }
   };
 
@@ -3345,14 +3333,12 @@ ${discountHtml}${taxHtml}
 
     if (dom.shiftModal) {
       dom.shiftModal.classList.remove('hidden');
-      dom.shiftModal.style.display = 'flex';
     }
   };
 
   const closeShiftModal = () => {
     if (dom.shiftModal) {
       dom.shiftModal.classList.add('hidden');
-      dom.shiftModal.style.display = '';
     }
   };
 
@@ -3500,12 +3486,10 @@ ${txRows}
 
       input.value = '';
       modal.classList.remove('hidden');
-      modal.style.display = 'flex';
       input.focus();
 
       const cleanup = () => {
         modal.classList.add('hidden');
-        modal.style.display = '';
         form.removeEventListener('submit', onSubmit);
         cancelBtn.removeEventListener('click', onCancel);
       };
@@ -3547,12 +3531,10 @@ ${txRows}
 
       input.value = '';
       modal.classList.remove('hidden');
-      modal.style.display = 'flex';
       input.focus();
 
       const cleanup = () => {
         modal.classList.add('hidden');
-        modal.style.display = '';
         form.removeEventListener('submit', onSubmit);
         cancelBtn.removeEventListener('click', onCancel);
       };
@@ -3888,7 +3870,7 @@ ${txRows}
         }
 
         if (modalTotal) modalTotal.textContent = formatCurrency(totals.total);
-        if (qrisModal) { qrisModal.classList.remove('hidden'); qrisModal.style.display = 'flex'; }
+        if (qrisModal) qrisModal.classList.remove('hidden');
       } else {
         alert('Gambar QRIS belum diupload. Silakan upload di menu Pengaturan → QRIS Statis.');
         setPaymentMethod('Tunai');
@@ -3910,12 +3892,10 @@ ${txRows}
     document.getElementById('adjDirection').value = 'kurang';
     document.getElementById('adjustmentModalTitle').textContent = `Sesuaikan Stok: ${product.name}`;
     document.getElementById('adjustmentModal').classList.remove('hidden');
-    document.getElementById('adjustmentModal').classList.add('flex');
   };
 
   const closeAdjustmentModal = () => {
     document.getElementById('adjustmentModal').classList.add('hidden');
-    document.getElementById('adjustmentModal').classList.remove('flex');
   };
 
   const saveAdjustment = async (e) => {
@@ -4463,12 +4443,12 @@ ${txRows}
     // ── QRIS modal ──
     document.getElementById('closeQrisModal')?.addEventListener('click', () => {
       const m = document.getElementById('qrisModal');
-      if (m) { m.classList.add('hidden'); m.style.display = ''; }
+      if (m) m.classList.add('hidden');
       setPaymentMethod('Tunai');
     });
     document.getElementById('qrisConfirmBtn')?.addEventListener('click', () => {
       const m = document.getElementById('qrisModal');
-      if (m) { m.classList.add('hidden'); m.style.display = ''; }
+      if (m) m.classList.add('hidden');
     });
 
     // ── Feature 1: Forgot Password ──
@@ -4824,16 +4804,16 @@ ${txRows}
     
     div.innerHTML = `
         <div class="w-[45%]">
-            <select class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-700 dark:text-white dark:border-slate-600 debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
+            <select class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-700 debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
                 <option value="" disabled selected>Pilih Produk</option>
                 ${productOptions}
             </select>
         </div>
         <div class="w-[20%]">
-            <input type="number" min="1" value="1" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-700 dark:text-white dark:border-slate-600 debt-qty-input" oninput="calculateDebtTotal()">
+            <input type="number" min="1" value="1" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-700 debt-qty-input" oninput="calculateDebtTotal()">
         </div>
         <div class="w-[25%]">
-             <input type="text" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-500 dark:bg-slate-700 dark:text-white dark:border-slate-600" readonly value="0">
+             <input type="text" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-500 dark:bg-slate-800 dark:text-white dark:border-slate-700" readonly value="0">
         </div>
         <div class="w-[10%] flex justify-end">
              <button type="button" class="rounded-xl bg-rose-100 text-rose-600 px-3 py-1.5 hover:bg-rose-200 transition font-bold" onclick="removeDebtItemRow('${rowId}')">✕</button>
@@ -4926,13 +4906,13 @@ ${txRows}
     state.currentDebtItems = [];
     addDebtItemRow();
 
-    if (m) { m.classList.remove('hidden'); m.style.display = 'flex'; }
+    if (m) m.classList.remove('hidden');
     document.getElementById('debtFormName')?.focus();
   };
 
   const closeDebtModal = () => {
     const m = document.getElementById('debtModal');
-    if (m) { m.classList.add('hidden'); m.style.display = ''; }
+    if (m) m.classList.add('hidden');
   };
 
   const saveDebt = async e => {

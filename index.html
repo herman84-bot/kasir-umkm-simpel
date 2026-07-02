@@ -23,7 +23,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="tailwind.css?v=2" />
+  <link rel="stylesheet" href="tailwind.css?v=3" />
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -73,20 +73,96 @@
     body.dark .border-slate-300 {
       border-color: #334155 !important;
     }
+    /* Badge/banner berlatar terang: gelapkan latar + terangkan teks agar tetap kontras di dark mode */
+    body.dark .bg-slate-200 {
+      background-color: #334155 !important;
+    }
+    body.dark .bg-sky-100 {
+      background-color: #0c4a6e !important;
+    }
+    body.dark .border-sky-100,
+    body.dark .border-sky-200 {
+      border-color: #075985 !important;
+    }
+    body.dark .text-sky-700,
+    body.dark .text-sky-600 {
+      color: #7dd3fc !important;
+    }
+    body.dark .bg-amber-50,
+    body.dark .bg-amber-100 {
+      background-color: #451a03 !important;
+    }
+    body.dark .border-amber-200 {
+      border-color: #92400e !important;
+    }
+    body.dark .text-amber-800,
+    body.dark .text-amber-700,
+    body.dark .text-amber-600 {
+      color: #fcd34d !important;
+    }
+    body.dark .bg-green-50,
+    body.dark .bg-green-100,
+    body.dark .bg-emerald-50,
+    body.dark .bg-emerald-100 {
+      background-color: #064e3b !important;
+    }
+    body.dark .border-green-200,
+    body.dark .border-emerald-200 {
+      border-color: #065f46 !important;
+    }
+    body.dark .text-green-800,
+    body.dark .text-green-700,
+    body.dark .text-green-600,
+    body.dark .text-emerald-700,
+    body.dark .text-emerald-600 {
+      color: #6ee7b7 !important;
+    }
+    body.dark .bg-red-50,
+    body.dark .bg-rose-50,
+    body.dark .bg-rose-100,
+    body.dark .bg-rose-200 {
+      background-color: #450a0a !important;
+    }
+    body.dark .hover\:bg-rose-100:hover,
+    body.dark .hover\:bg-rose-200:hover {
+      background-color: #7f1d1d !important;
+    }
+    body.dark .bg-blue-100 {
+      background-color: #172554 !important;
+    }
+    body.dark .text-blue-700 {
+      color: #93c5fd !important;
+    }
+    body.dark .border-red-200,
+    body.dark .border-rose-200 {
+      border-color: #991b1b !important;
+    }
+    body.dark .text-red-700,
+    body.dark .text-red-600,
+    body.dark .text-rose-700,
+    body.dark .text-rose-600 {
+      color: #fca5a5 !important;
+    }
+    body.dark .text-red-500 {
+      color: #f87171 !important;
+    }
+    body.dark .bg-purple-100 {
+      background-color: #3b0764 !important;
+    }
+    body.dark .text-purple-700 {
+      color: #d8b4fe !important;
+    }
     body.dark input,
     body.dark select,
     body.dark textarea {
-      background-color: #0f172a !important;
-      color: #f8fafc !important;
+      background-color: #1e293b !important;
+      color: #ffffff !important;
       border-color: #334155 !important;
     }
     body.dark input::placeholder,
     body.dark textarea::placeholder,
     body.dark select::placeholder {
       color: #94a3b8 !important;
-    }
-    body.dark button {
-      color: #f8fafc !important;
     }
     body.dark .shadow-sm {
       box-shadow: 0 1px 2px rgba(15,23,42,0.3);
@@ -977,7 +1053,8 @@
   </div>
 
   <!-- Modal Tambah/Edit Kasir -->
-  <div id="cashierModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="cashierModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-200 p-5">
         <div>
@@ -1020,10 +1097,12 @@
         </div>
       </form>
     </div>
+    </div>
   </div>
 
   <!-- Modal Konfirmasi Pembayaran QRIS/Transfer -->
-  <div id="paymentConfirmModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="paymentConfirmModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-200 p-5">
         <div>
@@ -1053,9 +1132,11 @@
         </div>
       </div>
     </div>
+    </div>
   </div>
 
-  <div id="loginModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="loginModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
       <div class="border-b border-slate-200 p-5">
         <h3 class="text-xl font-semibold">Ganti Operator Kasir</h3>
@@ -1069,6 +1150,7 @@
           <button type="button" id="loginCancel" class="flex-1 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
         </div>
       </form>
+    </div>
     </div>
   </div>
 
@@ -1153,7 +1235,8 @@
     </div>
   </div>
 
-  <div id="receiptModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="receiptModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-200 p-5 no-print">
         <div>
@@ -1193,6 +1276,7 @@
         <button id="printReceipt" class="flex-1 rounded-2xl bg-white border border-slate-300 px-4 py-3 text-slate-700 hover:bg-slate-100 transition text-sm">🖨 Cetak Biasa</button>
         <button id="closeReceiptBottom" class="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-700 hover:bg-slate-100 transition text-sm">Tutup</button>
       </div>
+    </div>
     </div>
   </div>
 
@@ -1280,7 +1364,8 @@
   </div>
 
   <!-- Modal Penyesuaian Stok (Manual Stock Adjustment) -->
-  <div id="adjustmentModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="adjustmentModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl p-6">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-xl font-semibold" id="adjustmentModalTitle">Sesuaikan Stok</h3>
@@ -1319,6 +1404,7 @@
         </label>
         <button type="submit" class="w-full rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">Simpan Penyesuaian</button>
       </form>
+    </div>
     </div>
   </div>
 
@@ -1396,7 +1482,8 @@
   </div>
 
   <!-- Modal QRIS -->
-  <div id="qrisModal" class="fixed inset-0 z-[110] hidden items-center justify-center bg-black/70 px-6 py-8">
+  <div id="qrisModal" class="fixed inset-0 z-[110] hidden overflow-y-auto bg-black/70">
+    <div class="flex min-h-full w-full items-center justify-center p-6">
     <div class="w-full max-w-xs rounded-3xl bg-white shadow-2xl p-6 flex flex-col items-center gap-4">
       <div class="flex items-center justify-between w-full">
         <div>
@@ -1419,10 +1506,12 @@
       </button>
       <p class="text-xs text-slate-400 text-center">Pastikan notifikasi pembayaran masuk sebelum konfirmasi</p>
     </div>
+    </div>
   </div>
 
   <!-- Modal Tutup Kasir / Laporan Shift -->
-  <div id="shiftModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="shiftModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-200 p-5">
         <div>
@@ -1492,10 +1581,12 @@
         <button id="cancelShiftModal" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-slate-700 hover:bg-slate-100 transition text-sm">Batal</button>
       </div>
     </div>
+    </div>
   </div>
 
   <!-- Modal Buka Shift (Open Shift) -->
-  <div id="openShiftModalEl" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/80 px-4 py-6">
+  <div id="openShiftModalEl" class="fixed inset-0 z-[60] hidden overflow-y-auto bg-black/80">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden p-6 space-y-4">
       <div class="text-center">
         <div class="text-4xl mb-2">🔓</div>
@@ -1512,10 +1603,12 @@
         </button>
       </form>
     </div>
+    </div>
   </div>
 
   <!-- Modal Otorisasi PIN Admin -->
-  <div id="pinAuthModal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="pinAuthModal" class="fixed inset-0 z-[70] hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-sm rounded-3xl bg-white shadow-2xl overflow-hidden p-6 space-y-4">
       <div class="text-center">
         <div class="text-4xl mb-2">🔑</div>
@@ -1536,10 +1629,12 @@
         </div>
       </form>
     </div>
+    </div>
   </div>
 
   <!-- Modal Void Transaksi -->
-  <div id="voidModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="voidModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-sm rounded-3xl bg-white shadow-2xl overflow-hidden p-6 space-y-4">
       <div class="text-center">
         <div class="text-4xl mb-2">🚫</div>
@@ -1560,6 +1655,7 @@
           </button>
         </div>
       </form>
+    </div>
     </div>
   </div>
 
@@ -1636,13 +1732,14 @@
 
   <input type="file" id="backupFileInput" accept="application/json" class="hidden" />
   <!-- Modal Kasbon -->
-  <div id="debtModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
-    <form id="debtForm" class="w-full max-w-md h-full max-h-[85vh] flex flex-col rounded-3xl bg-white shadow-2xl overflow-hidden" style="max-height: 85dvh;">
-      <div class="flex shrink-0 items-center justify-between border-b border-slate-200 p-5">
-        <h3 class="text-lg font-bold">Catat Kasbon Baru</h3>
-        <button id="closeDebtModal" type="button" class="rounded-full bg-slate-100 p-2 hover:bg-slate-200 text-xl leading-none">×</button>
-      </div>
-        <div class="flex-1 space-y-3 p-6 overflow-y-auto">
+  <div id="debtModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full items-center justify-center p-4">
+      <form id="debtForm" class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl flex flex-col">
+        <div class="flex shrink-0 items-center justify-between border-b border-slate-200 p-5">
+          <h3 class="text-lg font-bold">Catat Kasbon Baru</h3>
+          <button id="closeDebtModal" type="button" class="rounded-full bg-slate-100 p-2 hover:bg-slate-200 text-xl leading-none">×</button>
+        </div>
+        <div class="p-6 space-y-3">
           <p id="debtFormError" class="hidden rounded-2xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-600"></p>
           
           <!-- Input Dinamis Produk -->
@@ -1655,8 +1752,8 @@
           </div>
 
           <!-- Total -->
-          <div class="flex justify-between items-center bg-sky-50 p-3 rounded-2xl border border-sky-100">
-            <span id="debtTotalDisplay" class="font-bold text-sky-800">Total Hutang: Rp 0</span>
+          <div class="flex justify-between items-center bg-sky-50 p-3 rounded-2xl border border-sky-100 dark:bg-sky-900/30 dark:border-sky-800">
+            <span id="debtTotalDisplay" class="font-bold text-sky-800 dark:text-sky-300">Total Hutang: Rp 0</span>
             <input type="hidden" id="debtFormAmount" value="0" />
           </div>
 
@@ -1685,11 +1782,13 @@
         <div class="p-5 border-t border-slate-200 shrink-0">
           <button type="submit" class="w-full rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition">💾 Simpan Kasbon</button>
         </div>
-    </form>
+      </form>
+    </div>
   </div>
 
   <!-- Modal Hapus Akun -->
-  <div id="deleteAccountModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="deleteAccountModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-200 p-5">
         <div>
@@ -1721,11 +1820,12 @@
         <button type="button" id="cancelDeleteAccountModal" class="w-full rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Batal</button>
       </div>
     </div>
+    </div>
   </div>
 
   <!-- Chat Bantuan -->
   <button id="helpChatFab" class="hidden fixed bottom-20 md:bottom-6 right-4 z-[90] h-14 w-14 rounded-full bg-gradient-to-br from-teal-400 to-sky-600 text-3xl shadow-xl hover:scale-110 transition-transform flex items-center justify-center no-print" title="Tanya Aisyah">🧕</button>
-  <div id="helpChatPanel" class="hidden fixed bottom-36 md:bottom-24 right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm rounded-3xl bg-white border border-slate-200 shadow-2xl flex flex-col overflow-hidden no-print" style="height:28rem">
+  <div id="helpChatPanel" class="hidden fixed bottom-36 md:bottom-24 right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm h-[28rem] max-h-[calc(100vh-10rem)] rounded-3xl bg-white border border-slate-200 shadow-2xl flex flex-col overflow-hidden no-print">
     <div class="bg-gradient-to-r from-teal-600 to-sky-700 text-white px-5 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <span class="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-2xl">🧕</span>
@@ -1745,6 +1845,6 @@
   </div>
 
 
-  <script src="app.js?v=3" defer></script>
+  <script src="app.js?v=5" defer></script>
 </body>
 </html>

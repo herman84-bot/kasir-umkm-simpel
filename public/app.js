@@ -4,6 +4,18 @@ const App = (() => {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+  const APP_VERSION = '1.2.0';
+
+  // Muat script eksternal sekali (no-op jika sudah ada); dipakai untuk lazy-load CDN
+  const loadScript = url => new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${url}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = url;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+
   const STORAGE = {
     products: 'pos_products',
     transactions: 'pos_transactions',
@@ -33,6 +45,9 @@ const App = (() => {
         paperSize: s.paper_size || '58'
       };
     }
+    // Super admin tanpa toko — jangan baca localStorage supaya data toko
+    // user sebelumnya tidak bocor ke context admin.
+    if (_isSuperAdmin && !state.store) return { ...defaultStoreSettings };
     try {
       return { ...defaultStoreSettings, ...JSON.parse(localStorage.getItem(STORAGE.storeSettings) || '{}') };
     } catch { return { ...defaultStoreSettings }; }
@@ -270,6 +285,7 @@ const App = (() => {
   // Gerbang fitur Premium: true jika boleh lanjut, false + tampilkan upgrade jika tidak.
   // Uses server-side check to prevent client-side bypass via state.stores manipulation.
   const requirePremium = async featureName => {
+    if (_isSuperAdmin) return true;
     const serverResult = db ? await fetchSubscriptionFromServer() : null;
     // fail-closed: null (401 / network error) → treat as inactive
     const active = serverResult !== null ? serverResult.premiumActive : false;
@@ -279,6 +295,7 @@ const App = (() => {
   };
   // Gerbang fitur Bisnis (Multi-Cabang)
   const requireBusiness = async featureName => {
+    if (_isSuperAdmin) return true;
     const serverResult = db ? await fetchSubscriptionFromServer() : null;
     const active = serverResult !== null ? serverResult.businessActive : false;
     if (active) return true;
@@ -368,7 +385,10 @@ const App = (() => {
           if (codes.length && codes[0].rawValue) return resolve(codes[0].rawValue);
         } catch (e) { /* lanjut ke jsQR */ }
       }
-      // 2) jsQR fallback
+      // 2) jsQR fallback (lazy-load on first use)
+      if (!window.jsQR) {
+        try { await loadScript('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'); } catch { /* skip */ }
+      }
       if (window.jsQR) {
         try {
           const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -394,8 +414,49 @@ const App = (() => {
       db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       return true;
     }
-    console.warn('[Supabase] CDN belum ter-load. window.supabase tidak tersedia.');
     return false;
+  };
+
+  let _logErrorCount = 0;
+
+  const SENSITIVE_KEY_RE = /pass|password|token|secret|key|credential|pw/i;
+
+  const sanitizeContext = (obj) => {
+    if (obj === null || obj === undefined) return obj;
+    if (Array.isArray(obj)) return obj.map(sanitizeContext);
+    if (typeof obj !== 'object') return obj;
+    const result = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (SENSITIVE_KEY_RE.test(k)) {
+        result[k] = '[redacted]';
+      } else {
+        result[k] = sanitizeContext(v);
+      }
+    }
+    return result;
+  };
+
+  const logError = async (message, context, err) => {
+    console.error(message, context, err);
+    if (_logErrorCount >= 10) return;
+    _logErrorCount++;
+    const truncate = (s, n) => s ? String(s).slice(0, n) : null;
+    const payload = {
+      store_id: state.storeId || null,
+      user_email: state.authUser?.email || null,
+      app_version: APP_VERSION,
+      message: truncate(message, 1000),
+      stack: truncate(err?.stack, 2000),
+      url: location.origin + location.pathname,
+      context: sanitizeContext(context) || null
+    };
+    if (!db) return;
+    try {
+      const { error: insertErr } = await db.from('error_logs').insert(payload);
+      if (insertErr) console.warn('logError insert failed:', insertErr);
+    } catch (e) {
+      console.warn('logError insert failed:', e);
+    }
   };
 
   // Supabase row → app product object
@@ -409,7 +470,8 @@ const App = (() => {
     cost: Number(p.cost) || 0,
     stock: Number(p.stock) || 0,
     minStock: Number(p.min_stock) || 5,
-    image: p.image || ''
+    expiry_date: p.expiry_date || null,
+    image: 'https://via.placeholder.com/260?text=' + encodeURIComponent(p.name)
   });
 
   // Supabase row → app cashier object
@@ -423,22 +485,23 @@ const App = (() => {
   // Supabase row → app purchase object
   const fromDbPurchase = p => ({
     id: p.id,
-    supplier: p.supplier || '',
+    supplier: p.supplier,
     date: p.created_at,
-    total: Number(p.total) || 0,
+    total: Number(p.total),
     status: p.status || 'Diterima',
     items: (p.purchase_items || []).map(item => ({
-      id: String(item.product_id),
-      name: item.product_name || '',
-      qty: Number(item.quantity) || 0,
-      price: Number(item.price) || 0,
-      returnedQty: Number(item.returned_qty) || 0
+      id: String(item.product_id || ''),
+      name: item.product_name,
+      qty: Number(item.quantity),
+      price: Number(item.price),
+      subtotal: Number(item.subtotal)
     }))
   });
 
   // Supabase row → app transaction object
   const fromDbTransaction = tx => ({
     id: 'INV' + tx.id,
+    dbId: tx.id,
     date: tx.created_at,
     cashier: tx.cashier_name || 'Kasir',
     items: (tx.transaction_items || []).map(item => ({
@@ -457,7 +520,14 @@ const App = (() => {
     change: Number(tx.change_amount),
     paymentMethod: tx.payment_method || 'Tunai',
     confirmedBy: tx.confirmed_by || null,
-    confirmedAt: tx.confirmed_at || null
+    confirmedAt: tx.confirmed_at || null,
+    status: tx.status || 'completed',
+    voidReason: tx.void_reason || null,
+    voidBy: tx.void_by || null,
+    voidAt: tx.void_at || null,
+    shiftId: tx.shift_id || null,
+    paymentCashAmount: Number(tx.payment_cash_amount) || 0,
+    paymentNoncashAmount: Number(tx.payment_noncash_amount) || 0
   });
 
   // ── Session ───────────────────────────────────────────────────────────────
@@ -502,9 +572,10 @@ const App = (() => {
     if (sErr) return { error: 'Gagal membuat toko: ' + sErr.message };
 
     // Buat kasir admin (pemilik) — PIN default 1234
-    await db.from('cashiers').insert({
+    const { error: cashierErr } = await db.from('cashiers').insert({
       store_id: store.id, name: ownerName.trim(), password: '1234', role: 'admin'
     });
+    if (cashierErr) logError('cashier insert gagal', { storeId: state.storeId }, cashierErr);
 
     return { user: data.user, store };
   };
@@ -517,6 +588,15 @@ const App = (() => {
     if (m.includes('unable to validate email') || m.includes('invalid email')) return 'Format email tidak valid.';
     if (m.includes('email not confirmed')) return 'Email belum dikonfirmasi.';
     return msg || 'Terjadi kesalahan.';
+  };
+
+  const friendlyError = err => {
+    const code = err?.code || '';
+    const msg = (err?.message || String(err || '')).toLowerCase();
+    if (code === '23505' || msg.includes('duplicate key')) return 'Data sudah ada, tidak bisa duplikat.';
+    if (code === '23503' || msg.includes('foreign key')) return 'Data terhubung ke data lain, tidak bisa dihapus dulu.';
+    if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('timeout')) return 'Koneksi bermasalah. Pastikan internet aktif dan coba lagi.';
+    return 'Terjadi kesalahan. Coba lagi, atau hubungi tim kami jika masalah berlanjut.';
   };
 
   const showLoginPage = () => {
@@ -535,6 +615,22 @@ const App = (() => {
     const app = document.getElementById('appContainer');
     app.classList.remove('hidden');
     app.style.display = 'flex';
+  };
+
+  const showAppToast = (text, type = 'info') => {
+    let toast = document.getElementById('appGlobalToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'appGlobalToast';
+      toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] rounded-2xl px-5 py-3 text-white text-sm font-semibold shadow-2xl transition-opacity duration-300 no-print';
+      document.body.appendChild(toast);
+    }
+    const bgMap = { error: '#e11d48', success: '#059669', info: '#334155' };
+    toast.style.background = bgMap[type] || bgMap.info;
+    toast.textContent = text;
+    toast.style.opacity = '1';
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 4000);
   };
 
   // Setelah login: pemilik toko selalu admin (akses penuh)
@@ -557,6 +653,17 @@ const App = (() => {
         : 'text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300';
     }
     if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
+    const mobileNameEl = document.getElementById('mobileUserName');
+    const mobileRoleEl = document.getElementById('mobileUserRole');
+    const mobileAvatar = document.getElementById('mobileUserAvatar');
+    if (mobileNameEl) mobileNameEl.textContent = name;
+    if (mobileRoleEl) {
+      mobileRoleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
+      mobileRoleEl.className = isAdmin
+        ? 'text-xs px-2 py-0.5 rounded-full bg-sky-700 text-sky-100'
+        : 'text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300';
+    }
+    if (mobileAvatar) mobileAvatar.textContent = name.charAt(0).toUpperCase();
     // Sidebar + bottom nav: menu admin disembunyikan untuk operator kasir
     document.querySelectorAll('[data-role="admin"]').forEach(el => {
       el.style.display = isAdmin ? '' : 'none';
@@ -575,7 +682,31 @@ const App = (() => {
     state.storeId = null;
     state.cart = {};
     state.cashAmount = 0;
+    state.cashiers = [];
+    state.selectedCashierId = '';
+    state.activeUserId = '';
+    state.products = [];
+    state.transactions = [];
+    state.purchases = [];
+    state.debts = [];
+    state.stores = [];
+    state.draftPurchase = null;
+    state.shiftStartTime = null;
+    state.currentTransaction = null;
+    _subsCacheResult = null;
     _isSuperAdmin = false;
+    Object.values(STORAGE).forEach(key => localStorage.removeItem(key));
+    localStorage.removeItem('pos_debts');
+    localStorage.removeItem('pos_last_user_id');
+    localStorage.removeItem('qris_image');
+    localStorage.removeItem('qris_payload');
+    localStorage.removeItem('offline_tx_queue');
+    localStorage.removeItem('pending_subs_order');
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith('active_store_') || k.startsWith('shift_start_') || k.startsWith('onboardingDone_')) {
+        localStorage.removeItem(k);
+      }
+    });
     showLoginPage();
   };
   // ─────────────────────────────────────────────────────────────────────────
@@ -597,12 +728,12 @@ const App = (() => {
   // ─────────────────────────────────────────────────────────────────────────
 
   const sampleProducts = [
-    { id: 'P001', code: 'P001', barcode: '8991234000011', name: 'Nasi Goreng Spesial', category: 'Makanan', price: 22000, cost: 14000, stock: 12, image: '' },
-    { id: 'P002', code: 'P002', barcode: '8991234000028', name: 'Es Teh Manis', category: 'Minuman', price: 8000, cost: 2500, stock: 20, image: '' },
-    { id: 'P003', code: 'P003', barcode: '8991234000035', name: 'Beras 5kg', category: 'Sembako', price: 65000, cost: 53000, stock: 8, image: '' },
-    { id: 'P004', code: 'P004', barcode: '8991234000042', name: 'Pensil 2B', category: 'ATK', price: 1500, cost: 700, stock: 25, image: '' },
-    { id: 'P005', code: 'P005', barcode: '8991234000059', name: 'Roti Tawar', category: 'Makanan', price: 12000, cost: 7000, stock: 5, image: '' },
-    { id: 'P006', code: 'P006', barcode: '8991234000066', name: 'Mineral Water', category: 'Minuman', price: 5000, cost: 2000, stock: 30, image: '' }
+    { id: 'P001', code: 'P001', barcode: '8991234000011', name: 'Nasi Goreng Spesial', category: 'Makanan', price: 22000, cost: 14000, stock: 12, image: 'https://via.placeholder.com/260?text=Nasi+Goreng' },
+    { id: 'P002', code: 'P002', barcode: '8991234000028', name: 'Es Teh Manis', category: 'Minuman', price: 8000, cost: 2500, stock: 20, image: 'https://via.placeholder.com/260?text=Es+Teh' },
+    { id: 'P003', code: 'P003', barcode: '8991234000035', name: 'Beras 5kg', category: 'Sembako', price: 65000, cost: 53000, stock: 8, image: 'https://via.placeholder.com/260?text=Beras' },
+    { id: 'P004', code: 'P004', barcode: '8991234000042', name: 'Pensil 2B', category: 'ATK', price: 1500, cost: 700, stock: 25, image: 'https://via.placeholder.com/260?text=Pensil' },
+    { id: 'P005', code: 'P005', barcode: '8991234000059', name: 'Roti Tawar', category: 'Makanan', price: 12000, cost: 7000, stock: 5, image: 'https://via.placeholder.com/260?text=Roti+Tawar' },
+    { id: 'P006', code: 'P006', barcode: '8991234000066', name: 'Mineral Water', category: 'Minuman', price: 5000, cost: 2000, stock: 30, image: 'https://via.placeholder.com/260?text=Air+Mineral' }
   ];
 
   const sampleCashiers = [
@@ -639,8 +770,7 @@ const App = (() => {
     storeId: null,
     stores: [],
     paymentMethod: 'Tunai',
-    shiftStartTime: null,
-    currentDebtItems: []
+    shiftStartTime: null
   };
 
   const dom = {
@@ -699,18 +829,10 @@ const App = (() => {
     purchaseModal: document.getElementById('purchaseModal'),
     closePurchaseModal: document.getElementById('closePurchaseModal'),
     cancelPurchase: document.getElementById('cancelPurchase'),
-    returnPurchaseModal: document.getElementById('returnPurchaseModal'),
-    returnPurchaseInvoice: document.getElementById('returnPurchaseInvoice'),
-    closeReturnPurchaseModal: document.getElementById('closeReturnPurchaseModal'),
-    returnItemsList: document.getElementById('returnItemsList'),
-    returnReason: document.getElementById('returnReason'),
-    returnPurchaseForm: document.getElementById('returnPurchaseForm'),
     purchaseSupplier: document.getElementById('purchaseSupplier'),
     purchaseInvoice: document.getElementById('purchaseInvoice'),
     purchaseProduct: document.getElementById('purchaseProduct'),
     purchaseQty: document.getElementById('purchaseQty'),
-    purchasePrice: document.getElementById('purchasePrice'),
-    autoFillPrice: document.getElementById('autoFillPrice'),
     addPurchaseItem: document.getElementById('addPurchaseItem'),
     purchaseItemsList: document.getElementById('purchaseItemsList'),
     purchaseTotal: document.getElementById('purchaseTotal'),
@@ -763,27 +885,6 @@ const App = (() => {
     barcodeInput: document.getElementById('barcodeInput'),
     productBarcode: document.getElementById('productBarcode'),
     inventoryScanButton: document.getElementById('inventoryScanButton'),
-    // Inventory: Adjustment, Ledger, Opname
-    adjustmentModal: document.getElementById('adjustmentModal'),
-    adjustmentModalTitle: document.getElementById('adjustmentModalTitle'),
-    closeAdjustmentModal: document.getElementById('closeAdjustmentModal'),
-    adjustmentForm: document.getElementById('adjustmentForm'),
-    adjProductId: document.getElementById('adjProductId'),
-    adjCurrentStock: document.getElementById('adjCurrentStock'),
-    adjDirection: document.getElementById('adjDirection'),
-    adjQty: document.getElementById('adjQty'),
-    adjReason: document.getElementById('adjReason'),
-    adjNote: document.getElementById('adjNote'),
-    ledgerModal: document.getElementById('ledgerModal'),
-    ledgerProductName: document.getElementById('ledgerProductName'),
-    ledgerTableBody: document.getElementById('ledgerTableBody'),
-    closeLedgerModal: document.getElementById('closeLedgerModal'),
-    startOpnameButton: document.getElementById('startOpnameButton'),
-    applyOpnameButton: document.getElementById('applyOpnameButton'),
-    opnameTable: document.getElementById('opnameTable'),
-    opnameSummary: document.getElementById('opnameSummary'),
-    opnameTotalLoss: document.getElementById('opnameTotalLoss'),
-    opnameItemCount: document.getElementById('opnameItemCount'),
     receiptModal: document.getElementById('receiptModal'),
     closeReceipt: document.getElementById('closeReceipt'),
     closeReceiptBottom: document.getElementById('closeReceiptBottom'),
@@ -842,25 +943,19 @@ const App = (() => {
     paymentConfirmCashier: document.getElementById('paymentConfirmCashier'),
     paymentConfirmOk: document.getElementById('paymentConfirmOk'),
     paymentConfirmCancel: document.getElementById('paymentConfirmCancel'),
-    // Debt (Kasbon) elements
-    debtList: document.getElementById('debtList'),
-    debtModal: document.getElementById('debtModal'),
-    debtForm: document.getElementById('debtForm'),
-    debtFormError: document.getElementById('debtFormError'),
-    debtFormName: document.getElementById('debtFormName'),
-    debtFormPhone: document.getElementById('debtFormPhone'),
-    debtFormNote: document.getElementById('debtFormNote'),
-    debtFormAmount: document.getElementById('debtFormAmount'),
-    debtItemsContainer: document.getElementById('debtItemsContainer'),
-    debtTotalDisplay: document.getElementById('debtTotalDisplay'),
-    closeDebtModal: document.getElementById('closeDebtModal')
+    deleteAccountBtn: document.getElementById('deleteAccountBtn'),
+    deleteAccountModal: document.getElementById('deleteAccountModal'),
+    closeDeleteAccountModal: document.getElementById('closeDeleteAccountModal'),
+    cancelDeleteAccountModal: document.getElementById('cancelDeleteAccountModal'),
+    deleteAccountEmailInput: document.getElementById('deleteAccountEmailInput'),
+    deleteAccountConfirmBtn: document.getElementById('deleteAccountConfirmBtn'),
+    deleteAccountError: document.getElementById('deleteAccountError')
   };
 
   let chartInstance = null;
 
-  const formatCurrency = value => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value);
-  };
+  const _currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
+  const formatCurrency = value => _currencyFormatter.format(value);
 
   // Tanggal "YYYY-MM-DD" menurut ZONA WAKTU LOKAL perangkat (bukan UTC),
   // agar penjualan dini hari (mis. 00:00–07:00 WIB) tidak terhitung ke hari kemarin.
@@ -876,15 +971,34 @@ const App = (() => {
 
   const loadLocalSettings = () => {
     const settingsData = localStorage.getItem(STORAGE.settings);
-    const settings = settingsData ? JSON.parse(settingsData) : {};
+    let settings = {};
+    try {
+      settings = settingsData ? JSON.parse(settingsData) : {};
+    } catch (e) {
+      logError('loadLocalSettings: settings corrupt', { key: STORAGE.settings }, e);
+      localStorage.removeItem(STORAGE.settings);
+      settings = {};
+    }
     state.darkMode = settings.darkMode || false;
     state.reportRange = settings.reportRange || '7';
     state.historySearch = settings.historySearch || '';
     // cashiers & purchases now loaded from Supabase; these are temp fallbacks
     const cashiersData = localStorage.getItem(STORAGE.cashiers);
     const purchasesData = localStorage.getItem(STORAGE.purchases);
-    state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers;
-    state.purchases = purchasesData ? JSON.parse(purchasesData) : [];
+    try {
+      state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers;
+    } catch (e) {
+      logError('loadLocalSettings: cashiers corrupt', { key: STORAGE.cashiers }, e);
+      localStorage.removeItem(STORAGE.cashiers);
+      state.cashiers = sampleCashiers;
+    }
+    try {
+      state.purchases = purchasesData ? JSON.parse(purchasesData) : [];
+    } catch (e) {
+      logError('loadLocalSettings: purchases corrupt', { key: STORAGE.purchases }, e);
+      localStorage.removeItem(STORAGE.purchases);
+      state.purchases = [];
+    }
     state.selectedCashierId = settings.selectedCashierId || state.cashiers[0]?.id || '';
     state.activeUserId = settings.activeUserId || state.selectedCashierId;
   };
@@ -900,15 +1014,26 @@ const App = (() => {
     const { data, error } = await db.from('stores').select('*').order('created_at', { ascending: true });
     if (error) { console.warn('loadStore error:', error); return null; }
     state.stores = data || [];
+    
+    document.getElementById('closeAdjustmentModal')?.addEventListener('click', closeAdjustmentModal);
+    document.getElementById('adjustmentForm')?.addEventListener('submit', saveAdjustment);
+    document.getElementById('closeLedgerModal')?.addEventListener('click', closeLedgerModal);
+    document.getElementById('startOpnameButton')?.addEventListener('click', startOpname);
+    document.getElementById('applyOpnameButton')?.addEventListener('click', applyOpname);
+
+    // Force service worker update for new deployments
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.update();
+        }
+      });
+    }
+
     if (!state.stores.length) { state.store = null; state.storeId = null; return null; }
 
     // Pilih cabang aktif: yang terakhir dipilih (jika masih ada) atau cabang pertama
-    const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
-    let savedId = localStorage.getItem(activeStoreKey());
-    if (savedId && !isUUID(savedId)) {
-        savedId = null;
-        localStorage.removeItem(activeStoreKey());
-    }
+    const savedId = localStorage.getItem(activeStoreKey());
     let active = state.stores.find(s => String(s.id) === String(savedId)) || state.stores[0];
     // Jika paket Bisnis tidak aktif, kunci ke toko utama (cabang lain tidak bisa dibuka)
     const primary = state.stores.find(s => s.is_main) || state.stores[0];
@@ -916,14 +1041,6 @@ const App = (() => {
     const _now = Date.now();
     const _bizExpiries = ['trial_ends_at', 'business_until'].map(c => primary[c]).filter(Boolean).map(d => new Date(d).getTime());
     const bizActiveForLoad = _bizExpiries.length === 0 ? true : Math.max(..._bizExpiries) > _now;
-    if (!db) {
-      state.products = JSON.parse(localStorage.getItem(STORAGE.products) || '[]');
-      state.transactions = JSON.parse(localStorage.getItem(STORAGE.transactions) || '[]');
-      state.cashiers = JSON.parse(localStorage.getItem(STORAGE.cashiers) || '[]');
-      state.purchases = JSON.parse(localStorage.getItem(STORAGE.purchases) || '[]');
-      try { state.debts = JSON.parse(localStorage.getItem('pos_debts') || '[]'); } catch { state.debts = []; }
-      return;
-    }
     if (!bizActiveForLoad && String(active.id) !== String(primary.id)) {
       active = primary;
     }
@@ -955,6 +1072,13 @@ const App = (() => {
 
   // Memuat seluruh data toko (dipanggil SETELAH login berhasil)
   const loadData = async () => {
+    const lastUserId = localStorage.getItem('pos_last_user_id');
+    if (lastUserId !== state.authUser?.id) {
+      [...Object.values(STORAGE), 'pos_debts', 'qris_image', 'qris_payload', 'offline_tx_queue', 'pending_subs_order']
+        .forEach(key => localStorage.removeItem(key));
+      _isSuperAdmin = false;
+    }
+    localStorage.setItem('pos_last_user_id', state.authUser?.id ?? '');
     loadLocalSettings();
 
     setLoadingStatus('Memuat data toko...', 25);
@@ -975,8 +1099,6 @@ const App = (() => {
         .from('products').select('*').eq('store_id', state.storeId).order('id', { ascending: true });
       if (pErr) throw pErr;
       state.products = products ? products.map(fromDbProduct) : [];
-      // Bersihkan cache localStorage lama yang mungkin berisi produk UUID (offline/pra-Supabase)
-      // Setelah Supabase berhasil dimuat, localStorage akan ditimpa saat syncStorage() dipanggil
 
       setLoadingStatus('Memuat kasir...', 55);
       const { data: cashiers } = await db
@@ -1003,7 +1125,7 @@ const App = (() => {
       const { data: purchases } = await db
         .from('purchases').select('*, purchase_items(*)')
         .eq('store_id', state.storeId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }).limit(200);
       state.purchases = purchases ? purchases.map(fromDbPurchase) : [];
 
       // Kasbon (tabel bisa belum ada jika 05_kasbon.sql belum dijalankan)
@@ -1013,38 +1135,39 @@ const App = (() => {
         console.warn('Kasbon belum aktif (jalankan supabase/05_kasbon.sql):', dErr.message);
         try { state.debts = JSON.parse(localStorage.getItem('pos_debts') || '[]'); } catch { state.debts = []; }
       } else {
-        if (debts && debts.length > 0) {
-          state.debts = debts;
-        } else {
-          try { state.debts = JSON.parse(localStorage.getItem('pos_debts') || '[]'); } catch { state.debts = []; }
-        }
+        state.debts = debts || [];
       }
 
       setLoadingStatus('Siap!', 100);
     } catch (err) {
-      console.warn('Gagal memuat data toko:', err);
-      state.products = state.products || [];
-      state.transactions = state.transactions || [];
-      state.cashiers = state.cashiers || [];
-      state.purchases = state.purchases || [];
-      try { state.debts = JSON.parse(localStorage.getItem('pos_debts') || '[]'); } catch { state.debts = []; }
+      logError('loadData: gagal memuat data toko', { storeId: state.storeId }, err);
+      showAppToast('Gagal memuat data toko. Coba refresh halaman.', 'error');
+      state.products = [];
+      state.transactions = [];
+      state.cashiers = [];
+      state.purchases = [];
+      state.debts = [];
     }
 
     syncStorage();
   };
 
+  let _syncStorageTimer = null;
   const syncStorage = () => {
-    localStorage.setItem(STORAGE.products, JSON.stringify(state.products));
-    localStorage.setItem(STORAGE.transactions, JSON.stringify(state.transactions));
-    localStorage.setItem(STORAGE.cashiers, JSON.stringify(state.cashiers));
-    localStorage.setItem(STORAGE.purchases, JSON.stringify(state.purchases));
-    localStorage.setItem(STORAGE.settings, JSON.stringify({
-      darkMode: state.darkMode,
-      selectedCashierId: state.selectedCashierId,
-      activeUserId: state.activeUserId,
-      reportRange: state.reportRange,
-      historySearch: state.historySearch
-    }));
+    clearTimeout(_syncStorageTimer);
+    _syncStorageTimer = setTimeout(() => {
+      localStorage.setItem(STORAGE.products, JSON.stringify(state.products));
+      localStorage.setItem(STORAGE.transactions, JSON.stringify(state.transactions));
+      localStorage.setItem(STORAGE.cashiers, JSON.stringify(state.cashiers.map(({ password: _pw, ...rest }) => rest)));
+      localStorage.setItem(STORAGE.purchases, JSON.stringify(state.purchases));
+      localStorage.setItem(STORAGE.settings, JSON.stringify({
+        darkMode: state.darkMode,
+        selectedCashierId: state.selectedCashierId,
+        activeUserId: state.activeUserId,
+        reportRange: state.reportRange,
+        historySearch: state.historySearch
+      }));
+    }, 300);
   };
 
   // ── Multi-Cabang (Premium) ───────────────────────────────────────────────
@@ -1098,11 +1221,12 @@ const App = (() => {
     if (!db || !state.authUser) { alert('Fitur cabang membutuhkan koneksi & login.'); return; }
     const { data: store, error } = await db.from('stores')
       .insert({ owner_id: state.authUser.id, name }).select().single();
-    if (error || !store) { alert('Gagal membuat cabang: ' + (error?.message || '')); return; }
+    if (error || !store) { alert('Gagal membuat cabang: ' + friendlyError(error)); return; }
     // Buat admin default untuk cabang baru agar langsung bisa dipakai (PIN 1234)
-    await db.from('cashiers').insert({
+    const { error: branchCashierErr } = await db.from('cashiers').insert({
       store_id: store.id, name: 'Pemilik', password: '1234', role: 'admin'
     });
+    if (branchCashierErr) logError('cashier insert gagal', { storeId: state.storeId }, branchCashierErr);
     state.stores.push(store);
     alert('Cabang "' + name + '" dibuat. PIN admin default: 1234');
     await switchStore(store.id);
@@ -1116,7 +1240,7 @@ const App = (() => {
     const name = (prompt('Nama baru cabang:', s.name || '') || '').trim();
     if (!name || name === s.name) return;
     const { error } = await db.from('stores').update({ name }).eq('id', id);
-    if (error) { alert('Gagal mengubah nama: ' + error.message); return; }
+    if (error) { alert('Gagal mengubah nama: ' + friendlyError(error)); return; }
     s.name = name;
     if (String(id) === String(state.storeId) && state.store) state.store.name = name;
     renderBranchList();
@@ -1136,7 +1260,7 @@ const App = (() => {
     }
     if (!confirm('Hapus cabang "' + (s.name || '') + '" beserta SEMUA produk, transaksi, dan datanya? Tindakan ini tidak bisa dibatalkan.')) return;
     const { error } = await db.from('stores').delete().eq('id', id);
-    if (error) { alert('Gagal menghapus: ' + error.message); return; }
+    if (error) { alert('Gagal menghapus: ' + friendlyError(error)); return; }
     state.stores = state.stores.filter(x => String(x.id) !== String(id));
     if (String(id) === String(state.storeId)) {
       localStorage.setItem(activeStoreKey(), String(state.stores[0].id));
@@ -1243,10 +1367,8 @@ const App = (() => {
   };
 
   const applyTheme = () => {
-    document.documentElement.classList.toggle('dark', state.darkMode);
-    dom.themeToggle.innerHTML = state.darkMode 
-      ? '<span>☀️</span><span class="hidden sm:inline"> Terang</span>' 
-      : '<span>🌙</span><span class="hidden sm:inline"> Tema</span>';
+    document.body.classList.toggle('dark', state.darkMode);
+    dom.themeToggle.textContent = state.darkMode ? '☀️ Terang' : '🌙 Tema';
   };
 
   // ── Kelola Kasir ──────────────────────────────────────────────────────────
@@ -1320,13 +1442,61 @@ const App = (() => {
       dom.cashierFormPassword.placeholder = 'Masukkan password';
     }
     dom.cashierModal.classList.remove('hidden');
-    dom.cashierModal.style.display = 'flex';
     dom.cashierFormName.focus();
   };
 
   const closeCashierModalFn = () => {
     dom.cashierModal.classList.add('hidden');
-    dom.cashierModal.style.display = '';
+  };
+
+  const openDeleteAccountModal = () => {
+    dom.deleteAccountEmailInput.value = '';
+    dom.deleteAccountError.classList.add('hidden');
+    dom.deleteAccountConfirmBtn.disabled = true;
+    dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'hover:bg-rose-700', 'text-white', 'cursor-pointer');
+    dom.deleteAccountConfirmBtn.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
+    dom.deleteAccountModal.classList.remove('hidden');
+    dom.deleteAccountEmailInput.focus();
+  };
+
+  const closeDeleteAccountModal = () => {
+    dom.deleteAccountModal.classList.add('hidden');
+  };
+
+  const handleDeleteAccount = async () => {
+    const emailInput = dom.deleteAccountEmailInput.value.trim();
+    const userEmail = state.authUser?.email || '';
+    if (emailInput.toLowerCase() !== userEmail.toLowerCase()) {
+      dom.deleteAccountError.textContent = 'Email tidak cocok. Silakan ketik ulang email Anda dengan benar.';
+      dom.deleteAccountError.classList.remove('hidden');
+      return;
+    }
+    dom.deleteAccountError.classList.add('hidden');
+    dom.deleteAccountConfirmBtn.textContent = 'Menghapus...';
+    dom.deleteAccountConfirmBtn.disabled = true;
+    try {
+      const { error } = await db.functions.invoke('delete-account', { body: {} });
+      if (error) throw error;
+      // Bersihkan semua localStorage secara eksplisit setelah penghapusan berhasil
+      Object.values(STORAGE).forEach(key => localStorage.removeItem(key));
+      localStorage.removeItem('qris_image');
+      localStorage.removeItem('qris_payload');
+      localStorage.removeItem('pending_subs_order');
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('active_store_') || k.startsWith('shift_start_') || k.startsWith('onboardingDone_')) {
+          localStorage.removeItem(k);
+        }
+      });
+      await db.auth.signOut();
+      closeDeleteAccountModal();
+      showLoginPage();
+    } catch (err) {
+      const msg = (err && err.message) ? err.message : 'Gagal menghapus akun. Coba lagi atau hubungi support.';
+      dom.deleteAccountError.textContent = msg;
+      dom.deleteAccountError.classList.remove('hidden');
+      dom.deleteAccountConfirmBtn.textContent = 'Hapus Akun Saya';
+      dom.deleteAccountConfirmBtn.disabled = false;
+    }
   };
 
   const saveCashier = async event => {
@@ -1391,7 +1561,7 @@ const App = (() => {
     const numId = parseInt(id);
     if (db && !isNaN(numId)) {
       const { error } = await db.from('cashiers').delete().eq('id', numId);
-      if (error) { alert('Gagal hapus kasir: ' + error.message); return; }
+      if (error) { alert('Gagal hapus kasir: ' + friendlyError(error)); return; }
     }
     state.cashiers = state.cashiers.filter(x => x.id !== id);
     syncStorage();
@@ -1515,19 +1685,12 @@ const App = (() => {
 
   const getFilteredTransactions = () => {
     const query = state.historySearch.trim().toLowerCase();
-    return state.transactions.filter(tx => {
-      if (!query) return true;
-      const content = [
-        tx.id,
-        tx.date,
-        tx.cashier,
-        tx.items.map(item => item.name).join(' '),
-        tx.total,
-        tx.cash,
-        tx.change
-      ].join(' ').toString().toLowerCase();
-      return content.includes(query);
-    });
+    if (!query) return state.transactions;
+    return state.transactions.filter(tx =>
+      tx.id.toString().includes(query) ||
+      (tx.cashier || '').toLowerCase().includes(query) ||
+      tx.items.some(item => (item.name || '').toLowerCase().includes(query))
+    );
   };
 
   const renderReportSummary = () => {
@@ -1546,11 +1709,15 @@ const App = (() => {
     const lowStockProducts = state.products.filter(product => product.stock >= 0 && product.stock <= (product.minStock || 5));
     dom.lowStockAlert.textContent = lowStockProducts.length ? `${lowStockProducts.length} produk stok rendah, segera kulakan lagi.` : 'Tidak ada stok kritis.';
 
-    const bestProduct = state.products.slice().sort((a, b) => {
-      const aQty = state.transactions.reduce((sum, tx) => sum + tx.items.filter(item => item.id === a.id).reduce((s, item) => s + item.qty, 0), 0);
-      const bQty = state.transactions.reduce((sum, tx) => sum + tx.items.filter(item => item.id === b.id).reduce((s, item) => s + item.qty, 0), 0);
-      return bQty - aQty;
-    })[0];
+    const productQtyMap = {};
+    state.transactions.forEach(tx => {
+      tx.items.forEach(item => {
+        productQtyMap[item.id] = (productQtyMap[item.id] || 0) + item.qty;
+      });
+    });
+    const bestProduct = state.products.slice().sort((a, b) =>
+      (productQtyMap[b.id] || 0) - (productQtyMap[a.id] || 0)
+    )[0];
     dom.topProduct.textContent = bestProduct ? `${bestProduct.name}` : '-';
 
     const categorySales = {};
@@ -1584,18 +1751,9 @@ const App = (() => {
           <td class="p-3 font-semibold">${formatCurrency(order.total)}</td>
           <td class="p-3">${esc(order.items.length)} produk</td>
           <td class="p-3">${esc(order.status)}</td>
-          <td class="p-3">
-            ${order.status !== 'Diretur' ? `<button data-retur="${esc(order.id)}" class="rounded-xl bg-red-600 px-4 py-1.5 text-white text-xs font-semibold hover:bg-red-700 transition shadow-sm">📤 Retur</button>` : '<span class="text-slate-400 text-xs">Selesai Diretur</span>'}
-          </td>
         </tr>
       `;
-    }).join('') || '<tr><td colspan="7" class="p-8 text-center text-slate-500">Belum ada data pembelian.</td></tr>';
-    
-    dom.purchaseTable.onclick = event => {
-      const btn = event.target.closest('button[data-retur]');
-      if (!btn) return;
-      openReturnPurchaseModal(btn.dataset.retur);
-    };
+    }).join('') || '<tr><td colspan="6" class="p-8 text-center text-slate-500">Belum ada data pembelian.</td></tr>';
   };
 
   const getActiveUser = () => {
@@ -1616,15 +1774,13 @@ const App = (() => {
     dom.paymentConfirmTotal.textContent = formatCurrency(total);
     dom.paymentConfirmCashier.textContent = cashierName;
     dom.paymentConfirmModal.classList.remove('hidden');
-    dom.paymentConfirmModal.style.display = 'flex';
   };
 
   const hidePaymentConfirmModal = () => {
     dom.paymentConfirmModal.classList.add('hidden');
-    dom.paymentConfirmModal.style.display = '';
   };
 
-  const authenticateUser = (name, password) => {
+  const authenticateUser = async (name, password) => {
     const user = state.cashiers.find(item => item.name.toLowerCase() === name.toLowerCase() && item.password === password);
     if (!user) return false;
     state.activeUserId = user.id;
@@ -1634,9 +1790,14 @@ const App = (() => {
     hideLoginModal();
     // Terapkan hak akses operator baru; kasir tidak boleh tetap di layar admin
     applyRoleAccess();
+
+    await loadActiveShift();
+
     const currentScreen = document.querySelector('main section.screen:not(.hidden)')?.id;
     if (user.role !== 'admin' && ADMIN_SCREENS.includes(currentScreen)) {
       showScreen('kasir');
+    } else if (currentScreen === 'kasir') {
+      await checkOrOpenShift();
     }
     return true;
   };
@@ -1764,10 +1925,15 @@ const App = (() => {
     state.scannerRAF = requestAnimationFrame(tick);
   };
 
-  const startQuaggaScanner = () => {
+  const startQuaggaScanner = async () => {
     if (typeof Quagga === 'undefined') {
-      dom.scannerStatus.textContent = 'Scanner tidak tersedia di perangkat ini. Gunakan input manual.';
-      return;
+      dom.scannerStatus.textContent = 'Memuat library scanner...';
+      try {
+        await loadScript('https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js');
+      } catch (e) {
+        dom.scannerStatus.textContent = 'Scanner tidak tersedia di perangkat ini. Gunakan input manual.';
+        return;
+      }
     }
     state.scannerEngine = 'quagga';
     dom.scannerPlaceholder.classList.add('hidden');
@@ -1781,7 +1947,7 @@ const App = (() => {
       locate: true
     }, err => {
       if (err) {
-        dom.scannerStatus.textContent = 'Gagal membuka kamera: ' + (err.message || err);
+        dom.scannerStatus.textContent = 'Kamera gagal dibuka. Pastikan izin kamera sudah diberikan, atau gunakan input manual di bawah.';
         dom.scannerPlaceholder.classList.remove('hidden');
         return;
       }
@@ -1830,38 +1996,24 @@ const App = (() => {
   };
 
   const renderPurchaseOptions = () => {
-    console.log('renderPurchaseOptions called, products count:', state.products.length);
     if (!dom.purchaseProduct) {
-      console.error('purchaseProduct element not found');
+      console.warn('Element purchaseProduct tidak ditemukan');
+      return;
+    }
+
+    // Pastikan state.products sudah ter-load
+    const products = state.products || [];
+    
+    if (products.length === 0) {
+      dom.purchaseProduct.innerHTML = '<option value="">Belum ada produk - tambahkan produk di menu Inventory terlebih dahulu</option>';
+      console.log('renderPurchaseOptions: tidak ada produk di state.products');
       return;
     }
     
-    // Jika belum ada produk sama sekali
-    if (!state.products || state.products.length === 0) {
-      dom.purchaseProduct.innerHTML = '<option value=\"\">-- Belum ada produk di inventory --</option>';
-      dom.purchaseProduct.disabled = true;
-      // Tampilkan pesan bantuan
-      const helpMsg = document.getElementById('purchaseProductHelp');
-      if (helpMsg) {
-        helpMsg.innerHTML = '<p class="text-amber-600 text-sm mt-2">⚠️ Anda belum memiliki produk. Silakan tambah produk di menu <strong>Inventory</strong> terlebih dahulu.</p>';
-      }
-      return;
-    }
-    
-    // Ada produk - tampilkan dalam dropdown
-    dom.purchaseProduct.disabled = false;
-    const options = state.products.map(product => {
-      const stockInfo = product.stock <= 0 ? ' - HABIS' : ` - Stok: ${product.stock}`;
-      return `<option value="${product.id}">${esc(product.name)}${stockInfo}</option>`;
-    }).join('');
-    
-    dom.purchaseProduct.innerHTML = '<option value="">-- Pilih Produk --</option>' + options;
-    
-    // Sembunyikan pesan bantuan jika ada
-    const helpMsg = document.getElementById('purchaseProductHelp');
-    if (helpMsg) {
-      helpMsg.innerHTML = '';
-    }
+    dom.purchaseProduct.innerHTML = '<option value="">-- Pilih Produk --</option>' + products.map(product => `
+      <option value="${product.id}">${esc(product.name)} (Stok: ${product.stock})</option>
+    `).join('');
+    console.log(`renderPurchaseOptions: ${products.length} produk dimuat ke dropdown`);
   };
 
   const renderPurchaseDraft = () => {
@@ -1887,162 +2039,46 @@ const App = (() => {
     dom.purchaseTotal.textContent = formatCurrency(total);
   };
 
-  const openPurchaseModal = () => {
+  const openPurchaseModal = async () => {
     resetPurchaseDraft();
-    renderPurchaseOptions();
-    // Reset harga beli ke 0 saat modal dibuka
-    if (dom.purchasePrice) dom.purchasePrice.value = 0;
+    
+    // Tampilkan loading state di modal
+    dom.purchaseProduct.innerHTML = '<option value=\"\">Memuat produk...</option>';
+    dom.purchaseProduct.disabled = true;
     dom.purchaseModal.classList.remove('hidden');
+    
+    // Pastikan data produk sudah ter-load dari server
+    if (!state.products || state.products.length === 0) {
+      try {
+        await loadData();
+      } catch (err) {
+        console.error('Gagal memuat data untuk pembelian:', err);
+        showAppToast('Gagal memuat data produk. Silakan refresh halaman.', 'error');
+        closePurchaseModal();
+        return;
+      }
+    }
+    
+    // Enable dropdown dan render options setelah data siap
+    dom.purchaseProduct.disabled = false;
+    renderPurchaseOptions();
   };
 
   const closePurchaseModal = () => {
     dom.purchaseModal.classList.add('hidden');
   };
 
-  const openReturnPurchaseModal = (purchaseId) => {
-    const order = state.purchases.find(p => String(p.id) === String(purchaseId));
-    if (!order) return;
-    dom.returnPurchaseInvoice.textContent = `Invoice: #${order.id} — ${order.supplier}`;
-    dom.returnItemsList.innerHTML = order.items.map(item => {
-      const maxReturn = (item.qty || 0) - (item.returnedQty || 0);
-      if (maxReturn <= 0) return '';
-      return `
-        <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 border border-slate-200">
-          <div class="flex-1">
-            <p class="font-semibold text-sm">${esc(item.name)}</p>
-            <p class="text-slate-500 text-xs">Qty Beli: ${item.qty} | Sudah Diretur: ${item.returnedQty || 0} | Bisa Diretur: ${maxReturn}</p>
-          </div>
-          <div class="w-24">
-            <input 
-              type="number" 
-              min="0" 
-              max="${maxReturn}" 
-              value="0" 
-              data-product-id="${esc(item.id)}" 
-              data-product-name="${esc(item.name)}" 
-              class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-center text-sm focus:ring-2 focus:ring-red-400 focus:outline-none"
-            />
-          </div>
-        </div>
-      `;
-    }).join('');
-    if (!dom.returnItemsList.innerHTML.trim()) {
-      dom.returnItemsList.innerHTML = '<p class="text-slate-400 text-center py-4">Semua item sudah diretur.</p>';
-    }
-    dom.returnReason.value = '';
-    dom.returnPurchaseModal.dataset.purchaseId = purchaseId;
-    dom.returnPurchaseModal.classList.remove('hidden');
-    dom.returnPurchaseModal.style.display = 'flex';
-  };
-
-  const closeReturnPurchaseModalFn = () => {
-    dom.returnPurchaseModal.classList.add('hidden');
-    dom.returnPurchaseModal.style.display = 'none';
-  };
-
-  const handleReturnPurchaseSubmit = async (e) => {
-    e.preventDefault();
-    const purchaseId = dom.returnPurchaseModal.dataset.purchaseId;
-    const reason = dom.returnReason.value.trim();
-    if (!reason) { alert('Isi alasan retur terlebih dahulu.'); return; }
-
-    const inputs = dom.returnItemsList.querySelectorAll('input[type="number"]');
-    const returItems = [];
-    inputs.forEach(inp => {
-      const qty = Number(inp.value);
-      if (qty > 0) {
-        returItems.push({ productId: inp.dataset.productId, productName: inp.dataset.productName, qty });
-      }
-    });
-
-    if (!returItems.length) {
-      alert('Pilih minimal 1 item dengan jumlah retur lebih dari 0.');
-      return;
-    }
-
-    const cashier = state.activeCashier || 'Admin';
-
-    if (db) {
-      for (const ri of returItems) {
-        const numId = parseInt(ri.productId, 10);
-        if (isNaN(numId)) {
-          console.warn('Skip retur: produk offline ID', ri.productId);
-          continue;
-        }
-        const { error } = await db.rpc('return_purchase_item', {
-          p_purchase_id: purchaseId,
-          p_product_id: numId,
-          p_qty_to_return: ri.qty,
-          p_cashier: cashier,
-          p_reason: reason
-        });
-        if (error) { alert('Gagal retur: ' + error.message); return; }
-      }
-    }
-
-    // Update local state
-    const order = state.purchases.find(p => String(p.id) === String(purchaseId));
-    if (order) {
-      let allReturned = true;
-      let anyReturned = false;
-      returItems.forEach(ri => {
-        const item = order.items.find(it => String(it.id) === String(ri.productId));
-        if (item) {
-          item.returnedQty = (item.returnedQty || 0) + ri.qty;
-          anyReturned = true;
-        }
-        const product = state.products.find(p => String(p.id) === String(ri.productId));
-        if (product) product.stock -= ri.qty;
-      });
-      order.items.forEach(it => {
-        if ((it.returnedQty || 0) < it.qty) allReturned = false;
-      });
-      if (anyReturned) {
-        order.status = allReturned ? 'Diretur' : 'Sebagian Diretur';
-      }
-    }
-
-    syncStorage();
-    renderInventory();
-    renderPurchaseHistory();
-    closeReturnPurchaseModalFn();
-    alert('✅ Retur berhasil diproses.');
-  };
-
-  const autoFillPurchasePrice = () => {
-    const productId = dom.purchaseProduct.value;
-    const product = state.products.find(item => item.id === productId);
-    if (product && dom.purchasePrice) {
-      dom.purchasePrice.value = product.cost || 0;
-    }
-  };
-
   const addPurchaseItemToDraft = () => {
     const productId = dom.purchaseProduct.value;
     const qty = Number(dom.purchaseQty.value) || 1;
-    const priceInput = dom.purchasePrice ? Number(dom.purchasePrice.value) : 0;
     const product = state.products.find(item => item.id === productId);
     if (!product) return;
-    
-    // Gunakan harga dari input jika ada, fallback ke product.cost
-    const finalPrice = priceInput > 0 ? priceInput : (product.cost || 0);
-    
     const existing = state.draftPurchase.items.find(item => item.id === productId);
     if (existing) {
       existing.qty += qty;
-      // Update harga jika berbeda
-      if (finalPrice !== existing.price) {
-        existing.price = finalPrice;
-      }
     } else {
-      state.draftPurchase.items.push({ id: product.id, name: product.name, price: finalPrice, qty });
+      state.draftPurchase.items.push({ id: product.id, name: product.name, price: product.cost, qty });
     }
-    
-    // Reset qty dan harga setelah tambah item
-    if (dom.purchaseQty) dom.purchaseQty.value = 1;
-    if (dom.purchasePrice) dom.purchasePrice.value = 0;
-    dom.purchaseProduct.value = '';
-    
     renderPurchaseDraft();
   };
 
@@ -2065,26 +2101,29 @@ const App = (() => {
 
     if (db) {
       try {
-        const itemsForRpc = state.draftPurchase.items
-          .filter(item => !isNaN(parseInt(item.id, 10)))
-          .map(item => ({
-            product_id: parseInt(item.id, 10),
-            product_name: item.name,
-            quantity: item.qty,
-            price: item.price
-          }));
-        
-        const { error: rpcErr } = await db.rpc('receive_purchase_order', {
-          p_purchase_id: purchaseId,
-          p_store_id: state.storeId,
-          p_supplier: purchase.supplier,
-          p_total: total,
-          p_items: JSON.stringify(itemsForRpc),
-          p_cashier: state.activeCashier || 'Admin'
+        // Insert purchase header
+        const { error: poErr } = await db.from('purchases').insert({
+          id: purchaseId,
+          store_id: state.storeId,
+          supplier: purchase.supplier,
+          total,
+          status: 'Diterima'
         });
-        if (rpcErr) throw rpcErr;
+        if (poErr) throw poErr;
+
+        // Insert purchase items
+        const itemRows = state.draftPurchase.items.map(item => ({
+          purchase_id: purchaseId,
+          product_id: parseInt(item.id) || null,
+          product_name: item.name,
+          quantity: item.qty,
+          price: item.price,
+          subtotal: item.qty * item.price
+        }));
+        const { error: itemsErr } = await db.from('purchase_items').insert(itemRows);
+        if (itemsErr) throw itemsErr;
       } catch (err) {
-        alert('Gagal menyimpan pembelian: ' + err.message);
+        alert('Gagal menyimpan pembelian: ' + friendlyError(err));
         return;
       }
     }
@@ -2096,6 +2135,13 @@ const App = (() => {
       const product = state.products.find(prod => prod.id === item.id);
       if (product) {
         product.stock += item.qty;
+        if (db) {
+          const numId = parseInt(product.id);
+          if (!isNaN(numId)) {
+            const { error: stockErr } = await db.from('products').update({ stock: product.stock }).eq('id', numId);
+            if (stockErr) logError('savePurchaseOrder: stok gagal update', { productId: numId }, stockErr);
+          }
+        }
       }
     }
 
@@ -2131,14 +2177,18 @@ const App = (() => {
     const taxable = Math.max(0, subtotal - discount);
     const tax = 0; // UMKM umumnya non-PKP: tidak memungut PPN
     const total = Math.max(0, taxable + tax);
-    const cash = Math.max(0, Number(state.cashAmount) || 0);
-    const change = Math.max(0, cash - total);
+    let cash = Math.max(0, Number(state.cashAmount) || 0);
+    let change = Math.max(0, cash - total);
+    if (state.paymentMethod === 'Split') {
+      cash = Number(document.getElementById('splitCashInput')?.value) || 0;
+      change = 0;
+    }
     return { subtotal, discount, tax, total, cash, change };
   };
 
   const updateDashboard = () => {
     const today = localDay(new Date());
-    const todayTransactions = state.transactions.filter(tx => localDay(tx.date) === today);
+    const todayTransactions = state.transactions.filter(tx => localDay(tx.date) === today && tx.status !== 'void');
     const totalSalesToday = todayTransactions.reduce((sum, tx) => sum + tx.total, 0);
     // Statistik dihitung dari transaksi HARI INI saja, laba pakai harga modal produk
     const productCost = id => state.products.find(p => p.id === id)?.cost || 0;
@@ -2146,9 +2196,29 @@ const App = (() => {
     const totalProfit = todayTransactions.reduce((sum, tx) =>
       sum + tx.items.reduce((itemSum, item) => itemSum + item.qty * (item.price - (item.cost || productCost(item.id))), 0) - (tx.discount || 0), 0);
 
-    dom.statSalesToday.textContent = formatCurrency(totalSalesToday);
-    dom.statProductsSold.textContent = totalProductsSold;
-    dom.statProfit.textContent = formatCurrency(totalProfit);
+    const updateUI = (refunds) => {
+      const finalSales = Math.max(0, totalSalesToday - refunds);
+      const finalProfit = Math.max(0, totalProfit - refunds);
+      dom.statSalesToday.textContent = formatCurrency(finalSales);
+      dom.statProductsSold.textContent = totalProductsSold;
+      dom.statProfit.textContent = formatCurrency(finalProfit);
+    };
+
+    if (db && state.storeId) {
+      db.from('transaction_returns')
+        .select('refund_amount')
+        .eq('store_id', state.storeId)
+        .gte('created_at', new Date(new Date().setHours(0,0,0,0)).toISOString())
+        .then(({ data }) => {
+          const refunds = (data || []).reduce((sum, r) => sum + Number(r.refund_amount || 0), 0);
+          updateUI(refunds);
+        }).catch(err => {
+          console.error(err);
+          updateUI(0);
+        });
+    } else {
+      updateUI(0);
+    }
   };
 
   const renderSalesChart = () => {
@@ -2160,7 +2230,7 @@ const App = (() => {
       const isoDate = localDay(date);
       dates.push(date.toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'short' }));
       const dayTotal = state.transactions
-        .filter(tx => localDay(tx.date) === isoDate)
+        .filter(tx => localDay(tx.date) === isoDate && tx.status !== 'void')
         .reduce((sum, tx) => sum + tx.total, 0);
       amounts.push(dayTotal);
     }
@@ -2227,9 +2297,31 @@ const App = (() => {
     });
   };
 
+  const isExpired = (expiryDate) => {
+    if (!expiryDate) return false;
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    return today > new Date(expiryDate);
+  };
+
+  const getExpiryStatus = (expiryDate) => {
+    if (!expiryDate) return { label: '-', class: 'text-slate-500' };
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const exp = new Date(expiryDate);
+    const diffDays = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) return { label: 'KEDALUWARSA', class: 'bg-rose-100 text-rose-800' };
+    if (diffDays < 30) return { label: `Dekat (${diffDays} hr)`, class: 'bg-amber-100 text-amber-800' };
+    return { label: 'Aman', class: 'bg-emerald-100 text-emerald-800' };
+  };
+
   const addToCart = productId => {
     const product = state.products.find(item => item.id === productId);
     if (!product || product.stock <= 0) return;
+    if (product.expiry_date && isExpired(product.expiry_date)) {
+        alert('Produk ini sudah kedaluwarsa dan diblokir dari penjualan!');
+        return;
+    }
 
     if (!state.cart[productId]) {
       state.cart[productId] = { ...product, qty: 1 };
@@ -2319,6 +2411,7 @@ const App = (() => {
       const isLowStock = product.stock <= (product.minStock || 5);
       const criticalClass = isLowStock ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800';
       const rowClass = isLowStock ? 'border-b border-rose-200 bg-rose-50/30' : 'border-b border-slate-200';
+      const expStatus = getExpiryStatus(product.expiry_date);
       return `
         <tr class="${rowClass}">
           <td class="p-3 font-semibold">${esc(product.code)}</td>
@@ -2327,24 +2420,29 @@ const App = (() => {
           <td class="p-3">${esc(product.category)}</td>
           <td class="p-3">${formatCurrency(product.price)}</td>
           <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${criticalClass}">${product.stock} / min ${product.minStock || 5}</span></td>
-          <td class="p-3 space-x-2">
+          <td class="p-3"><span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold ${expStatus.class}">${expStatus.label}</span></td>
+          <td class="p-3 space-x-2 whitespace-nowrap">
+            <button data-adjust="${product.id}" class="rounded-2xl bg-amber-600 px-4 py-2 text-white text-sm" title="Sesuaikan Stok">⚙️</button>
+            <button data-ledger="${product.id}" class="rounded-2xl bg-sky-600 px-4 py-2 text-white text-sm" title="Kartu Stok">📋</button>
             <button data-edit="${product.id}" class="rounded-2xl bg-slate-900 px-4 py-2 text-white text-sm">Edit</button>
-            <button data-adjust="${product.id}" class="rounded-2xl bg-amber-500 px-4 py-2 text-white text-sm">Atur Stok</button>
-            <button data-ledger="${product.id}" class="rounded-2xl bg-sky-600 px-4 py-2 text-white text-sm">Riwayat</button>
             <button data-delete="${product.id}" class="rounded-2xl bg-rose-600 px-4 py-2 text-white text-sm">Hapus</button>
           </td>
         </tr>
       `;
     }).join('');
 
-    dom.inventoryTable.onclick = event => {
-      const btn = event.target.closest('button');
-      if (!btn) return;
-      if (btn.dataset.edit) openInventoryModal(btn.dataset.edit);
-      if (btn.dataset.adjust) openAdjustmentModal(btn.dataset.adjust);
-      if (btn.dataset.ledger) openLedgerModal(btn.dataset.ledger);
-      if (btn.dataset.delete) deleteProduct(btn.dataset.delete);
-    };
+    dom.inventoryTable.querySelectorAll('[data-edit]').forEach(btn => {
+      btn.addEventListener('click', () => openInventoryModal(btn.dataset.edit));
+    });
+    dom.inventoryTable.querySelectorAll('[data-delete]').forEach(btn => {
+      btn.addEventListener('click', () => deleteProduct(btn.dataset.delete));
+    });
+    dom.inventoryTable.querySelectorAll('[data-adjust]').forEach(btn => {
+      btn.addEventListener('click', () => openAdjustmentModal(btn.dataset.adjust));
+    });
+    dom.inventoryTable.querySelectorAll('[data-ledger]').forEach(btn => {
+      btn.addEventListener('click', () => openLedgerModal(btn.dataset.ledger));
+    });
   };
 
   const renderHistory = () => {
@@ -2352,8 +2450,14 @@ const App = (() => {
     dom.historyTable.innerHTML = transactions.map(tx => {
       const time = new Date(tx.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: 'short', year: 'numeric' });
       const productCount = tx.items.reduce((sum, item) => sum + item.qty, 0);
+      const isToday = new Date(tx.date).toDateString() === new Date().toDateString();
+      const diffDays = Math.ceil((new Date() - new Date(tx.date)) / (1000 * 60 * 60 * 24));
+      const canReturn = tx.status !== 'void' && diffDays <= 3;
+      const isVoided = tx.status === 'void';
+      const rowClass = isVoided ? 'border-b border-slate-200 opacity-60 bg-rose-50/20' : 'border-b border-slate-200';
+
       return `
-        <tr class="border-b border-slate-200">
+        <tr class="${rowClass}">
           <td class="p-3">${time}</td>
           <td class="p-3">#${esc(tx.id)}</td>
           <td class="p-3">${esc(tx.cashier || '-')}</td>
@@ -2362,7 +2466,15 @@ const App = (() => {
           <td class="p-3"><span class="rounded-full px-2 py-0.5 text-xs font-medium ${tx.paymentMethod === 'Tunai' ? 'bg-green-100 text-green-700' : tx.paymentMethod === 'QRIS' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">${esc(tx.paymentMethod || 'Tunai')}</span></td>
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.cash) : '-'}</td>
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.change) : '-'}</td>
-          <td class="p-3"><button data-reprint="${esc(tx.id)}" class="rounded-2xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 transition whitespace-nowrap">🖨 Struk</button></td>
+          <td class="p-3 space-x-1 whitespace-nowrap">
+            <button data-reprint="${esc(tx.id)}" class="rounded-2xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 transition whitespace-nowrap">🖨 Struk</button>
+            ${isVoided ? `
+              <span class="inline-block rounded-full bg-rose-100 text-rose-700 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider">VOID</span>
+            ` : `
+              ${isToday ? `<button data-void="${esc(tx.id)}" class="rounded-2xl bg-rose-50 border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-100 transition whitespace-nowrap">🚫 Void</button>` : ''}
+              ${canReturn ? `<button data-return="${esc(tx.id)}" class="rounded-2xl bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-100 transition whitespace-nowrap">↩️ Retur</button>` : ''}
+            `}
+          </td>
         </tr>
       `;
     }).join('') || '<tr><td colspan="9" class="p-8 text-center text-slate-500">Belum ada transaksi.</td></tr>';
@@ -2375,8 +2487,15 @@ const App = (() => {
         populateReceipt(tx);
         if (dom.printThermalBtn) dom.printThermalBtn._receiptData = tx;
         dom.receiptModal.classList.remove('hidden');
-        dom.receiptModal.style.display = 'flex';
       });
+    });
+
+    // Void and Return click event listeners
+    dom.historyTable.querySelectorAll('[data-void]').forEach(btn => {
+      btn.addEventListener('click', () => voidTransaction(btn.dataset.void));
+    });
+    dom.historyTable.querySelectorAll('[data-return]').forEach(btn => {
+      btn.addEventListener('click', () => processReturn(btn.dataset.return));
     });
   };
 
@@ -2390,6 +2509,9 @@ const App = (() => {
     if (activeOp && activeOp.role !== 'admin' && ADMIN_SCREENS.includes(screenId)) {
       screenId = 'kasir';
     }
+    if (screenId === 'kasir' && db && state.authUser && state.storeId && !_isSuperAdmin) {
+      checkOrOpenShift();
+    }
     dom.screens.forEach(screen => {
       screen.classList.toggle('hidden', screen.id !== screenId);
     });
@@ -2398,16 +2520,23 @@ const App = (() => {
       button.classList.toggle('text-white', button.dataset.screen === screenId);
     });
     // Update bottom nav active state
-    document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
+
+    document.querySelectorAll('.menu-btn, .bottom-nav-btn').forEach(btn => {
       const isActive = btn.dataset.screen === screenId;
       btn.classList.toggle('text-white', isActive);
       btn.classList.toggle('text-slate-400', !isActive);
       btn.classList.toggle('bg-slate-800', isActive);
     });
+    _activeScreenId = screenId;
+    if (screenId === 'dashboard') { updateDashboard(); renderSalesChart(); renderReportSummary(); renderDashboardPusat(); }
+    if (screenId === 'kasir') { renderProducts(); renderCart(); }
+    if (screenId === 'inventory') renderInventory();
+    if (screenId === 'riwayat') renderHistory();
+    if (screenId === 'pembelian') renderPurchaseHistory();
+    if (screenId === 'kasbon') renderKasbon();
     if (screenId === 'kelolaKasir') renderCashierManagement();
     if (screenId === 'pengaturan') renderSettings();
-    if (screenId === 'kasbon') { if (window.renderKasbon) window.renderKasbon(); }
-    if (screenId === 'dashboard') renderDashboardPusat();
+    if (screenId === 'screen-superadmin') superAdminLoadStores();
   };
 
   const showInventoryModal = (title = 'Tambah Produk') => {
@@ -2420,7 +2549,7 @@ const App = (() => {
     dom.inventoryForm.reset();
     dom.productId.value = '';
     dom.productCode.value = '';
-    dom.productImage.value = '';
+    dom.productImage.value = 'https://via.placeholder.com/200';
   };
 
   const generateProductCode = () => {
@@ -2436,7 +2565,8 @@ const App = (() => {
       dom.inventoryForm.reset();
       dom.productId.value = '';
       dom.productCode.value = generateProductCode();
-      dom.productImage.value = '';
+      dom.productImage.value = 'https://via.placeholder.com/200';
+      if (document.getElementById('productExpiry')) document.getElementById('productExpiry').value = '';
       showInventoryModal('Tambah Produk');
       return;
     }
@@ -2449,9 +2579,10 @@ const App = (() => {
     dom.productPrice.value = product.price;
     dom.productCost.value = product.cost;
     dom.productStock.value = product.stock;
-    dom.productImage.value = product.image || '';
+    dom.productImage.value = product.image || 'https://via.placeholder.com/200';
     dom.productBarcode.value = product.barcode || '';
     if (dom.productMinStock) dom.productMinStock.value = product.minStock || 5;
+    if (document.getElementById('productExpiry')) document.getElementById('productExpiry').value = product.expiry_date || '';
     showInventoryModal('Edit Produk');
   };
 
@@ -2460,231 +2591,12 @@ const App = (() => {
     const numId = parseInt(productId);
     if (db && !isNaN(numId)) {
       const { error } = await db.from('products').delete().eq('id', numId);
-      if (error) { alert('Gagal hapus produk: ' + error.message); return; }
+      if (error) { alert('Gagal hapus produk: ' + friendlyError(error)); return; }
     }
     state.products = state.products.filter(item => item.id !== productId);
     syncStorage();
     renderInventory();
     renderProducts();
-  };
-
-  // ── Stock Adjustment ──────────────────────────────────────────────────────
-  const openAdjustmentModal = productId => {
-    const product = state.products.find(p => String(p.id) === String(productId));
-    if (!product) return;
-    dom.adjProductId.value = product.id;
-    dom.adjCurrentStock.textContent = product.stock;
-    dom.adjDirection.value = 'kurang';
-    dom.adjQty.value = '';
-    dom.adjReason.value = '';
-    dom.adjNote.value = '';
-    dom.adjustmentModal.classList.remove('hidden');
-    dom.adjustmentModal.style.display = 'flex';
-  };
-
-  const closeAdjustmentModalFn = () => {
-    dom.adjustmentModal.classList.add('hidden');
-    dom.adjustmentModal.style.display = 'none';
-  };
-
-  const handleAdjustmentSubmit = async e => {
-    e.preventDefault();
-    const productId = dom.adjProductId.value;
-    const product = state.products.find(p => String(p.id) === String(productId));
-    if (!product) return;
-
-    const qty = Number(dom.adjQty.value);
-    if (!qty || qty <= 0) { alert('Jumlah harus lebih dari 0'); return; }
-    const reason = dom.adjReason.value;
-    if (!reason) { alert('Pilih alasan penyesuaian'); return; }
-    const note = dom.adjNote.value.trim();
-    const direction = dom.adjDirection.value;
-    const qtyAdjusted = direction === 'kurang' ? -qty : qty;
-
-    // Cegah stok negatif
-    if (direction === 'kurang' && product.stock - qty < 0) {
-      alert('Stok tidak bisa kurang dari 0. Stok saat ini: ' + product.stock);
-      return;
-    }
-
-    // Cek apakah produk sudah tersimpan di Supabase (ID harus angka murni)
-    const numId = parseInt(productId, 10);
-    const isDbProduct = !isNaN(numId) && String(numId) === String(productId);
-
-    if (db && isDbProduct) {
-      const { error } = await db.rpc('adjust_stock', {
-        p_product_id: numId,
-        p_qty_adjusted: qtyAdjusted,
-        p_reason: reason,
-        p_note: note || null,
-        p_cashier: state.activeCashier || 'Admin',
-        p_ref_type: 'adjustment'
-      });
-      if (error) { alert('Gagal simpan penyesuaian: ' + error.message); return; }
-    } else if (!isDbProduct) {
-      // Produk offline — update local saja, tampilkan info
-      console.warn('Produk offline (ID:', productId, ') — stok diupdate lokal saja.');
-    }
-
-    // Update local state
-    product.stock += qtyAdjusted;
-    syncStorage();
-    renderInventory();
-    renderProducts();
-    closeAdjustmentModalFn();
-    alert('✅ Penyesuaian stok berhasil. Stok baru: ' + product.stock);
-  };
-
-  // ── Stock Ledger (Kartu Stok) ─────────────────────────────────────────────
-  const openLedgerModal = async productId => {
-    const product = state.products.find(p => String(p.id) === String(productId));
-    if (!product) return;
-    dom.ledgerProductName.textContent = product.name + ' (Stok: ' + product.stock + ')';
-    dom.ledgerTableBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">Memuat...</td></tr>';
-    dom.ledgerModal.classList.remove('hidden');
-    dom.ledgerModal.style.display = 'flex';
-
-    // Fetch ledger dari Supabase
-    if (db) {
-      const numId = parseInt(productId);
-      const { data, error } = await db.from('stock_ledgers')
-        .select('*')
-        .eq('product_id', numId)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (error) {
-        dom.ledgerTableBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-rose-500">Gagal memuat data</td></tr>';
-        return;
-      }
-      if (!data || data.length === 0) {
-        dom.ledgerTableBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">Belum ada mutasi stok</td></tr>';
-        return;
-      }
-      dom.ledgerTableBody.innerHTML = data.map(row => {
-        const time = new Date(row.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-        const qtyClass = row.qty_changed >= 0 ? 'text-green-600' : 'text-red-600';
-        const qtySign = row.qty_changed >= 0 ? '+' : '';
-        const typeLabel = { sale: 'Penjualan', return: 'Retur', adjustment: 'Penyesuaian', purchase: 'Pembelian', opname: 'Opname' }[row.reference_type] || row.reference_type;
-        return `
-          <tr class="border-b border-slate-100">
-            <td class="p-3 text-xs">${time}</td>
-            <td class="p-3 text-xs">${esc(row.cashier_name || '-')}</td>
-            <td class="p-3 text-xs"><span class="rounded-full px-2 py-0.5 text-xs font-medium bg-slate-100">${typeLabel}</span></td>
-            <td class="p-3 text-xs font-semibold ${qtyClass}">${qtySign}${row.qty_changed}</td>
-            <td class="p-3 text-xs font-semibold">${row.balance_stock}</td>
-          </tr>
-        `;
-      }).join('');
-    } else {
-      dom.ledgerTableBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">Mode offline — data tidak tersedia</td></tr>';
-    }
-  };
-
-  const closeLedgerModalFn = () => {
-    dom.ledgerModal.classList.add('hidden');
-    dom.ledgerModal.style.display = 'none';
-  };
-
-  // ── Stok Opname ───────────────────────────────────────────────────────────
-  let opnameData = []; // { productId, name, systemStock, physicalStock, diff, cost }
-
-  const renderOpnameTable = () => {
-    if (opnameData.length === 0) {
-      dom.opnameTable.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">Klik "Mulai Stok Opname" untuk memuat data.</td></tr>';
-      dom.opnameSummary.classList.add('hidden');
-      return;
-    }
-    dom.opnameTable.innerHTML = opnameData.map((item, i) => {
-      const diffClass = item.diff < 0 ? 'text-red-600' : item.diff > 0 ? 'text-green-600' : 'text-slate-500';
-      const diffSign = item.diff > 0 ? '+' : '';
-      return `
-        <tr class="border-b border-slate-100">
-          <td class="p-3 text-sm">${esc(item.name)}</td>
-          <td class="p-3 text-sm font-semibold">${item.systemStock}</td>
-          <td class="p-3">
-            <input type="number" min="0" value="${item.physicalStock}" data-opname-idx="${i}"
-              class="w-24 rounded-xl border border-slate-300 px-3 py-2 text-sm text-center focus:ring-2 focus:ring-sky-400 focus:outline-none" />
-          </td>
-          <td class="p-3 text-sm font-semibold ${diffClass}">${diffSign}${item.diff}</td>
-          <td class="p-3 text-sm text-slate-600">${item.diff !== 0 ? formatCurrency(Math.abs(item.diff) * item.cost) : '-'}</td>
-        </tr>
-      `;
-    }).join('');
-
-    // Update selisih saat input fisik berubah
-    dom.opnameTable.querySelectorAll('[data-opname-idx]').forEach(input => {
-      input.addEventListener('input', () => {
-        const idx = parseInt(input.dataset.opnameIdx);
-        opnameData[idx].physicalStock = Number(input.value) || 0;
-        opnameData[idx].diff = opnameData[idx].physicalStock - opnameData[idx].systemStock;
-        renderOpnameSummary();
-      });
-    });
-    renderOpnameSummary();
-  };
-
-  const renderOpnameSummary = () => {
-    const selisihItems = opnameData.filter(item => item.diff !== 0);
-    if (selisihItems.length === 0) {
-      dom.opnameSummary.classList.add('hidden');
-      return;
-    }
-    const totalLoss = selisihItems.reduce((sum, item) => {
-      if (item.diff < 0) return sum + (Math.abs(item.diff) * item.cost);
-      return sum;
-    }, 0);
-    dom.opnameTotalLoss.textContent = formatCurrency(totalLoss);
-    dom.opnameItemCount.textContent = selisihItems.length + ' produk';
-    dom.opnameSummary.classList.remove('hidden');
-    dom.applyOpnameButton.classList.remove('hidden');
-  };
-
-  const startOpname = () => {
-    opnameData = state.products.map(p => ({
-      productId: p.id,
-      name: p.name,
-      systemStock: p.stock,
-      physicalStock: p.stock,
-      diff: 0,
-      cost: p.cost || 0
-    }));
-    renderOpnameTable();
-    dom.applyOpnameButton.classList.remove('hidden');
-  };
-
-  const applyOpname = async () => {
-    const selisihItems = opnameData.filter(item => item.diff !== 0);
-    if (selisihItems.length === 0) { alert('Tidak ada selisih yang perlu diterapkan.'); return; }
-    if (!confirm(`Terapkan hasil opname untuk ${selisihItems.length} produk? Ini akan mengubah stok di sistem.`)) return;
-
-    for (const item of selisihItems) {
-      if (db) {
-        const { error } = await db.rpc('adjust_stock', {
-          p_product_id: parseInt(item.productId),
-          p_qty_adjusted: item.diff,
-          p_reason: 'Opname',
-          p_note: `Stok opname: fisik ${item.physicalStock}, sistem ${item.systemStock}`,
-          p_cashier: state.activeCashier || 'Admin',
-          p_ref_type: 'opname'
-        });
-        if (error) {
-          alert('Gagal opname ' + item.name + ': ' + error.message);
-          return;
-        }
-      }
-      // Update local
-      const product = state.products.find(p => String(p.id) === String(item.productId));
-      if (product) product.stock = item.physicalStock;
-    }
-
-    syncStorage();
-    renderInventory();
-    renderProducts();
-    opnameData = [];
-    renderOpnameTable();
-    dom.applyOpnameButton.classList.add('hidden');
-    alert('✅ Hasil opname berhasil diterapkan!');
   };
 
   const BLOCKED_KEYWORDS = ['rokok', 'tembakau', 'cigarette', 'tobacco', 'vape', 'vaping', 'vapor', 'e-cig', 'ecig', 'shisha', 'hookah', 'marlboro', 'sampoerna', 'gudang garam', 'dji sam soe', 'la lights', 'camel', 'dunhill'];
@@ -2699,6 +2611,7 @@ const App = (() => {
       alert('❌ Produk tembakau dan vape tidak diizinkan di aplikasi ini.');
       return;
     }
+    const pExp = document.getElementById('productExpiry');
     const dbPayload = {
       name,
       barcode: dom.productBarcode.value.trim() || null,
@@ -2706,7 +2619,8 @@ const App = (() => {
       price: Number(dom.productPrice.value) || 0,
       cost: Number(dom.productCost.value) || 0,
       stock: Number(dom.productStock.value) || 0,
-      min_stock: Number(dom.productMinStock ? dom.productMinStock.value : 5) || 5
+      min_stock: Number(dom.productMinStock ? dom.productMinStock.value : 5) || 5,
+      expiry_date: pExp && pExp.value ? pExp.value : null
     };
 
     let finalId = existingId;
@@ -2716,12 +2630,12 @@ const App = (() => {
       if (!isNaN(numId)) {
         // Update existing
         const { error } = await db.from('products').update(dbPayload).eq('id', numId);
-        if (error) { alert('Gagal simpan produk: ' + error.message); return; }
+        if (error) { alert('Gagal simpan produk: ' + friendlyError(error)); return; }
       } else {
         // Insert new
         const { data, error } = await db.from('products')
           .insert({ ...dbPayload, store_id: state.storeId }).select().single();
-        if (error) { alert('Gagal tambah produk: ' + error.message); return; }
+        if (error) { alert('Gagal tambah produk: ' + friendlyError(error)); return; }
         finalId = String(data.id);
       }
     }
@@ -2736,7 +2650,8 @@ const App = (() => {
       cost: dbPayload.cost,
       stock: dbPayload.stock,
       minStock: dbPayload.min_stock || 5,
-      image: dom.productImage.value.trim() || ''
+      expiry_date: dbPayload.expiry_date,
+      image: dom.productImage.value.trim() || 'https://via.placeholder.com/260'
     };
 
     const existingIndex = state.products.findIndex(item => item.id === existingId);
@@ -2860,7 +2775,16 @@ const App = (() => {
       alert('Total transaksi tidak valid. Periksa diskon dan jumlah produk.');
       return;
     }
-    if (state.paymentMethod === 'Tunai') {
+    if (state.paymentMethod === 'Split') {
+      const valCash = Number(document.getElementById('splitCashInput')?.value) || 0;
+      const valNonCash = Number(document.getElementById('splitNonCashInput')?.value) || 0;
+      if (valCash + valNonCash !== totals.total) {
+        alert('Total porsi split (Tunai + Non-Tunai) harus sama dengan Total Akhir: ' + formatCurrency(totals.total));
+        return;
+      }
+      const cashier = getSelectedCashier();
+      showPaymentConfirmModal('Split Payment', totals.total, cashier.name);
+    } else if (state.paymentMethod === 'Tunai') {
       if (totals.cash < totals.total) {
         alert('Jumlah tunai belum cukup. Mohon masukkan nominal yang sesuai.');
         return;
@@ -2876,7 +2800,11 @@ const App = (() => {
   };
 
   const _executePayment = async (cartItems, totals, confirmedBy, confirmedAt) => {
-    if (state.paymentMethod !== 'Tunai') {
+    if (state.paymentMethod === 'Split') {
+      const valCash = Number(document.getElementById('splitCashInput')?.value) || 0;
+      totals.cash = valCash;
+      totals.change = 0;
+    } else if (state.paymentMethod !== 'Tunai') {
       // QRIS/Transfer: nominal bayar otomatis = total, tanpa kembalian
       state.cashAmount = totals.total;
       totals.cash = totals.total;
@@ -2885,6 +2813,10 @@ const App = (() => {
 
     const cashier = getSelectedCashier();
     let invoiceId = `INV${Date.now()}`;
+    let dbTx = null;
+
+    const valCash = state.paymentMethod === 'Split' ? (Number(document.getElementById('splitCashInput')?.value) || 0) : (state.paymentMethod === 'Tunai' ? totals.total : 0);
+    const valNonCash = state.paymentMethod === 'Split' ? (Number(document.getElementById('splitNonCashInput')?.value) || 0) : (state.paymentMethod !== 'Tunai' ? totals.total : 0);
 
     if (db) {
       try {
@@ -2898,10 +2830,15 @@ const App = (() => {
           discount_amount: totals.discount || 0,
           payment_method: state.paymentMethod || 'Tunai',
           confirmed_by: confirmedBy,
-          confirmed_at: confirmedAt
+          confirmed_at: confirmedAt,
+          shift_id: state.activeShift ? state.activeShift.id : null,
+          status: 'completed',
+          payment_cash_amount: valCash,
+          payment_noncash_amount: valNonCash
         }).select().single();
         if (txErr) throw txErr;
 
+        dbTx = tx;
         invoiceId = 'INV' + tx.id;
 
         // Insert transaction items
@@ -2946,6 +2883,7 @@ const App = (() => {
 
     const transaction = {
       id: invoiceId,
+      dbId: dbTx ? dbTx.id : null,
       date: new Date().toISOString(),
       cashier: cashier.name,
       items: cartItems.map(item => ({ id: item.id, name: item.name, qty: item.qty, price: item.price, cost: item.cost, subtotal: item.qty * item.price })),
@@ -2957,7 +2895,11 @@ const App = (() => {
       change: totals.change,
       paymentMethod: state.paymentMethod || 'Tunai',
       confirmedBy: confirmedBy,
-      confirmedAt: confirmedAt
+      confirmedAt: confirmedAt,
+      status: 'completed',
+      paymentCashAmount: valCash,
+      paymentNoncashAmount: valNonCash,
+      shiftId: state.activeShift ? state.activeShift.id : null
     };
 
     state.transactions.unshift(transaction);
@@ -2981,7 +2923,6 @@ const App = (() => {
     populateReceipt(transaction);
     if (dom.printThermalBtn) dom.printThermalBtn._receiptData = transaction;
     dom.receiptModal.classList.remove('hidden');
-    dom.receiptModal.style.display = 'flex';
   };
 
   const openReceipt = () => {
@@ -2999,7 +2940,6 @@ const App = (() => {
     populateReceipt(receiptData);
     if (dom.printThermalBtn) dom.printThermalBtn._receiptData = receiptData;
     dom.receiptModal.classList.remove('hidden');
-    dom.receiptModal.style.display = 'flex';
   };
 
   const populateReceipt = (data) => {
@@ -3156,6 +3096,10 @@ ${discountHtml}${taxHtml}
 
   // ── Pengaturan Toko ───────────────────────────────────────────────────────
   const renderSettings = () => {
+    applySuperAdminVisibility();
+    const versionEl = document.getElementById('appVersionDisplay');
+    if (versionEl) versionEl.textContent = APP_VERSION;
+    if (_isSuperAdmin && !state.storeId) return;
     renderBranchList();
     const store = getStoreSettings();
     if (dom.settingStoreName) dom.settingStoreName.value = store.name;
@@ -3188,7 +3132,6 @@ ${discountHtml}${taxHtml}
 
   const closeReceipt = () => {
     dom.receiptModal.classList.add('hidden');
-    dom.receiptModal.style.display = '';
   };
 
   // ── Feature: Export PDF Laporan ──────────────────────────────────────────
@@ -3256,15 +3199,97 @@ ${discountHtml}${taxHtml}
     win.document.close();
   };
 
-  // ── Feature: Shift / Tutup Kasir ─────────────────────────────────────────
-  const openShiftModal = () => {
+  // ── Feature: Shift / Tutup Kasir & Supervisor Otorisasi ───────────────────
+  const loadActiveShift = async () => {
+    if (!db || !state.storeId || !state.selectedCashierId) return null;
+    try {
+      const { data, error } = await db
+        .from('cashier_shifts')
+        .select('*')
+        .eq('store_id', state.storeId)
+        .eq('cashier_id', state.selectedCashierId)
+        .is('closed_at', null)
+        .order('opened_at', { ascending: false })
+        .limit(1);
+      if (!error && data && data.length > 0) {
+        state.activeShift = data[0];
+        state.shiftStartTime = new Date(state.activeShift.opened_at);
+        return state.activeShift;
+      }
+    } catch (e) {
+      console.error('Error loadActiveShift:', e);
+    }
+    state.activeShift = null;
+    state.shiftStartTime = null;
+    return null;
+  };
+
+  const checkOrOpenShift = async () => {
+    const active = await loadActiveShift();
+    if (!active) {
+      openBukaShiftModal();
+    } else {
+      hideBukaShiftModal();
+    }
+  };
+
+  const openBukaShiftModal = () => {
+    const modal = document.getElementById('openShiftModalEl');
+    if (modal) {
+      modal.classList.remove('hidden');
+      const input = document.getElementById('openShiftCashFloat');
+      if (input) {
+        input.value = '100000';
+        input.focus();
+      }
+    }
+  };
+
+  const hideBukaShiftModal = () => {
+    const modal = document.getElementById('openShiftModalEl');
+    if (modal) {
+      modal.classList.add('hidden');
+    }
+  };
+
+  const openTutupShiftModal = async () => {
     const cashier = getSelectedCashier();
-    const shiftStart = state.shiftStartTime || new Date(0);
-    const shiftTx = state.transactions.filter(tx => new Date(tx.date) >= shiftStart);
+    if (!state.activeShift) {
+      alert('Tidak ada shift aktif saat ini.');
+      return;
+    }
+
+    const shiftStart = new Date(state.activeShift.opened_at);
+    const shiftTx = state.transactions.filter(tx => 
+      tx.status !== 'void' && 
+      tx.shiftId === state.activeShift.id
+    );
     const totalSales = shiftTx.reduce((sum, tx) => sum + tx.total, 0);
     const totalItems = shiftTx.reduce((sum, tx) => sum + tx.items.reduce((s, i) => s + i.qty, 0), 0);
-    const startStr = shiftStart.getTime() === 0 ? 'Sejak aplikasi dibuka' :
-      shiftStart.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const startStr = shiftStart.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+    // Calculate Tunai sales + split cash portions
+    const cashSales = shiftTx.reduce((sum, tx) => {
+      if (tx.paymentMethod === 'Tunai') {
+        return sum + tx.total;
+      } else if (tx.paymentMethod === 'Split') {
+        return sum + (tx.paymentCashAmount || 0);
+      }
+      return sum;
+    }, 0);
+
+    // Calculate refunds in this shift
+    let refundAmount = 0;
+    if (db) {
+      const { data: shiftReturns } = await db
+        .from('transaction_returns')
+        .select('*')
+        .eq('store_id', state.storeId)
+        .gte('created_at', state.activeShift.opened_at);
+      refundAmount = (shiftReturns || []).reduce((sum, r) => sum + Number(r.refund_amount || 0), 0);
+    }
+
+    const expectedCash = Number(state.activeShift.cash_float_amount) + cashSales - refundAmount;
 
     if (dom.shiftCashierName) dom.shiftCashierName.textContent = cashier.name;
     if (dom.shiftTxCount) dom.shiftTxCount.textContent = shiftTx.length;
@@ -3272,27 +3297,84 @@ ${discountHtml}${taxHtml}
     if (dom.shiftItemsSold) dom.shiftItemsSold.textContent = totalItems;
     if (dom.shiftModalSubtitle) dom.shiftModalSubtitle.textContent = `Shift dimulai: ${startStr}`;
 
+    const elFloat = document.getElementById('shiftModalFloat');
+    const elCashSales = document.getElementById('shiftModalCashSales');
+    const elRefunds = document.getElementById('shiftModalRefunds');
+    const elExpected = document.getElementById('shiftModalExpected');
+    const elActual = document.getElementById('shiftActualCashInput');
+    const elDiscrepancy = document.getElementById('shiftDiscrepancy');
+    const elNote = document.getElementById('shiftNoteInput');
+
+    if (elFloat) elFloat.textContent = formatCurrency(state.activeShift.cash_float_amount);
+    if (elCashSales) elCashSales.textContent = formatCurrency(cashSales);
+    if (elRefunds) elRefunds.textContent = formatCurrency(refundAmount);
+    if (elExpected) elExpected.textContent = formatCurrency(expectedCash);
+    if (elActual) elActual.value = expectedCash;
+    if (elNote) elNote.value = '';
+
+    const recalculateClosingDiscrepancy = () => {
+      const actual = Number(elActual?.value) || 0;
+      const discrepancy = actual - expectedCash;
+      if (elDiscrepancy) {
+        elDiscrepancy.textContent = formatCurrency(discrepancy);
+        if (discrepancy === 0) {
+          elDiscrepancy.className = "text-green-600 font-bold text-sm";
+        } else if (discrepancy > 0) {
+          elDiscrepancy.className = "text-blue-600 font-bold text-sm";
+        } else {
+          elDiscrepancy.className = "text-rose-600 font-bold text-sm";
+        }
+      }
+    };
+
+    elActual?.removeEventListener('input', recalculateClosingDiscrepancy);
+    elActual?.addEventListener('input', recalculateClosingDiscrepancy);
+    recalculateClosingDiscrepancy();
+
     if (dom.shiftModal) {
       dom.shiftModal.classList.remove('hidden');
-      dom.shiftModal.style.display = 'flex';
     }
   };
 
   const closeShiftModal = () => {
     if (dom.shiftModal) {
       dom.shiftModal.classList.add('hidden');
-      dom.shiftModal.style.display = '';
     }
   };
 
-  const printShiftReport = () => {
+  const printShiftReport = async () => {
     const store = getStoreSettings();
     const cashier = getSelectedCashier();
-    const shiftStart = state.shiftStartTime || new Date(0);
-    const shiftTx = state.transactions.filter(tx => new Date(tx.date) >= shiftStart);
+    if (!state.activeShift) return;
+
+    const shiftStart = new Date(state.activeShift.opened_at);
+    const shiftTx = state.transactions.filter(tx => 
+      tx.status !== 'void' && 
+      tx.shiftId === state.activeShift.id
+    );
     const totalSales = shiftTx.reduce((sum, tx) => sum + tx.total, 0);
     const totalItems = shiftTx.reduce((sum, tx) => sum + tx.items.reduce((s, i) => s + i.qty, 0), 0);
     const thermalCSS = document.getElementById('thermalStyle').textContent;
+
+    const cashSales = shiftTx.reduce((sum, tx) => {
+      if (tx.paymentMethod === 'Tunai') {
+        return sum + tx.total;
+      } else if (tx.paymentMethod === 'Split') {
+        return sum + (tx.paymentCashAmount || 0);
+      }
+      return sum;
+    }, 0);
+
+    let refundAmount = 0;
+    if (db) {
+      const { data: shiftReturns } = await db
+        .from('transaction_returns')
+        .select('*')
+        .eq('store_id', state.storeId)
+        .gte('created_at', state.activeShift.opened_at);
+      refundAmount = (shiftReturns || []).reduce((sum, r) => sum + Number(r.refund_amount || 0), 0);
+    }
+    const expected = Number(state.activeShift.cash_float_amount) + cashSales - refundAmount;
 
     const txRows = shiftTx.slice(0, 50).map(tx => {
       const time = new Date(tx.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -3305,12 +3387,18 @@ ${discountHtml}${taxHtml}
 <p class="center">LAPORAN SHIFT</p>
 <div class="separator"></div>
 <div class="row"><span>Kasir</span><span>${esc(cashier.name)}</span></div>
-<div class="row"><span>Cetak</span><span>${new Date().toLocaleString('id-ID', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
+<div class="row"><span>Mulai</span><span>${shiftStart.toLocaleString('id-ID')}</span></div>
+<div class="row"><span>Cetak</span><span>${new Date().toLocaleString('id-ID')}</span></div>
+<div class="separator"></div>
+<div class="row"><span>Modal Awal</span><span>${formatCurrency(state.activeShift.cash_float_amount)}</span></div>
+<div class="row"><span>Penjualan Tunai</span><span>${formatCurrency(cashSales)}</span></div>
+<div class="row"><span>Refund Tunai</span><span>${formatCurrency(refundAmount)}</span></div>
+<div class="row"><span>Sistem Total Kas</span><span>${formatCurrency(expected)}</span></div>
 <div class="separator"></div>
 <div class="row"><span>Transaksi</span><span>${shiftTx.length}</span></div>
 <div class="row"><span>Item Terjual</span><span>${totalItems}</span></div>
 <div class="separator-solid"></div>
-<div class="total-row"><span>TOTAL</span><span>${formatCurrency(totalSales)}</span></div>
+<div class="total-row"><span>TOTAL OMZET</span><span>${formatCurrency(totalSales)}</span></div>
 <div class="separator"></div>
 ${txRows}
 <br/><br/>
@@ -3323,12 +3411,366 @@ ${txRows}
     win.document.close();
   };
 
-  const resetShift = () => {
-    if (!confirm('Tutup dan reset shift ini? Shift baru akan dimulai sekarang.')) return;
-    state.shiftStartTime = new Date();
-    localStorage.setItem('shift_start_' + (state.storeId || ''), state.shiftStartTime.toISOString());
+  const submitTutupShift = async () => {
+    if (!state.activeShift) return;
+    if (!confirm('Tutup shift ini sekarang? Anda akan keluar dan shift baru harus dibuka sebelum bertransaksi kembali.')) return;
+    
+    const elActual = document.getElementById('shiftActualCashInput');
+    const elNote = document.getElementById('shiftNoteInput');
+    const actual = Number(elActual?.value) || 0;
+    
+    const shiftTx = state.transactions.filter(tx => 
+      tx.status !== 'void' && 
+      tx.shiftId === state.activeShift.id
+    );
+    const cashSales = shiftTx.reduce((sum, tx) => {
+      if (tx.paymentMethod === 'Tunai') {
+        return sum + tx.total;
+      } else if (tx.paymentMethod === 'Split') {
+        return sum + (tx.paymentCashAmount || 0);
+      }
+      return sum;
+    }, 0);
+
+    let refundAmount = 0;
+    if (db) {
+      const { data: shiftReturns } = await db
+        .from('transaction_returns')
+        .select('*')
+        .eq('store_id', state.storeId)
+        .gte('created_at', state.activeShift.opened_at);
+      refundAmount = (shiftReturns || []).reduce((sum, r) => sum + Number(r.refund_amount || 0), 0);
+    }
+    const expected = Number(state.activeShift.cash_float_amount) + cashSales - refundAmount;
+    const discrepancy = actual - expected;
+    const note = elNote?.value || '';
+
+    if (db) {
+      const { error } = await db
+        .from('cashier_shifts')
+        .update({
+          closed_at: new Date().toISOString(),
+          expected_cash: expected,
+          actual_cash: actual,
+          discrepancy: discrepancy,
+          note: note
+        })
+        .eq('id', state.activeShift.id);
+      if (error) {
+        alert('Gagal menutup shift di database: ' + error.message);
+        return;
+      }
+    }
+
+    state.activeShift = null;
+    state.shiftStartTime = null;
+    localStorage.removeItem('shift_start_' + (state.storeId || ''));
+    
     closeShiftModal();
-    alert('Shift berhasil direset. Shift baru dimulai sekarang.');
+    alert('Shift berhasil ditutup.');
+    
+    await checkOrOpenShift();
+  };
+
+  const requestAdminPin = () => {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('pinAuthModal');
+      const form = document.getElementById('pinAuthForm');
+      const input = document.getElementById('pinAuthInput');
+      const cancelBtn = document.getElementById('cancelPinAuth');
+
+      if (!modal || !form || !input) {
+        resolve(false);
+        return;
+      }
+
+      input.value = '';
+      modal.classList.remove('hidden');
+      input.focus();
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        form.removeEventListener('submit', onSubmit);
+        cancelBtn.removeEventListener('click', onCancel);
+      };
+
+      const onSubmit = (e) => {
+        e.preventDefault();
+        const pin = input.value;
+        if (state.cashiers.some(c => c.role === 'admin' && c.password === pin)) {
+          cleanup();
+          resolve(true);
+        } else {
+          alert('PIN Admin salah atau tidak memiliki akses!');
+          input.value = '';
+          input.focus();
+        }
+      };
+
+      const onCancel = () => {
+        cleanup();
+        resolve(false);
+      };
+
+      form.addEventListener('submit', onSubmit);
+      cancelBtn.addEventListener('click', onCancel);
+    });
+  };
+
+  const requestVoidReason = () => {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('voidModal');
+      const form = document.getElementById('voidForm');
+      const input = document.getElementById('voidReasonInput');
+      const cancelBtn = document.getElementById('cancelVoidModal');
+
+      if (!modal || !form || !input) {
+        resolve(null);
+        return;
+      }
+
+      input.value = '';
+      modal.classList.remove('hidden');
+      input.focus();
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        form.removeEventListener('submit', onSubmit);
+        cancelBtn.removeEventListener('click', onCancel);
+      };
+
+      const onSubmit = (e) => {
+        e.preventDefault();
+        const reason = input.value.trim();
+        cleanup();
+        resolve(reason);
+      };
+
+      const onCancel = () => {
+        cleanup();
+        resolve(null);
+      };
+
+      form.addEventListener('submit', onSubmit);
+      cancelBtn.addEventListener('click', onCancel);
+    });
+  };
+
+  const requestReturnDetails = (tx) => {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('returnModal');
+      const itemsList = document.getElementById('returnItemsList');
+      const reasonSelect = document.getElementById('returnReasonSelect');
+      const actionSelect = document.getElementById('returnActionSelect');
+      const submitBtn = document.getElementById('submitReturnBtn');
+      const cancelBtn = document.getElementById('cancelReturnModal');
+      const closeBtn = document.getElementById('closeReturnModal');
+
+      if (!modal || !itemsList || !reasonSelect || !actionSelect || !submitBtn) {
+        resolve(null);
+        return;
+      }
+
+      itemsList.innerHTML = tx.items.map(item => `
+        <div class="flex items-center justify-between border-b border-slate-100 py-3">
+          <div class="flex-1">
+            <p class="font-semibold text-slate-800">${esc(item.name)}</p>
+            <p class="text-xs text-slate-500">${formatCurrency(item.price)} • Beli: ${item.qty} pcs</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-400">Retur:</span>
+            <input type="number" min="0" max="${item.qty}" value="0" data-product-id="${item.id}" data-price="${item.price}" class="return-qty-input w-20 text-center rounded-xl border border-slate-300 px-2 py-1.5 focus:ring-2 focus:ring-sky-400" />
+          </div>
+        </div>
+      `).join('');
+
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        modal.style.display = '';
+        submitBtn.removeEventListener('click', onSubmit);
+        cancelBtn.removeEventListener('click', onCancel);
+        closeBtn.removeEventListener('click', onCancel);
+      };
+
+      const onSubmit = () => {
+        const returnedItems = [];
+        let totalRefund = 0;
+        const inputs = itemsList.querySelectorAll('.return-qty-input');
+        inputs.forEach(input => {
+          const qty = Number(input.value) || 0;
+          if (qty > 0) {
+            const price = Number(input.dataset.price) || 0;
+            returnedItems.push({
+              productId: input.dataset.productId,
+              qty: qty,
+              price: price
+            });
+            totalRefund += qty * price;
+          }
+        });
+
+        if (returnedItems.length === 0) {
+          alert('Mohon tentukan jumlah barang yang ingin diretur (minimal 1).');
+          return;
+        }
+
+        const reason = reasonSelect.value;
+        const action = actionSelect.value;
+
+        cleanup();
+        resolve({
+          items: returnedItems,
+          totalRefund: action === 'refund' ? totalRefund : 0,
+          reason: reason,
+          action: action
+        });
+      };
+
+      const onCancel = () => {
+        cleanup();
+        resolve(null);
+      };
+
+      submitBtn.addEventListener('click', onSubmit);
+      cancelBtn.addEventListener('click', onCancel);
+      closeBtn.addEventListener('click', onCancel);
+    });
+  };
+
+  const voidTransaction = async (txId) => {
+    const isAuthorized = await requestAdminPin();
+    if (!isAuthorized) return;
+
+    const reason = await requestVoidReason();
+    if (!reason) return;
+
+    const tx = state.transactions.find(t => t.id === txId);
+    if (!tx) {
+      alert('Transaksi tidak ditemukan.');
+      return;
+    }
+
+    const adminUser = state.cashiers.find(c => c.role === 'admin');
+    const adminName = adminUser ? adminUser.name : 'Supervisor';
+    const rawTxId = tx.dbId || parseInt(txId.replace('INV', ''));
+
+    if (db) {
+      try {
+        const { error: txErr } = await db
+          .from('transactions')
+          .update({
+            status: 'void',
+            void_reason: reason,
+            void_by: adminName,
+            void_at: new Date().toISOString()
+          })
+          .eq('id', rawTxId);
+        if (txErr) throw txErr;
+
+        for (const item of tx.items) {
+          const numId = parseInt(item.id);
+          if (isNaN(numId)) continue;
+          if (item.qty <= 0) continue;
+          const { error: stockErr } = await db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
+          if (stockErr) throw stockErr;
+        }
+
+        showAppToast('Transaksi berhasil dibatalkan (void)!', 'success');
+      } catch (err) {
+        logError('voidTransaction: gagal membatalkan transaksi', { txId }, err);
+        alert('Gagal membatalkan transaksi di database: ' + err.message);
+        return;
+      }
+    }
+
+    tx.status = 'void';
+    tx.voidReason = reason;
+    tx.voidBy = adminName;
+    tx.voidAt = new Date().toISOString();
+
+    tx.items.forEach(item => {
+      const product = state.products.find(p => p.id === item.id);
+      if (product) product.stock = Number(product.stock) + Number(item.qty);
+    });
+
+    syncStorage();
+    renderInventory();
+    renderHistory();
+    updateDashboard();
+    renderSalesChart();
+  };
+
+  const processReturn = async (txId) => {
+    const isAuthorized = await requestAdminPin();
+    if (!isAuthorized) return;
+
+    const tx = state.transactions.find(t => t.id === txId);
+    if (!tx) {
+      alert('Transaksi tidak ditemukan.');
+      return;
+    }
+
+    const result = await requestReturnDetails(tx);
+    if (!result) return;
+
+    const adminUser = state.cashiers.find(c => c.role === 'admin');
+    const adminName = adminUser ? adminUser.name : 'Supervisor';
+    const cashier = getSelectedCashier();
+    const rawTxId = tx.dbId || parseInt(txId.replace('INV', ''));
+
+    if (db) {
+      try {
+        const { data: ret, error: retErr } = await db
+          .from('transaction_returns')
+          .insert({
+            transaction_id: rawTxId,
+            store_id: state.storeId,
+            cashier_name: cashier.name,
+            refund_amount: result.totalRefund,
+            return_reason: result.reason,
+            authorized_by: adminName
+          })
+          .select()
+          .single();
+        if (retErr) throw retErr;
+
+        const returnItemRows = result.items.map(item => ({
+          return_id: ret.id,
+          product_id: parseInt(item.productId) || null,
+          quantity: item.qty,
+          price_at_return: item.price
+        }));
+        const { error: itemsErr } = await db.from('return_items').insert(returnItemRows);
+        if (itemsErr) throw itemsErr;
+
+        for (const item of result.items) {
+          const numId = parseInt(item.productId);
+          if (isNaN(numId)) continue;
+          const { error: stockErr } = await db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
+          if (stockErr) throw stockErr;
+        }
+
+        showAppToast('Retur barang berhasil diproses!', 'success');
+      } catch (err) {
+        logError('processReturn: gagal memproses retur', { txId }, err);
+        alert('Gagal memproses retur di database: ' + err.message);
+        return;
+      }
+    }
+
+    result.items.forEach(item => {
+      const product = state.products.find(p => p.id === item.productId);
+      if (product) product.stock = Number(product.stock) + Number(item.qty);
+    });
+
+    syncStorage();
+    renderInventory();
+    renderHistory();
+    updateDashboard();
+    renderSalesChart();
   };
 
   // ── Feature: Onboarding ──────────────────────────────────────────────────
@@ -3375,14 +3817,25 @@ ${txRows}
     state.paymentMethod = method;
     document.querySelectorAll('.paymethod-btn').forEach(btn => {
       const active = btn.dataset.paymethod === method;
-      btn.className = `paymethod-btn flex-1 rounded-2xl border-2 px-3 py-2 text-sm font-semibold transition ${active ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'}`;
+      btn.className = `paymethod-btn flex-1 rounded-2xl border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'}`;
     });
+    const splitWrapper = document.getElementById('splitInputWrapper');
     if (dom.cashInputWrapper) {
       dom.cashInputWrapper.style.display = method === 'Tunai' ? '' : 'none';
     }
-    if (method !== 'Tunai') {
+    if (splitWrapper) {
+      splitWrapper.style.display = method === 'Split' ? 'block' : 'none';
+    }
+    if (method !== 'Tunai' && method !== 'Split') {
       const totals = calculateCart();
       state.cashAmount = totals.total;
+    }
+    if (method === 'Split') {
+      const totals = calculateCart();
+      const splitCash = document.getElementById('splitCashInput');
+      const splitNonCash = document.getElementById('splitNonCashInput');
+      if (splitCash) splitCash.value = Math.round(totals.total / 2);
+      if (splitNonCash) splitNonCash.value = totals.total - Math.round(totals.total / 2);
     }
     if (method === 'QRIS') {
       const totalsCheck = calculateCart();
@@ -3417,7 +3870,7 @@ ${txRows}
         }
 
         if (modalTotal) modalTotal.textContent = formatCurrency(totals.total);
-        if (qrisModal) { qrisModal.classList.remove('hidden'); qrisModal.style.display = 'flex'; }
+        if (qrisModal) qrisModal.classList.remove('hidden');
       } else {
         alert('Gambar QRIS belum diupload. Silakan upload di menu Pengaturan → QRIS Statis.');
         setPaymentMethod('Tunai');
@@ -3427,16 +3880,201 @@ ${txRows}
     renderCart();
   };
 
+  // --- INVENTORY RULES LOGIC ---
+  let opnameData = [];
+
+  const openAdjustmentModal = (productId) => {
+    const product = state.products.find(p => p.id === productId);
+    if (!product) return;
+    document.getElementById('adjProductId').value = product.id;
+    document.getElementById('adjCurrentStock').textContent = product.stock;
+    document.getElementById('adjustmentForm').reset();
+    document.getElementById('adjDirection').value = 'kurang';
+    document.getElementById('adjustmentModalTitle').textContent = `Sesuaikan Stok: ${product.name}`;
+    document.getElementById('adjustmentModal').classList.remove('hidden');
+  };
+
+  const closeAdjustmentModal = () => {
+    document.getElementById('adjustmentModal').classList.add('hidden');
+  };
+
+  const saveAdjustment = async (e) => {
+    e.preventDefault();
+    const pid = document.getElementById('adjProductId').value;
+    const direction = document.getElementById('adjDirection').value;
+    const qty = parseInt(document.getElementById('adjQty').value, 10);
+    const reason = document.getElementById('adjReason').value;
+    const note = document.getElementById('adjNote').value;
+    const product = state.products.find(p => p.id === pid);
+
+    if (!product || !qty || !reason) return;
+    const adjustedQty = direction === 'kurang' ? -qty : qty;
+    if (product.stock + adjustedQty < 0) {
+      alert('Stok tidak boleh negatif!');
+      return;
+    }
+
+    if (db) {
+      const { error } = await db.rpc('adjust_stock', {
+        p_product_id: parseInt(pid, 10),
+        p_qty_adjusted: adjustedQty,
+        p_reason: reason,
+        p_note: note,
+        p_cashier: activeCashierName(),
+        p_ref_type: 'adjustment'
+      });
+      if (error) { alert('Gagal sesuaikan stok: ' + friendlyError(error)); return; }
+    }
+    
+    product.stock += adjustedQty;
+    syncStorage();
+    renderInventory();
+    renderProducts();
+    closeAdjustmentModal();
+    alert('Stok berhasil disesuaikan!');
+  };
+
+  const openLedgerModal = async (productId) => {
+    const product = state.products.find(p => p.id === productId);
+    if (!product) return;
+    document.getElementById('ledgerProductName').textContent = product.name;
+    const tbody = document.getElementById('ledgerTableBody');
+    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center">Memuat riwayat...</td></tr>';
+    document.getElementById('ledgerModal').classList.remove('hidden');
+    document.getElementById('ledgerModal').classList.add('flex');
+
+    if (db) {
+      const { data, error } = await db.from('stock_ledgers').select('*').eq('product_id', parseInt(productId, 10)).order('created_at', { ascending: false }).limit(50);
+      if (error) {
+        tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500">Gagal memuat data</td></tr>';
+      } else if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center">Belum ada riwayat mutasi</td></tr>';
+      } else {
+        tbody.innerHTML = data.map(row => {
+          const time = new Date(row.created_at).toLocaleString('id-ID');
+          const typeMap = { sale: 'Penjualan', purchase: 'Pembelian', return: 'Retur', void: 'Batal', adjustment: 'Penyesuaian', opname: 'Opname' };
+          const typeName = typeMap[row.reference_type] || row.reference_type;
+          const qtyText = row.qty_changed > 0 ? `<span class="text-emerald-600 font-bold">+${row.qty_changed}</span>` : `<span class="text-rose-600 font-bold">${row.qty_changed}</span>`;
+          return `
+            <tr class="border-b border-slate-100 hover:bg-slate-50">
+              <td class="p-3">${time}</td>
+              <td class="p-3">${esc(row.cashier_name || '-')}</td>
+              <td class="p-3">${esc(typeName)}</td>
+              <td class="p-3">${qtyText}</td>
+              <td class="p-3 font-semibold">${row.balance_stock}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    } else {
+      tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center">Offline mode tidak mendukung Kartu Stok</td></tr>';
+    }
+  };
+
+  const closeLedgerModal = () => {
+    document.getElementById('ledgerModal').classList.add('hidden');
+    document.getElementById('ledgerModal').classList.remove('flex');
+  };
+
+  const startOpname = () => {
+    opnameData = state.products.map(p => ({
+      ...p,
+      physical: ''
+    }));
+    renderOpnameTable();
+    document.getElementById('applyOpnameButton').classList.remove('hidden');
+    document.getElementById('opnameSummary').classList.remove('hidden');
+  };
+
+  const renderOpnameTable = () => {
+    const tbody = document.getElementById('opnameTable');
+    let totalLoss = 0;
+    let diffCount = 0;
+    tbody.innerHTML = opnameData.map(p => {
+      let diff = 0;
+      let loss = 0;
+      if (p.physical !== '') {
+        diff = parseInt(p.physical, 10) - p.stock;
+        loss = diff * (p.cost || 0);
+        if (diff !== 0) {
+            totalLoss += loss;
+            diffCount++;
+        }
+      }
+      const lossText = loss === 0 ? '-' : (loss < 0 ? `<span class="text-rose-600">${formatCurrency(Math.abs(loss))}</span>` : `<span class="text-emerald-600">+${formatCurrency(loss)}</span>`);
+      const diffText = diff === 0 ? '-' : (diff < 0 ? `<span class="text-rose-600">${diff}</span>` : `<span class="text-emerald-600">+${diff}</span>`);
+      return `
+        <tr class="border-b border-slate-100 hover:bg-slate-50">
+          <td class="p-3 font-medium">${esc(p.name)}</td>
+          <td class="p-3">${p.stock}</td>
+          <td class="p-3"><input type="number" min="0" value="${p.physical}" data-opname-id="${p.id}" class="opname-input w-24 rounded border border-slate-300 px-2 py-1 focus:ring-2 focus:ring-sky-400" /></td>
+          <td class="p-3">${p.physical === '' ? '-' : diffText}</td>
+          <td class="p-3">${p.physical === '' ? '-' : lossText}</td>
+        </tr>
+      `;
+    }).join('');
+
+    document.getElementById('opnameTotalLoss').innerHTML = totalLoss < 0 ? `<span class="text-rose-600 font-bold">${formatCurrency(Math.abs(totalLoss))} (Rugi)</span>` : `<span class="text-emerald-600 font-bold">${formatCurrency(totalLoss)} (Untung)</span>`;
+    document.getElementById('opnameItemCount').textContent = diffCount;
+
+    document.querySelectorAll('.opname-input').forEach(input => {
+      input.addEventListener('change', (e) => {
+        const id = e.target.dataset.opnameId;
+        const item = opnameData.find(i => i.id === id);
+        if (item) item.physical = e.target.value;
+        renderOpnameTable();
+      });
+    });
+  };
+
+  const applyOpname = async () => {
+    const changes = opnameData.filter(p => p.physical !== '' && parseInt(p.physical, 10) !== p.stock);
+    if (changes.length === 0) { alert('Tidak ada selisih stok untuk diterapkan.'); return; }
+    
+    const pin = prompt('Masukkan PIN/Password Admin untuk konfirmasi opname:');
+    if (!pin) return;
+    
+    if (db) {
+      const user = state.cashiers.find(c => c.id === state.selectedCashierId);
+      if (user && user.role !== 'admin') {
+         alert('Hanya admin yang bisa konfirmasi stok opname!'); return;
+      }
+      
+      for (const p of changes) {
+        const diff = parseInt(p.physical, 10) - p.stock;
+        await db.rpc('adjust_stock', {
+            p_product_id: parseInt(p.id, 10),
+            p_qty_adjusted: diff,
+            p_reason: 'Koreksi Administratif',
+            p_note: 'Hasil Stok Opname',
+            p_cashier: activeCashierName(),
+            p_ref_type: 'opname'
+        });
+        const realP = state.products.find(rp => rp.id === p.id);
+        if (realP) realP.stock = parseInt(p.physical, 10);
+      }
+      syncStorage();
+      renderInventory();
+      renderProducts();
+      alert('Hasil stok opname berhasil diterapkan!');
+      
+      document.getElementById('applyOpnameButton').classList.add('hidden');
+      document.getElementById('opnameSummary').classList.add('hidden');
+      document.getElementById('opnameTable').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500">Stok opname selesai.</td></tr>';
+      opnameData = [];
+    } else {
+        alert('Tidak bisa stok opname dalam mode offline.');
+    }
+  };
+
   const bindEvents = () => {
     const toggleBtn = document.getElementById('sidebarToggleBtn');
     const sidebar = document.getElementById('mainSidebar');
     if (toggleBtn && sidebar) {
       toggleBtn.addEventListener('click', () => {
-        sidebar.classList.toggle('md:flex');
-        sidebar.classList.toggle('md:hidden');
+        sidebar.classList.toggle('sidebar-collapsed');
       });
     }
-
     dom.menuButtons.forEach(button => {
       button.addEventListener('click', () => showScreen(button.dataset.screen));
     });
@@ -3514,10 +4152,14 @@ ${txRows}
       syncStorage();
     });
 
+    let _historySearchTimer = null;
     dom.historySearchInput.addEventListener('input', event => {
       state.historySearch = event.target.value;
-      renderHistory();
-      syncStorage();
+      clearTimeout(_historySearchTimer);
+      _historySearchTimer = setTimeout(() => {
+        renderHistory();
+        syncStorage();
+      }, 200);
     });
 
     dom.exportInventory.addEventListener('click', () => exportInventoryCSV());
@@ -3532,25 +4174,18 @@ ${txRows}
     dom.closeInventoryModal.addEventListener('click', hideInventoryModal);
     dom.cancelInventory.addEventListener('click', hideInventoryModal);
     dom.inventoryForm.addEventListener('submit', saveProduct);
-    dom.scanButton?.addEventListener('click', () => openScannerModal('kasir'));
-    dom.inventoryScanButton?.addEventListener('click', () => openScannerModal('inventory'));
-    dom.closeScanner?.addEventListener('click', closeScannerModal);
-    dom.closeAdjustmentModal?.addEventListener('click', closeAdjustmentModalFn);
-    if (dom.adjustmentForm) dom.adjustmentForm.addEventListener('submit', handleAdjustmentSubmit);
-    if (dom.closeLedgerModal) dom.closeLedgerModal.addEventListener('click', closeLedgerModalFn);
-    if (dom.closeReturnPurchaseModal) dom.closeReturnPurchaseModal.addEventListener('click', closeReturnPurchaseModalFn);
-    if (dom.returnPurchaseForm) dom.returnPurchaseForm.addEventListener('submit', handleReturnPurchaseSubmit);
-    if (dom.startOpnameButton) dom.startOpnameButton.addEventListener('click', startOpname);
-    if (dom.applyOpnameButton) dom.applyOpnameButton.addEventListener('click', applyOpname);
-    dom.startScanner?.addEventListener('click', startBarcodeScanner);
-    dom.stopScanner?.addEventListener('click', stopBarcodeScanner);
-    dom.manualBarcodeSubmit?.addEventListener('click', () => {
+    dom.scanButton.addEventListener('click', () => openScannerModal('kasir'));
+    dom.inventoryScanButton.addEventListener('click', () => openScannerModal('inventory'));
+    dom.closeScanner.addEventListener('click', closeScannerModal);
+    dom.startScanner.addEventListener('click', startBarcodeScanner);
+    dom.stopScanner.addEventListener('click', stopBarcodeScanner);
+    dom.manualBarcodeSubmit.addEventListener('click', () => {
       handleScannedCode(dom.manualBarcodeInput.value);
     });
-    dom.manualBarcodeInput?.addEventListener('keydown', e => {
+    dom.manualBarcodeInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') handleScannedCode(dom.manualBarcodeInput.value);
     });
-    dom.barcodeInput?.addEventListener('keydown', e => {
+    dom.barcodeInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         const code = dom.barcodeInput.value.trim();
         if (!code) return;
@@ -3571,16 +4206,15 @@ ${txRows}
     dom.closePurchaseModal.addEventListener('click', closePurchaseModal);
     dom.cancelPurchase.addEventListener('click', closePurchaseModal);
     dom.addPurchaseItem.addEventListener('click', addPurchaseItemToDraft);
-    dom.autoFillPrice.addEventListener('click', autoFillPurchasePrice);
-    dom.purchaseProduct.addEventListener('change', autoFillPurchasePrice);
     dom.savePurchase.addEventListener('click', savePurchaseOrder);
     dom.exportPurchase.addEventListener('click', exportPurchasesCSV);
     dom.exportDataButton.addEventListener('click', exportAppBackup);
     dom.importDataButton.addEventListener('click', () => dom.backupFileInput.click());
     dom.backupFileInput.addEventListener('change', importAppBackup);
-    dom.loginForm.addEventListener('submit', event => {
+    dom.loginForm.addEventListener('submit', async event => {
       event.preventDefault();
-      if (!authenticateUser(dom.loginName.value.trim(), dom.loginPassword.value.trim())) {
+      const success = await authenticateUser(dom.loginName.value.trim(), dom.loginPassword.value.trim());
+      if (!success) {
         alert('Nama atau password salah. Coba lagi.');
       }
     });
@@ -3615,6 +4249,7 @@ ${txRows}
     const authError = document.getElementById('authError');
     const authSuccess = document.getElementById('authSuccess');
     const logoutButton = document.getElementById('logoutButton');
+    const mobileLogoutButton = document.getElementById('mobileLogoutButton');
 
     const showAuthError = msg => {
       authSuccess.classList.add('hidden');
@@ -3658,17 +4293,9 @@ ${txRows}
       const email = document.getElementById('loginEmail').value.trim();
       const password = document.getElementById('loginPass').value;
       const res = await handleLogin(email, password);
-      
-      if (res.error) { 
-        btn.textContent = 'Masuk'; 
-        btn.disabled = false;
-        showAuthError(res.error); 
-        return; 
-      }
-      
+      btn.textContent = 'Masuk'; btn.disabled = false;
+      if (res.error) { showAuthError(res.error); return; }
       await enterAppAfterAuth();
-      btn.textContent = 'Masuk'; 
-      btn.disabled = false;
     });
 
     // DAFTAR
@@ -3701,6 +4328,7 @@ ${txRows}
     });
 
     logoutButton?.addEventListener('click', logout);
+    mobileLogoutButton?.addEventListener('click', logout);
 
     // ── Thermal print ──
     dom.printThermalBtn?.addEventListener('click', () => {
@@ -3744,7 +4372,7 @@ ${txRows}
       const res = await saveStoreSettings(store);
       dom.saveSettingsBtn.disabled = false;
       dom.saveSettingsBtn.textContent = '💾 Simpan Pengaturan';
-      if (res.error) { alert('Gagal menyimpan: ' + res.error); return; }
+      if (res.error) { alert('Gagal menyimpan: ' + friendlyError(res.error)); return; }
       updateSettingsPreview(store);
       dom.settingsSaved.classList.remove('hidden');
       setTimeout(() => dom.settingsSaved.classList.add('hidden'), 2500);
@@ -3815,12 +4443,12 @@ ${txRows}
     // ── QRIS modal ──
     document.getElementById('closeQrisModal')?.addEventListener('click', () => {
       const m = document.getElementById('qrisModal');
-      if (m) { m.classList.add('hidden'); m.style.display = ''; }
+      if (m) m.classList.add('hidden');
       setPaymentMethod('Tunai');
     });
     document.getElementById('qrisConfirmBtn')?.addEventListener('click', () => {
       const m = document.getElementById('qrisModal');
-      if (m) { m.classList.add('hidden'); m.style.display = ''; }
+      if (m) m.classList.add('hidden');
     });
 
     // ── Feature 1: Forgot Password ──
@@ -3850,14 +4478,79 @@ ${txRows}
     });
 
     // ── Feature 5: Shift / Tutup Kasir ──
-    dom.tutupKasirBtn?.addEventListener('click', openShiftModal);
+    dom.tutupKasirBtn?.addEventListener('click', openTutupShiftModal);
     dom.closeShiftModal?.addEventListener('click', closeShiftModal);
     dom.cancelShiftModal?.addEventListener('click', closeShiftModal);
     dom.printShiftBtn?.addEventListener('click', printShiftReport);
-    dom.resetShiftBtn?.addEventListener('click', resetShift);
+    dom.resetShiftBtn?.addEventListener('click', submitTutupShift);
     document.addEventListener('click', e => {
       if (e.target === dom.shiftModal) closeShiftModal();
     });
+
+    const openShiftForm = document.getElementById('openShiftForm');
+    openShiftForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const floatVal = Number(document.getElementById('openShiftCashFloat').value) || 0;
+      if (db) {
+        const { data, error } = await db
+          .from('cashier_shifts')
+          .insert({
+            store_id: state.storeId,
+            cashier_id: state.selectedCashierId,
+            opened_at: new Date().toISOString(),
+            cash_float_amount: floatVal,
+            expected_cash: floatVal,
+            actual_cash: 0,
+            discrepancy: 0,
+            note: ''
+          })
+          .select()
+          .single();
+        if (error) {
+          alert('Gagal membuka shift: ' + error.message);
+          return;
+        }
+        state.activeShift = data;
+        state.shiftStartTime = new Date(data.opened_at);
+        localStorage.setItem('shift_start_' + (state.storeId || ''), state.shiftStartTime.toISOString());
+        hideBukaShiftModal();
+        showAppToast('Shift berhasil dibuka!', 'success');
+      } else {
+        state.activeShift = {
+          id: 'offline-' + Date.now(),
+          store_id: state.storeId,
+          cashier_id: state.selectedCashierId,
+          opened_at: new Date().toISOString(),
+          cash_float_amount: floatVal
+        };
+        state.shiftStartTime = new Date();
+        localStorage.setItem('shift_start_' + (state.storeId || ''), state.shiftStartTime.toISOString());
+        hideBukaShiftModal();
+      }
+    });
+
+    const splitCash = document.getElementById('splitCashInput');
+    const splitNonCash = document.getElementById('splitNonCashInput');
+    const splitRem = document.getElementById('splitRemaining');
+
+    const updateSplitAmounts = () => {
+      const totals = calculateCart();
+      const valCash = Number(splitCash?.value) || 0;
+      const valNonCash = Number(splitNonCash?.value) || 0;
+      const remaining = totals.total - (valCash + valNonCash);
+      
+      if (splitRem) {
+        splitRem.textContent = formatCurrency(remaining);
+        if (remaining === 0) {
+          splitRem.className = "font-semibold text-green-600";
+        } else {
+          splitRem.className = "font-semibold text-rose-600";
+        }
+      }
+    };
+
+    splitCash?.addEventListener('input', updateSplitAmounts);
+    splitNonCash?.addEventListener('input', updateSplitAmounts);
 
     // ── Feature 4: Export PDF ──
     dom.exportPdfBtn?.addEventListener('click', async () => {
@@ -3874,13 +4567,10 @@ ${txRows}
     bindOnboarding();
 
     // ── Kasbon ──
-    document.getElementById('addDebtBtn')?.addEventListener('click', (e) => { if (window.openDebtModal) window.openDebtModal(e); });
-    document.getElementById('closeDebtModal')?.addEventListener('click', (e) => { if (window.closeDebtModal) window.closeDebtModal(e); });
-    dom.debtForm?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (window.saveDebt) await window.saveDebt(e);
-    });
-    document.getElementById('debtSearchInput')?.addEventListener('input', () => { if (window.renderKasbon) window.renderKasbon(); });
+    document.getElementById('addDebtBtn')?.addEventListener('click', openDebtModal);
+    document.getElementById('closeDebtModal')?.addEventListener('click', closeDebtModal);
+    document.getElementById('debtForm')?.addEventListener('submit', saveDebt);
+    document.getElementById('debtSearchInput')?.addEventListener('input', renderKasbon);
 
     // ── Struk WhatsApp ──
     document.getElementById('waReceiptBtn')?.addEventListener('click', () => {
@@ -3897,73 +4587,101 @@ ${txRows}
 
     // ── Super Admin ──
     bindSuperAdminEvents();
+
+    // ── Cache & Versi ──
+    document.getElementById('clearCacheBtn')?.addEventListener('click', async () => {
+      if (!confirm('Bersihkan cache aplikasi? Halaman akan dimuat ulang.')) return;
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      } catch (e) {
+        console.warn('Cache deletion error:', e);
+      }
+      window.location.reload();
+    });
+
+    // ── Hapus Akun ──
+    dom.deleteAccountBtn?.addEventListener('click', openDeleteAccountModal);
+    dom.closeDeleteAccountModal?.addEventListener('click', closeDeleteAccountModal);
+    dom.cancelDeleteAccountModal?.addEventListener('click', closeDeleteAccountModal);
+    dom.deleteAccountEmailInput?.addEventListener('input', () => {
+      const match = dom.deleteAccountEmailInput.value.trim().toLowerCase() === (state.authUser?.email || '').toLowerCase();
+      dom.deleteAccountConfirmBtn.disabled = !match;
+      if (match) {
+        dom.deleteAccountConfirmBtn.classList.remove('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
+        dom.deleteAccountConfirmBtn.classList.add('bg-rose-600', 'text-white', 'hover:bg-rose-700', 'cursor-pointer');
+      } else {
+        dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'text-white', 'hover:bg-rose-700', 'cursor-pointer');
+        dom.deleteAccountConfirmBtn.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
+      }
+    });
+    dom.deleteAccountConfirmBtn?.addEventListener('click', handleDeleteAccount);
+    document.addEventListener('click', e => {
+      if (e.target === dom.deleteAccountModal) closeDeleteAccountModal();
+    });
   };
+
+  let _activeScreenId = 'dashboard';
 
   const renderAll = () => {
     dom.todayDate.textContent = '📅 ' + new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
     renderStoreSwitcher();
     renderCashierSelect();
-    renderCashierManagement();
     applyTheme();
     dom.reportRangeSelect.value = state.reportRange;
     dom.historySearchInput.value = state.historySearch;
-    renderProducts();
-    renderCart();
-    renderInventory();
-    renderHistory();
-    renderPurchaseHistory();
-    updateDashboard();
-    renderSalesChart();
-    renderReportSummary();
+    switch (_activeScreenId) {
+      case 'dashboard':
+        updateDashboard();
+        renderSalesChart();
+        renderReportSummary();
+        break;
+      case 'kasir':
+        renderProducts();
+        renderCart();
+        break;
+      case 'inventory':
+        renderInventory();
+        break;
+      case 'riwayat':
+        renderHistory();
+        break;
+      case 'pembelian':
+        renderPurchaseHistory();
+        break;
+      case 'kasbon':
+        renderKasbon();
+        break;
+      case 'kelolaKasir':
+        renderCashierManagement();
+        break;
+      case 'pengaturan':
+        renderSettings();
+        break;
+      case 'screen-superadmin':
+        superAdminLoadStores();
+        break;
+    }
   };
 
   const registerServiceWorker = () => {
     if (!('serviceWorker' in navigator)) return;
 
+    // Saat service worker baru mengambil kendali (deploy baru aktif),
+    // reload sekali agar HTML/JS terbaru langsung terpakai tanpa clear cache manual.
     let _reloadingForNewSW = false;
-    let _pendingReloadCheckInterval = null;
-
-    // Transaksi berlangsung = ada modal terbuka ATAU keranjang belum kosong.
-    // Reload paksa di tengah transaksi bisa motong input kasir yang lagi jalan.
-    const isTransactionOngoing = () => {
-      const hasOpenModal = Array.from(document.querySelectorAll('[id$="Modal"]'))
-        .some(modal => !modal.classList.contains('hidden'));
-      const cartHasItems = Object.keys(state.cart || {}).length > 0;
-      return hasOpenModal || cartHasItems;
-    };
-
-    const reloadForNewSW = () => {
-      if (_reloadingForNewSW) return;
-      if (!isTransactionOngoing()) {
-        _reloadingForNewSW = true;
-        // Kasih notice dulu sebelum reload biar user gak kaget tiba-tiba
-        // ke-refresh diam-diam (misal lagi baca Laporan/Riwayat).
-        showToast('Memperbarui aplikasi...', { type: 'info', duration: 8000 });
-        setTimeout(() => window.location.reload(), 1000);
-        return;
-      }
-      if (_pendingReloadCheckInterval) return;
-      showToast('Pembaruan tersedia, akan diterapkan otomatis setelah transaksi selesai', { type: 'info', duration: 8000 });
-      _pendingReloadCheckInterval = setInterval(() => {
-        if (isTransactionOngoing()) return;
-        clearInterval(_pendingReloadCheckInterval);
-        _pendingReloadCheckInterval = null;
-        _reloadingForNewSW = true;
-        showToast('Memperbarui aplikasi...', { type: 'info', duration: 8000 });
-        setTimeout(() => window.location.reload(), 1000);
-      }, 2000);
-    };
-
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (_reloadingForNewSW || _pendingReloadCheckInterval) return;
-      reloadForNewSW();
+      if (_reloadingForNewSW) return;
+      _reloadingForNewSW = true;
+      window.location.reload();
     });
 
     navigator.serviceWorker.register('service-worker.js')
       .then(registration => {
         console.log('Service worker terdaftar.');
-        registration.update().catch(() => {});
-        window.addEventListener('focus', () => registration.update().catch(() => {}));
+        // Paksa cek versi baru tiap load + tiap kembali fokus ke app.
+        registration.update();
+        window.addEventListener('focus', () => registration.update());
       })
       .catch(err => console.warn('Gagal daftar service worker:', err));
   };
@@ -3973,8 +4691,12 @@ ${txRows}
     showHelpChatFab();
     await loadData();
 
+    // Cek super admin SEBELUM guard toko agar super admin bisa bypass
+    await checkSuperAdmin();
+
     // Pengaman: user terautentikasi tapi belum punya toko (mis. lewat konfirmasi email)
-    if (db && state.authUser && !state.storeId) {
+    // Super admin dibebaskan dari kewajiban memiliki toko
+    if (db && state.authUser && !state.storeId && !_isSuperAdmin) {
       let storeName = prompt('Selamat datang! Masukkan nama toko Anda untuk memulai:');
       storeName = (storeName || '').trim() || 'Toko Saya';
       const ownerName = prompt('Nama Anda (pemilik):') || 'Pemilik';
@@ -3983,28 +4705,24 @@ ${txRows}
       if (!error && store) {
         state.store = store;
         state.storeId = store.id;
-        await db.from('cashiers').insert({
+        const { error: initCashierErr } = await db.from('cashiers').insert({
           store_id: store.id, name: ownerName.trim(), password: '1234', role: 'admin'
         });
+        if (initCashierErr) logError('cashier insert gagal', { storeId: state.storeId }, initCashierErr);
         await loadData();
       } else if (error) {
-        alert('Gagal membuat toko: ' + error.message);
+        alert('Gagal membuat toko: ' + friendlyError(error));
       }
     }
 
-    // Pulihkan waktu mulai shift dari penyimpanan agar tidak hilang saat reload
-    if (!state.shiftStartTime) {
-      const saved = localStorage.getItem('shift_start_' + (state.storeId || ''));
-      state.shiftStartTime = saved ? new Date(saved) : new Date();
-      if (!saved) localStorage.setItem('shift_start_' + (state.storeId || ''), state.shiftStartTime.toISOString());
+    await loadActiveShift();
+    if (db && state.authUser && state.storeId && !_isSuperAdmin) {
+      await checkOrOpenShift();
     }
 
     // Freemium: aplikasi tidak pernah dikunci — hanya tampilkan banner pengingat trial
     checkSubscription();
     watchPendingSubscription();
-
-    // Cek apakah user adalah super admin (query ke tabel admin_users)
-    await checkSuperAdmin();
 
     applyRoleAccess();
     showApp();
@@ -4016,59 +4734,349 @@ ${txRows}
   // ── Kasbon / Hutang Pelanggan (Premium: tanpa batas; Gratis: maks 5 aktif) ─
   const saveDebtsLocal = () => localStorage.setItem('pos_debts', JSON.stringify(state.debts || []));
 
-  // Kasbon (Debt) logic has been migrated to public/kasbon.ts (TypeScript)
-  window.KasirApp = {
-    get db() { return db; },
-    get state() { return state; },
-    get dom() { return dom; },
-    formatCurrency,
-    esc,
-    renderProducts,
-    saveDebtsLocal
+  const renderKasbon = () => {
+    const list = document.getElementById('debtList');
+    if (!list) return;
+    const debts = state.debts || [];
+    const search = (document.getElementById('debtSearchInput')?.value || '').toLowerCase();
+    const active = debts.filter(d => d.status !== 'lunas');
+    const totalAmount = active.reduce((s, d) => s + Number(d.amount || 0), 0);
+
+    const elTotal = document.getElementById('debtTotalAmount');
+    const elCount = document.getElementById('debtActiveCount');
+    if (elTotal) elTotal.textContent = formatCurrency(totalAmount);
+    if (elCount) elCount.textContent = active.length;
+
+    const filtered = debts.filter(d => !search || (d.customer_name || '').toLowerCase().includes(search));
+    // Belum lunas dulu, lalu yang lunas (maks 20 terakhir agar tidak penuh)
+    const sorted = [...filtered.filter(d => d.status !== 'lunas'), ...filtered.filter(d => d.status === 'lunas').slice(0, 20)];
+
+    list.innerHTML = sorted.map(d => {
+      const isPaid = d.status === 'lunas';
+      const date = new Date(d.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+      const tagBtn = (!isPaid && d.phone) ? `<button data-debt-wa="${esc(d.id)}" class="flex-1 rounded-2xl bg-green-600 px-3 py-2 text-xs text-white font-semibold hover:bg-green-700 transition">💬 Tagih</button>` : '';
+      let itemsHtml = '';
+      if (d.items && Array.isArray(d.items) && d.items.length > 0) {
+          itemsHtml = `<div class="text-xs text-slate-500 mt-1">${d.items.map(i => `${esc(i.product_name)} (${i.qty}x)`).join(', ')}</div>`;
+      }
+      return `
+        <div class="rounded-3xl bg-white border ${isPaid ? 'border-slate-200 opacity-60' : 'border-amber-200'} shadow-sm p-5 space-y-3">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="font-semibold text-slate-900 truncate">${esc(d.customer_name)}</p>
+              <p class="text-xs text-slate-400">${date}${d.note ? ' — ' + esc(d.note) : ''}</p>
+              ${itemsHtml}
+            </div>
+            <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
+          </div>
+          <p class="text-2xl font-bold ${isPaid ? 'text-slate-400 line-through' : 'text-rose-600'}">${formatCurrency(d.amount)}</p>
+          <div class="flex gap-2">
+            ${tagBtn}
+            ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-2xl bg-sky-600 px-3 py-2 text-xs text-white font-semibold hover:bg-sky-700 transition">✅ Tandai Lunas</button>` : ''}
+            <button data-debt-delete="${esc(d.id)}" class="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 hover:bg-rose-100 transition">🗑</button>
+          </div>
+        </div>`;
+    }).join('') || '<div class="col-span-full rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">Belum ada catatan kasbon. Klik "+ Catat Kasbon" untuk mulai.</div>';
+
+    list.querySelectorAll('[data-debt-paid]').forEach(btn =>
+      btn.addEventListener('click', () => markDebtPaid(btn.dataset.debtPaid)));
+    list.querySelectorAll('[data-debt-delete]').forEach(btn =>
+      btn.addEventListener('click', () => deleteDebt(btn.dataset.debtDelete)));
+    list.querySelectorAll('[data-debt-wa]').forEach(btn =>
+      btn.addEventListener('click', () => sendDebtReminder(btn.dataset.debtWa)));
   };
 
-  // ── Toast Notification Umum ─────────────────────────────────────────
-  const showToast = (message, options = {}) => {
-    const { type = 'success', action, actionText, duration = 4000 } = options;
-    const colors = { success: '#059669', warning: '#d97706', error: '#e11d48', info: '#0284c7' };
-    let container = document.getElementById('toastContainer');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'toastContainer';
-      container.className = 'fixed top-4 right-4 z-[300] flex flex-col gap-2 no-print';
-      container.style.maxWidth = '360px';
-      document.body.appendChild(container);
+  const addDebtItemRow = () => {
+    const container = document.getElementById('debtItemsContainer');
+    if (!container) return;
+    const rowId = 'debtRow_' + Date.now() + Math.random().toString(36).substr(2, 5);
+    const div = document.createElement('div');
+    div.className = 'flex gap-2 mb-2 items-center debt-item-row';
+    div.id = rowId;
+    
+    const productOptions = state.products && state.products.length > 0 
+      ? state.products.map(p => `
+          <option value="${esc(String(p.id))}" data-price="${p.price}" data-name="${esc(p.name)}">
+            ${esc(p.name)} - ${formatCurrency(p.price)}
+          </option>
+        `).join('')
+      : '<option value="">(Kosong)</option>';
+    
+    div.innerHTML = `
+        <div class="w-[45%]">
+            <select class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-700 debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
+                <option value="" disabled selected>Pilih Produk</option>
+                ${productOptions}
+            </select>
+        </div>
+        <div class="w-[20%]">
+            <input type="number" min="1" value="1" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-700 debt-qty-input" oninput="calculateDebtTotal()">
+        </div>
+        <div class="w-[25%]">
+             <input type="text" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-500 dark:bg-slate-800 dark:text-white dark:border-slate-700" readonly value="0">
+        </div>
+        <div class="w-[10%] flex justify-end">
+             <button type="button" class="rounded-xl bg-rose-100 text-rose-600 px-3 py-1.5 hover:bg-rose-200 transition font-bold" onclick="removeDebtItemRow('${rowId}')">✕</button>
+        </div>
+    `;
+    container.appendChild(div);
+    calculateDebtTotal();
+  };
+
+  const removeDebtItemRow = (rowId) => {
+    const row = document.getElementById(rowId);
+    if (row) {
+        row.remove();
+        calculateDebtTotal();
     }
-    const toast = document.createElement('div');
-    toast.className = 'rounded-2xl px-5 py-4 text-white text-sm font-medium shadow-2xl transition-all duration-300 flex items-center gap-3';
-    toast.style.background = colors[type] || colors.success;
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateY(-10px)';
-    const msgSpan = document.createElement('span');
-    msgSpan.className = 'flex-1';
-    msgSpan.textContent = message;
-    toast.appendChild(msgSpan);
-    if (action && actionText) {
-      const btn = document.createElement('button');
-      btn.textContent = actionText;
-      btn.className = 'bg-white/20 hover:bg-white/30 rounded-xl px-3 py-1.5 text-white text-xs font-semibold whitespace-nowrap transition';
-      btn.onclick = () => { action(); dismiss(); };
-      toast.appendChild(btn);
+  };
+
+  const updateDebtItemPrice = (selectEl, rowId) => {
+    const row = document.getElementById(rowId);
+    if (!row) return;
+    const option = selectEl.options[selectEl.selectedIndex];
+    const price = parseFloat(option.getAttribute('data-price') || '0');
+    const subtotalInput = row.querySelectorAll('input[type="text"]')[0];
+    const qtyInput = row.querySelectorAll('input[type="number"]')[0];
+    const qty = parseInt(qtyInput.value) || 1;
+    
+    if (subtotalInput) {
+        subtotalInput.value = formatCurrency(price * qty);
     }
-    const dismiss = () => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateY(-10px)';
-      setTimeout(() => toast.remove(), 300);
-    };
-    container.appendChild(toast);
-    requestAnimationFrame(() => {
-      toast.style.opacity = '1';
-      toast.style.transform = 'translateY(0)';
+    calculateDebtTotal();
+  };
+
+  const calculateDebtTotal = () => {
+    const container = document.getElementById('debtItemsContainer');
+    if (!container) return;
+    const rows = container.querySelectorAll('.debt-item-row');
+    let total = 0;
+    state.currentDebtItems = [];
+    
+    rows.forEach(row => {
+        const select = row.querySelector('.debt-product-select');
+        const qtyInput = row.querySelector('.debt-qty-input');
+        const subtotalInput = row.querySelector('input[type="text"]');
+        
+        if (select && select.selectedIndex > 0) {
+            const option = select.options[select.selectedIndex];
+            const id = parseInt(option.value);
+            const price = parseFloat(option.getAttribute('data-price') || '0');
+            const name = option.getAttribute('data-name');
+            const qty = parseInt(qtyInput.value) || 0;
+            
+            if (qty > 0) {
+                const subtotal = price * qty;
+                total += subtotal;
+                subtotalInput.value = formatCurrency(subtotal);
+                
+                state.currentDebtItems.push({
+                    product_id: id,
+                    product_name: name,
+                    qty: qty,
+                    price: price
+                });
+            }
+        }
     });
-    const timer = setTimeout(dismiss, duration);
-    toast._dismissTimer = timer;
-    toast.addEventListener('mouseenter', () => clearTimeout(timer));
-    toast.addEventListener('mouseleave', () => { toast._dismissTimer = setTimeout(dismiss, 2000); });
+    
+    const amt = document.getElementById('debtFormAmount');
+    if (amt) amt.value = total;
+    const elTotalDisplay = document.getElementById('debtTotalDisplay');
+    if (elTotalDisplay) {
+        elTotalDisplay.textContent = 'Total Hutang: ' + formatCurrency(total);
+    }
+  };
+
+  window.addDebtItemRow = addDebtItemRow;
+  window.removeDebtItemRow = removeDebtItemRow;
+  window.updateDebtItemPrice = updateDebtItemPrice;
+  window.calculateDebtTotal = calculateDebtTotal;
+
+  const openDebtModal = async () => {
+    // Gerbang premium: gratis maksimal 5 kasbon aktif
+    const activeCount = (state.debts || []).filter(d => d.status !== 'lunas').length;
+    if (activeCount >= 5 && !await requirePremium('Kasbon lebih dari 5 catatan aktif')) return;
+    const m = document.getElementById('debtModal');
+    document.getElementById('debtForm')?.reset();
+    document.getElementById('debtFormError')?.classList.add('hidden');
+    
+    const container = document.getElementById('debtItemsContainer');
+    if (container) container.innerHTML = '';
+    state.currentDebtItems = [];
+    addDebtItemRow();
+
+    if (m) m.classList.remove('hidden');
+    document.getElementById('debtFormName')?.focus();
+  };
+
+  const closeDebtModal = () => {
+    const m = document.getElementById('debtModal');
+    if (m) m.classList.add('hidden');
+  };
+
+  const saveDebt = async e => {
+    e.preventDefault();
+    const name = document.getElementById('debtFormName').value.trim();
+    const phone = document.getElementById('debtFormPhone').value.trim();
+    const amount = Number(document.getElementById('debtFormAmount').value);
+    const note = document.getElementById('debtFormNote').value.trim();
+    const errEl = document.getElementById('debtFormError');
+    const items = state.currentDebtItems || [];
+    
+    if (!name || !amount || amount <= 0) {
+      if (errEl) { errEl.textContent = 'Nama dan total hutang wajib diisi.'; errEl.classList.remove('hidden'); }
+      return;
+    }
+    
+    if (items.length === 0) {
+      if (errEl) { errEl.textContent = 'Pilih minimal satu produk.'; errEl.classList.remove('hidden'); }
+      return;
+    }
+
+    // Validasi Stok
+    for (let item of items) {
+        const product = state.products.find(p => p.id === item.product_id);
+        if (product && product.stock < item.qty) {
+            if (errEl) { errEl.textContent = `Stok tidak cukup untuk produk ${product.name}. Tersedia: ${product.stock}`; errEl.classList.remove('hidden'); }
+            return;
+        }
+    }
+
+    let record = { 
+        customer_name: name, 
+        phone, 
+        amount, 
+        note, 
+        status: 'belum', 
+        created_at: new Date().toISOString(),
+        items: items
+    };
+    
+    let cashierName = "Unknown";
+    const cashier = state.cashiers?.find(c => c.id === state.selectedCashierId) || state.cashiers?.find(c => c.role === 'admin') || state.cashiers?.[0];
+    if (cashier) cashierName = cashier.name;
+
+    let transactionId = null;
+
+    if (db && state.storeId) {
+      const currentStore = (state.stores || []).find(s => String(s.id) == String(state.storeId));
+      const storeUuid = currentStore ? currentStore.id : null;
+      
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!storeUuid || !uuidRegex.test(String(storeUuid))) {
+          alert('Gagal: Data toko tidak valid.');
+          return;
+      }
+      
+      const { data, error } = await db.rpc('create_debt_transaction', {
+          p_store_id: storeUuid,
+          p_customer_name: name,
+          p_phone: phone,
+          p_amount: amount,
+          p_note: note,
+          p_items: items,
+          p_cashier_name: cashierName
+      });
+      
+      if (error) {
+        // Fallback jika RPC gagal
+        record.id = 'D' + Date.now();
+      } else {
+        record.id = data.debt_id;
+        transactionId = data.transaction_id;
+      }
+    } else {
+      record.id = 'D' + Date.now();
+    }
+    
+    // Kurangi stok lokal
+    for (let item of items) {
+        const product = state.products.find(p => p.id === item.product_id);
+        if (product) {
+            product.stock -= item.qty;
+        }
+    }
+
+    state.debts = state.debts || [];
+    state.debts.unshift(record);
+    saveDebtsLocal();
+    
+    if (transactionId) {
+        if (!state.transactions) state.transactions = [];
+        state.transactions.unshift({
+            id: transactionId,
+            date: record.created_at,
+            total: record.amount,
+            discount: 0,
+            paymentMethod: 'Hutang',
+            cash: 0,
+            change: 0,
+            cashier: cashierName,
+            items: items.map(i => ({
+                id: i.product_id,
+                name: i.product_name,
+                qty: i.qty,
+                price: i.price
+            }))
+        });
+        syncStorage();
+        if (typeof updateDashboard === 'function') updateDashboard();
+        if (typeof renderHistory === 'function') renderHistory();
+        if (typeof renderProducts === 'function') renderProducts();
+    }
+
+    closeDebtModal();
+    renderKasbon();
+    if (!transactionId) {
+        alert('Kasbon disimpan lokal (tidak ada koneksi) atau gagal memanggil database.');
+    } else {
+        alert('Kasbon berhasil disimpan! Transaksi dan stok produk telah dicatat otomatis.');
+    }
+  };
+
+  const markDebtPaid = async id => {
+    const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
+    if (activeOp && activeOp.role !== 'admin') {
+      alert('Hanya Admin Toko yang diizinkan untuk menandai kasbon lunas.');
+      return;
+    }
+    const debt = (state.debts || []).find(d => String(d.id) === String(id));
+    if (!debt) return;
+    debt.status = 'lunas';
+    debt.paid_at = new Date().toISOString();
+    if (db && !isNaN(parseInt(id))) {
+      const { error } = await db.from('debts').update({ status: 'lunas', paid_at: debt.paid_at }).eq('id', parseInt(id));
+      if (error) logError('markDebtPaid: gagal update', { debtId: id }, error);
+    }
+    saveDebtsLocal();
+    renderKasbon();
+  };
+
+  const deleteDebt = async id => {
+    const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
+    if (activeOp && activeOp.role !== 'admin') {
+      alert('Hanya Admin Toko yang diizinkan untuk menghapus catatan kasbon.');
+      return;
+    }
+    if (!confirm('Hapus catatan kasbon ini?')) return;
+    state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
+    if (db && !isNaN(parseInt(id))) {
+      const { error } = await db.from('debts').delete().eq('id', parseInt(id));
+      if (error) logError('deleteDebt: gagal delete', { debtId: id }, error);
+    }
+    saveDebtsLocal();
+    renderKasbon();
+  };
+
+  const sendDebtReminder = id => {
+    const debt = (state.debts || []).find(d => String(d.id) === String(id));
+    if (!debt || !debt.phone) return;
+    const store = getStoreSettings();
+    // 08xxx → 628xxx untuk wa.me
+    const phone = debt.phone.replace(/[^0-9]/g, '').replace(/^0/, '62');
+    const msg = `Halo ${debt.customer_name} 🙏\n\nMengingatkan kasbon di *${store.name}*:\nJumlah: *${formatCurrency(debt.amount)}*${debt.note ? '\nKeterangan: ' + debt.note : ''}\nTanggal: ${new Date(debt.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}\n\nMohon konfirmasinya ya. Terima kasih! 😊`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   // ── Scanner Barcode Fisik (Bluetooth/USB, mode HID "keyboard wedge") ─────
@@ -4178,7 +5186,7 @@ ${txRows}
     { keys: ['offline', 'internet', 'sinyal'], a: 'Aplikasi tetap bisa dibuka saat offline (PWA). Namun sinkronisasi data ke cloud butuh internet — pastikan online secara berkala agar data tersimpan aman.' },
     { keys: ['cabang', 'multi cabang', 'banyak toko', 'outlet', 'bisnis'], a: 'Multi-Cabang ada di paket Bisnis (Rp50.000/bulan) 🏢 — satu akun bisa punya banyak cabang. Buka Pengaturan → Cabang Toko → Tambah Cabang. Tiap cabang punya stok & transaksi sendiri. Ganti cabang lewat dropdown 🏪 Cabang di pojok kanan atas. Rekap omzet semua cabang muncul di Dashboard Pusat. Selama 30 hari trial fitur ini terbuka gratis.' },
     { keys: ['password', 'lupa', 'reset'], a: 'Lupa password? Di halaman login klik "Lupa password", masukkan email toko — link reset akan dikirim ke email tersebut.' },
-    { keys: ['hapus akun', 'hapus data'], a: 'Untuk menghapus akun dan seluruh data toko secara permanen, kirim permintaan via Telegram: https://t.me/+veK2jeQuBkQwNzU1. Diproses maksimal 30 hari.' },
+    { keys: ['hapus akun', 'hapus data'], a: 'Untuk menghapus akun dan seluruh data toko secara permanen, buka menu Pengaturan → gulir ke bawah → klik "Hapus Akun Permanen". Ketik ulang email Anda sebagai konfirmasi. Tindakan ini tidak dapat dibatalkan dan seluruh data (toko, produk, transaksi, kasir, kasbon, langganan) akan terhapus selamanya.' },
     { keys: ['rokok', 'tembakau', 'vape'], a: 'Produk rokok, tembakau, dan vape diblokir permanen dan tidak bisa diinput ke aplikasi ini.' }
   ];
 
@@ -4284,14 +5292,31 @@ ${txRows}
   let _isSuperAdmin = false;
 
   const checkSuperAdmin = async () => {
-    if (!db || !state.authUser?.email) { _isSuperAdmin = false; return; }
+    if (!db || !state.authUser?.id) { _isSuperAdmin = false; return; }
     try {
+      // Primary: lookup by user_id (single round-trip, no Edge Function overhead)
       const { data, error } = await db
         .from('admin_users')
         .select('id')
-        .eq('email', state.authUser.email)
+        .eq('user_id', state.authUser.id)
         .maybeSingle();
-      _isSuperAdmin = !error && !!data;
+      if (!error && data) { _isSuperAdmin = true; return; }
+      // Fallback: baris dengan user_id NULL tidak terlihat oleh RLS policy
+      // (user_id = auth.uid() tidak pernah cocok dengan NULL).
+      // Verifikasi via Edge Function yang memakai service-role dan lookup by email.
+      // Gunakan check_admin jika sudah di-deploy, fallback ke list_stores untuk kompatibilitas.
+      const { data: checkData, error: checkErr } = await db.functions.invoke('admin-subscription', {
+        body: { action: 'check_admin' }
+      });
+      if (!checkErr) {
+        _isSuperAdmin = checkData?.is_admin === true;
+        return;
+      }
+      // check_admin belum di-deploy — gunakan list_stores sebagai pengganti sementara
+      const { error: listErr } = await db.functions.invoke('admin-subscription', {
+        body: { action: 'list_stores' }
+      });
+      _isSuperAdmin = !listErr;
     } catch {
       _isSuperAdmin = false;
     }
@@ -4308,6 +5333,19 @@ ${txRows}
         btn.style.display = 'none';
       }
     }
+    const deleteSection = document.getElementById('deleteAccountSection');
+    if (deleteSection) {
+      deleteSection.style.display = _isSuperAdmin ? 'none' : '';
+    }
+    // Sembunyikan section toko (nama/alamat/struk/preview/cabang) hanya untuk super admin
+    // yang tidak memiliki toko sendiri.
+    const hideStoreUI = _isSuperAdmin && !state.storeId;
+    const storeFormFields = document.getElementById('storeFormFields');
+    if (storeFormFields) storeFormFields.style.display = hideStoreUI ? 'none' : '';
+    const struPreviewSection = document.getElementById('struPreviewSection');
+    if (struPreviewSection) struPreviewSection.style.display = hideStoreUI ? 'none' : '';
+    const branchSection = document.getElementById('branchSettingsSection');
+    if (branchSection) branchSection.style.display = hideStoreUI ? 'none' : '';
   };
 
   // Kalkulator tanggal berakhir dari pilihan durasi dropdown
@@ -4400,12 +5438,15 @@ ${txRows}
 
   const superAdminLoadStores = async () => {
     const wrapper = document.getElementById('superAdminTableWrapper');
+    const sel = document.getElementById('superAdminStoreSelect');
     if (wrapper) wrapper.innerHTML = '<p class="text-slate-400 text-sm">Memuat data...</p>';
+    if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
     try {
       // Strategi 1: panggil RPC list_all_stores_for_admin (lebih andal, tanpa Edge Function)
       const { data: rpcStores, error: rpcErr } = await db.rpc('list_all_stores_for_admin');
       if (!rpcErr && rpcStores) {
         console.log('[SuperAdmin] RPC berhasil, jumlah toko:', rpcStores.length);
+        // Hitung status langganan di client
         const now = Date.now();
         const enriched = rpcStores.map(s => {
           const trialMs = s.trial_ends_at ? new Date(s.trial_ends_at).getTime() : null;
@@ -4426,24 +5467,44 @@ ${txRows}
       const res = await db.functions.invoke('admin-subscription', {
         body: { action: 'list_stores' }
       });
-      const { error } = res;
-      let { data } = res;
+      console.log('[SuperAdmin] Edge Function result:', res);
+      let { data, error } = res;
+
       if (error) {
+        let errDetail = error.message || '';
+        try {
+          if (error.context && typeof error.context.json === 'function') {
+            const errBody = await error.context.json();
+            errDetail = errBody?.error || errDetail;
+          }
+        } catch (_) {}
         console.error('[SuperAdmin] invoke error:', error);
-        if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat data toko: ' + esc(error.message || JSON.stringify(error)) + '</p>';
+        const httpStatus = error?.context?.status ?? error?.status ?? null;
+        const statusSuffix = httpStatus ? ` (HTTP ${httpStatus})` : '';
+        superAdminShowMsg('error', `Gagal memuat data toko${statusSuffix}: ${errDetail}`);
+        if (wrapper) wrapper.innerHTML = `<p class="text-rose-500 text-sm">Gagal memuat data toko${statusSuffix}: ${esc(errDetail)}</p>`;
+        if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
         return;
       }
+
+      // Supabase JS v2 kadang mengembalikan data sebagai string JSON
       if (typeof data === 'string') {
         try { data = JSON.parse(data); } catch (_) {}
       }
+
       if (!data?.stores) {
-        if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat data toko (data kosong). Periksa Console.</p>';
+        console.warn('[SuperAdmin] data tidak mengandung stores:', data);
+        if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Respons tidak mengandung data toko. Periksa Console (F12).</p>';
+        if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
         return;
       }
       superAdminRenderTable(data.stores);
     } catch (e) {
       console.error('[SuperAdmin] exception:', e);
-      if (wrapper) wrapper.innerHTML = '<p class="text-rose-500 text-sm">Terjadi kesalahan koneksi: ' + esc(e.message || '') + '</p>';
+      const errMsg = e?.message ? ` — ${e.message}` : '';
+      superAdminShowMsg('error', `Terjadi kesalahan koneksi${errMsg}.`);
+      if (wrapper) wrapper.innerHTML = `<p class="text-rose-500 text-sm">Terjadi kesalahan koneksi${e?.message ? ` — ${esc(e.message)}` : ''}.</p>`;
+      if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
     }
   };
 
@@ -4451,7 +5512,6 @@ ${txRows}
     // Tombol "Admin Panel" di pengaturan → navigasi ke screen super admin
     document.getElementById('openSuperAdminBtn')?.addEventListener('click', () => {
       showScreen('screen-superadmin');
-      superAdminLoadStores();
     });
 
     // Refresh
@@ -4492,6 +5552,70 @@ ${txRows}
       }
     });
 
+    // Log Error Aplikasi
+    document.getElementById('superAdminLoadLogsBtn')?.addEventListener('click', async () => {
+      const wrapper = document.getElementById('superAdminErrorLogsWrapper');
+      const copyWrapper = document.getElementById('superAdminCopyLogsWrapper');
+      if (!wrapper) return;
+      const btn = document.getElementById('superAdminLoadLogsBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Memuat...'; }
+      wrapper.innerHTML = '<p class="text-slate-500 text-sm">Memuat log error...</p>';
+      if (copyWrapper) copyWrapper.classList.add('hidden');
+      try {
+        const { data, error } = await db.rpc('list_error_logs_for_admin');
+        if (error) {
+          wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat log. Pastikan migration 15_error_logs.sql sudah dijalankan.</p>';
+          return;
+        }
+        if (!data || !data.length) {
+          wrapper.innerHTML = '<p class="text-slate-400 text-sm">Tidak ada log error.</p>';
+          return;
+        }
+        wrapper._logsData = data;
+        wrapper.innerHTML = `<p class="text-slate-500 text-sm mb-2">${data.length} entri log terbaru:</p>` +
+          data.map(row => `<div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 mb-2 text-xs font-mono overflow-x-auto">
+            <span class="text-slate-400">${esc(row.created_at ? new Date(row.created_at).toLocaleString('id-ID') : '')}</span>
+            <span class="ml-2 text-rose-600 font-semibold">${esc(row.message)}</span>
+            ${row.store_name ? `<span class="ml-2 text-slate-500">[${esc(row.store_name)}]</span>` : ''}
+            ${row.url ? `<span class="ml-2 text-slate-400">${esc(row.url)}</span>` : ''}
+          </div>`).join('');
+        if (copyWrapper) copyWrapper.classList.remove('hidden');
+      } catch (e) {
+        wrapper.innerHTML = '<p class="text-rose-500 text-sm">Gagal memuat log. Pastikan migration 15_error_logs.sql sudah dijalankan.</p>';
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Muat Log'; }
+      }
+    });
+
+    document.getElementById('superAdminCopyLogsBtn')?.addEventListener('click', async () => {
+      const wrapper = document.getElementById('superAdminErrorLogsWrapper');
+      const copiedMsg = document.getElementById('superAdminCopiedMsg');
+      const logs = wrapper?._logsData;
+      if (!logs) return;
+      const redacted = logs.map(row => ({
+        ...row,
+        user_email: row.user_email ? row.user_email.slice(0, 3) + '***' : null
+      }));
+      const jsonStr = JSON.stringify(redacted, null, 2);
+      try {
+        await navigator.clipboard.writeText(jsonStr);
+      } catch (_) {
+        const ta = document.createElement('textarea');
+        ta.value = jsonStr;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      if (copiedMsg) {
+        copiedMsg.classList.remove('hidden');
+        setTimeout(() => copiedMsg.classList.add('hidden'), 2000);
+      }
+    });
+
     // Revokasi langganan
     document.getElementById('superAdminRevokeBtn')?.addEventListener('click', async () => {
       const storeId = document.getElementById('superAdminStoreSelect')?.value;
@@ -4523,6 +5647,13 @@ ${txRows}
   const init = async () => {
     setLoadingStatus('Menghubungkan ke database...', 10);
     initSupabase();
+    window.onerror = (msg, src, line, col, err) => {
+      logError(String(msg), { src, line, col }, err);
+      return false;
+    };
+    window.addEventListener('unhandledrejection', e => {
+      logError('Unhandled promise rejection: ' + (e.reason?.message || String(e.reason)), {}, e.reason instanceof Error ? e.reason : null);
+    });
     loadLocalSettings();
     bindEvents();
     initHelpChat();
