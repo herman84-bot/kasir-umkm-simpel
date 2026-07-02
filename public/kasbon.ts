@@ -31,7 +31,7 @@ interface KasirAppGlobal {
 
 declare var KasirApp: KasirAppGlobal;
 
-export class KasbonModule {
+class KasbonModule {
     static init() {
         // Expose to window for HTML event handlers
         (window as any).addDebtItemRow = KasbonModule.addDebtItemRow;
