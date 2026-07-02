@@ -1041,7 +1041,8 @@ const App = (() => {
     const _now = Date.now();
     const _bizExpiries = ['trial_ends_at', 'business_until'].map(c => primary[c]).filter(Boolean).map(d => new Date(d).getTime());
     const bizActiveForLoad = _bizExpiries.length === 0 ? true : Math.max(..._bizExpiries) > _now;
-    if (!bizActiveForLoad && String(active.id) !== String(primary.id)) {
+    // Super admin bebas pindah cabang tanpa gate langganan (sama seperti bypass di requireBusiness)
+    if (!_isSuperAdmin && !bizActiveForLoad && String(active.id) !== String(primary.id)) {
       active = primary;
     }
     state.store = active;
@@ -1205,7 +1206,18 @@ const App = (() => {
     localStorage.setItem(activeStoreKey(), String(id));
     state.cart = {}; state.cashAmount = 0; // keranjang tidak boleh terbawa antar cabang
     setLoadingStatus && setLoadingStatus('Memuat cabang ' + (target.name || '') + '...', 10);
-    await loadData();
+    try {
+      await loadData();
+    } catch (e) {
+      logError('switchStore loadData gagal', { storeId: id }, e);
+    }
+    if (String(state.storeId) !== String(id)) {
+      // Perpindahan tidak jadi (mis. error jaringan atau snap-back langganan) — beri tahu user & revert dropdown
+      showAppToast('Gagal pindah cabang. Coba lagi.', 'error');
+      if (state.storeId) localStorage.setItem(activeStoreKey(), String(state.storeId));
+      const sel = document.getElementById('storeSwitcher');
+      if (sel) sel.value = String(state.storeId);
+    }
     applyRoleAccess();
     renderAll();
     renderStoreSwitcher();
