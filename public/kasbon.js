@@ -219,7 +219,9 @@ class KasbonModule {
                     date: record.created_at,
                     total: record.amount,
                     discount: 0,
-                    paymethod: 'Hutang',
+                    paymentMethod: 'Hutang',
+                    cash: 0,
+                    change: 0,
                     cashier: cashierName,
                     items: items.map((i) => ({
                         id: i.product_id,

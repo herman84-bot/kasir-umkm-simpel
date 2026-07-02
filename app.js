@@ -5029,7 +5029,9 @@ ${txRows}
             date: record.created_at,
             total: record.amount,
             discount: 0,
-            paymethod: 'Hutang',
+            paymentMethod: 'Hutang',
+            cash: 0,
+            change: 0,
             cashier: cashierName,
             items: items.map(i => ({
                 id: i.product_id,
@@ -5038,6 +5040,7 @@ ${txRows}
                 price: i.price
             }))
         });
+        syncStorage();
         if (typeof updateDashboard === 'function') updateDashboard();
         if (typeof renderHistory === 'function') renderHistory();
         if (typeof renderProducts === 'function') renderProducts();
