@@ -4775,12 +4775,17 @@ ${txRows}
       const isPaid = d.status === 'lunas';
       const date = new Date(d.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
       const tagBtn = (!isPaid && d.phone) ? `<button data-debt-wa="${esc(d.id)}" class="flex-1 rounded-2xl bg-green-600 px-3 py-2 text-xs text-white font-semibold hover:bg-green-700 transition">💬 Tagih</button>` : '';
+      let itemsHtml = '';
+      if (d.items && Array.isArray(d.items) && d.items.length > 0) {
+          itemsHtml = `<div class="text-xs text-slate-500 mt-1">${d.items.map(i => `${esc(i.product_name)} (${i.qty}x)`).join(', ')}</div>`;
+      }
       return `
         <div class="rounded-3xl bg-white border ${isPaid ? 'border-slate-200 opacity-60' : 'border-amber-200'} shadow-sm p-5 space-y-3">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <p class="font-semibold text-slate-900 truncate">${esc(d.customer_name)}</p>
               <p class="text-xs text-slate-400">${date}${d.note ? ' — ' + esc(d.note) : ''}</p>
+              ${itemsHtml}
             </div>
             <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
           </div>
@@ -4801,6 +4806,113 @@ ${txRows}
       btn.addEventListener('click', () => sendDebtReminder(btn.dataset.debtWa)));
   };
 
+  const addDebtItemRow = () => {
+    const container = document.getElementById('debtItemsContainer');
+    if (!container) return;
+    const rowId = 'debtRow_' + Date.now() + Math.random().toString(36).substr(2, 5);
+    const div = document.createElement('div');
+    div.className = 'flex gap-2 mb-2 items-center debt-item-row';
+    div.id = rowId;
+    
+    const productOptions = state.products && state.products.length > 0 
+      ? state.products.map(p => `
+          <option value="${esc(String(p.id))}" data-price="${p.price}" data-name="${esc(p.name)}">
+            ${esc(p.name)} - ${formatCurrency(p.price)}
+          </option>
+        `).join('')
+      : '<option value="">(Kosong)</option>';
+    
+    div.innerHTML = `
+        <div class="w-[45%]">
+            <select class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-700 dark:text-white dark:border-slate-600 debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
+                <option value="" disabled selected>Pilih Produk</option>
+                ${productOptions}
+            </select>
+        </div>
+        <div class="w-[20%]">
+            <input type="number" min="1" value="1" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-700 dark:text-white dark:border-slate-600 debt-qty-input" oninput="calculateDebtTotal()">
+        </div>
+        <div class="w-[25%]">
+             <input type="text" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-500 dark:bg-slate-700 dark:text-white dark:border-slate-600" readonly value="0">
+        </div>
+        <div class="w-[10%] flex justify-end">
+             <button type="button" class="rounded-xl bg-rose-100 text-rose-600 px-3 py-1.5 hover:bg-rose-200 transition font-bold" onclick="removeDebtItemRow('${rowId}')">✕</button>
+        </div>
+    `;
+    container.appendChild(div);
+    calculateDebtTotal();
+  };
+
+  const removeDebtItemRow = (rowId) => {
+    const row = document.getElementById(rowId);
+    if (row) {
+        row.remove();
+        calculateDebtTotal();
+    }
+  };
+
+  const updateDebtItemPrice = (selectEl, rowId) => {
+    const row = document.getElementById(rowId);
+    if (!row) return;
+    const option = selectEl.options[selectEl.selectedIndex];
+    const price = parseFloat(option.getAttribute('data-price') || '0');
+    const subtotalInput = row.querySelectorAll('input[type="text"]')[0];
+    const qtyInput = row.querySelectorAll('input[type="number"]')[0];
+    const qty = parseInt(qtyInput.value) || 1;
+    
+    if (subtotalInput) {
+        subtotalInput.value = formatCurrency(price * qty);
+    }
+    calculateDebtTotal();
+  };
+
+  const calculateDebtTotal = () => {
+    const container = document.getElementById('debtItemsContainer');
+    if (!container) return;
+    const rows = container.querySelectorAll('.debt-item-row');
+    let total = 0;
+    state.currentDebtItems = [];
+    
+    rows.forEach(row => {
+        const select = row.querySelector('.debt-product-select');
+        const qtyInput = row.querySelector('.debt-qty-input');
+        const subtotalInput = row.querySelector('input[type="text"]');
+        
+        if (select && select.selectedIndex > 0) {
+            const option = select.options[select.selectedIndex];
+            const id = parseInt(option.value);
+            const price = parseFloat(option.getAttribute('data-price') || '0');
+            const name = option.getAttribute('data-name');
+            const qty = parseInt(qtyInput.value) || 0;
+            
+            if (qty > 0) {
+                const subtotal = price * qty;
+                total += subtotal;
+                subtotalInput.value = formatCurrency(subtotal);
+                
+                state.currentDebtItems.push({
+                    product_id: id,
+                    product_name: name,
+                    qty: qty,
+                    price: price
+                });
+            }
+        }
+    });
+    
+    const amt = document.getElementById('debtFormAmount');
+    if (amt) amt.value = total;
+    const elTotalDisplay = document.getElementById('debtTotalDisplay');
+    if (elTotalDisplay) {
+        elTotalDisplay.textContent = 'Total Hutang: ' + formatCurrency(total);
+    }
+  };
+
+  window.addDebtItemRow = addDebtItemRow;
+  window.removeDebtItemRow = removeDebtItemRow;
+  window.updateDebtItemPrice = updateDebtItemPrice;
+  window.calculateDebtTotal = calculateDebtTotal;
+
   const openDebtModal = async () => {
     // Gerbang premium: gratis maksimal 5 kasbon aktif
     const activeCount = (state.debts || []).filter(d => d.status !== 'lunas').length;
@@ -4808,6 +4920,12 @@ ${txRows}
     const m = document.getElementById('debtModal');
     document.getElementById('debtForm')?.reset();
     document.getElementById('debtFormError')?.classList.add('hidden');
+    
+    const container = document.getElementById('debtItemsContainer');
+    if (container) container.innerHTML = '';
+    state.currentDebtItems = [];
+    addDebtItemRow();
+
     if (m) { m.classList.remove('hidden'); m.style.display = 'flex'; }
     document.getElementById('debtFormName')?.focus();
   };
@@ -4824,31 +4942,122 @@ ${txRows}
     const amount = Number(document.getElementById('debtFormAmount').value);
     const note = document.getElementById('debtFormNote').value.trim();
     const errEl = document.getElementById('debtFormError');
+    const items = state.currentDebtItems || [];
+    
     if (!name || !amount || amount <= 0) {
-      if (errEl) { errEl.textContent = 'Nama dan jumlah hutang wajib diisi.'; errEl.classList.remove('hidden'); }
+      if (errEl) { errEl.textContent = 'Nama dan total hutang wajib diisi.'; errEl.classList.remove('hidden'); }
       return;
     }
-    let record = { customer_name: name, phone, amount, note, status: 'belum', created_at: new Date().toISOString() };
+    
+    if (items.length === 0) {
+      if (errEl) { errEl.textContent = 'Pilih minimal satu produk.'; errEl.classList.remove('hidden'); }
+      return;
+    }
+
+    // Validasi Stok
+    for (let item of items) {
+        const product = state.products.find(p => p.id === item.product_id);
+        if (product && product.stock < item.qty) {
+            if (errEl) { errEl.textContent = `Stok tidak cukup untuk produk ${product.name}. Tersedia: ${product.stock}`; errEl.classList.remove('hidden'); }
+            return;
+        }
+    }
+
+    let record = { 
+        customer_name: name, 
+        phone, 
+        amount, 
+        note, 
+        status: 'belum', 
+        created_at: new Date().toISOString(),
+        items: items
+    };
+    
+    let cashierName = "Unknown";
+    const cashier = state.cashiers?.find(c => c.id === state.selectedCashierId) || state.cashiers?.find(c => c.role === 'admin') || state.cashiers?.[0];
+    if (cashier) cashierName = cashier.name;
+
+    let transactionId = null;
+
     if (db && state.storeId) {
-      const { data, error } = await db.from('debts')
-        .insert({ ...record, store_id: state.storeId }).select().single();
+      const currentStore = (state.stores || []).find(s => String(s.id) == String(state.storeId));
+      const storeUuid = currentStore ? currentStore.id : null;
+      
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!storeUuid || !uuidRegex.test(String(storeUuid))) {
+          alert('Gagal: Data toko tidak valid.');
+          return;
+      }
+      
+      const { data, error } = await db.rpc('create_debt_transaction', {
+          p_store_id: storeUuid,
+          p_customer_name: name,
+          p_phone: phone,
+          p_amount: amount,
+          p_note: note,
+          p_items: items,
+          p_cashier_name: cashierName
+      });
+      
       if (error) {
-        // Tabel belum ada → simpan lokal saja
+        // Fallback jika RPC gagal
         record.id = 'D' + Date.now();
       } else {
-        record = data;
+        record.id = data.debt_id;
+        transactionId = data.transaction_id;
       }
     } else {
       record.id = 'D' + Date.now();
     }
+    
+    // Kurangi stok lokal
+    for (let item of items) {
+        const product = state.products.find(p => p.id === item.product_id);
+        if (product) {
+            product.stock -= item.qty;
+        }
+    }
+
     state.debts = state.debts || [];
     state.debts.unshift(record);
     saveDebtsLocal();
+    
+    if (transactionId) {
+        if (!state.transactions) state.transactions = [];
+        state.transactions.unshift({
+            id: transactionId,
+            date: record.created_at,
+            total: record.amount,
+            discount: 0,
+            paymethod: 'Hutang',
+            cashier: cashierName,
+            items: items.map(i => ({
+                id: i.product_id,
+                name: i.product_name,
+                qty: i.qty,
+                price: i.price
+            }))
+        });
+        if (typeof updateDashboard === 'function') updateDashboard();
+        if (typeof renderHistory === 'function') renderHistory();
+        if (typeof renderProducts === 'function') renderProducts();
+    }
+
     closeDebtModal();
     renderKasbon();
+    if (!transactionId) {
+        alert('Kasbon disimpan lokal (tidak ada koneksi) atau gagal memanggil database.');
+    } else {
+        alert('Kasbon berhasil disimpan! Transaksi dan stok produk telah dicatat otomatis.');
+    }
   };
 
   const markDebtPaid = async id => {
+    const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
+    if (activeOp && activeOp.role !== 'admin') {
+      alert('Hanya Admin Toko yang diizinkan untuk menandai kasbon lunas.');
+      return;
+    }
     const debt = (state.debts || []).find(d => String(d.id) === String(id));
     if (!debt) return;
     debt.status = 'lunas';
@@ -4862,6 +5071,11 @@ ${txRows}
   };
 
   const deleteDebt = async id => {
+    const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
+    if (activeOp && activeOp.role !== 'admin') {
+      alert('Hanya Admin Toko yang diizinkan untuk menghapus catatan kasbon.');
+      return;
+    }
     if (!confirm('Hapus catatan kasbon ini?')) return;
     state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
     if (db && !isNaN(parseInt(id))) {
