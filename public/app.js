@@ -903,7 +903,12 @@ const App = (() => {
     if (!state.stores.length) { state.store = null; state.storeId = null; return null; }
 
     // Pilih cabang aktif: yang terakhir dipilih (jika masih ada) atau cabang pertama
-    const savedId = localStorage.getItem(activeStoreKey());
+    const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+    let savedId = localStorage.getItem(activeStoreKey());
+    if (savedId && !isUUID(savedId)) {
+        savedId = null;
+        localStorage.removeItem(activeStoreKey());
+    }
     let active = state.stores.find(s => String(s.id) === String(savedId)) || state.stores[0];
     // Jika paket Bisnis tidak aktif, kunci ke toko utama (cabang lain tidak bisa dibuka)
     const primary = state.stores.find(s => s.is_main) || state.stores[0];
