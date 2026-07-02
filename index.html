@@ -1629,12 +1629,12 @@
   <input type="file" id="backupFileInput" accept="application/json" class="hidden" />
   <!-- Modal Kasbon -->
   <div id="debtModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 py-6">
-    <div class="w-full max-w-lg rounded-3xl bg-white shadow-2xl">
-      <div class="flex items-center justify-between border-b border-slate-200 p-5">
+    <div class="w-full max-w-lg max-h-[90vh] flex flex-col rounded-3xl bg-white shadow-2xl overflow-hidden">
+      <div class="flex shrink-0 items-center justify-between border-b border-slate-200 p-5">
         <h3 class="text-lg font-bold">Catat Kasbon Baru</h3>
         <button id="closeDebtModal" type="button" class="rounded-full bg-slate-100 p-2 hover:bg-slate-200 text-xl leading-none">×</button>
       </div>
-      <form id="debtForm" class="space-y-3 p-6">
+      <form id="debtForm" class="flex-1 space-y-3 p-6 overflow-y-auto">
         <p id="debtFormError" class="hidden rounded-2xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-600"></p>
         
         <!-- Input Dinamis Produk -->
