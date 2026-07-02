@@ -3918,11 +3918,54 @@ ${txRows}
   };
 
   const registerServiceWorker = () => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js')
-        .then(() => console.log('Service worker terdaftar.'))
-        .catch(err => console.warn('Gagal daftar service worker:', err));
-    }
+    if (!('serviceWorker' in navigator)) return;
+
+    let _reloadingForNewSW = false;
+    let _pendingReloadCheckInterval = null;
+
+    // Transaksi berlangsung = ada modal terbuka ATAU keranjang belum kosong.
+    // Reload paksa di tengah transaksi bisa motong input kasir yang lagi jalan.
+    const isTransactionOngoing = () => {
+      const hasOpenModal = Array.from(document.querySelectorAll('[id$="Modal"]'))
+        .some(modal => !modal.classList.contains('hidden'));
+      const cartHasItems = Object.keys(state.cart || {}).length > 0;
+      return hasOpenModal || cartHasItems;
+    };
+
+    const reloadForNewSW = () => {
+      if (_reloadingForNewSW) return;
+      if (!isTransactionOngoing()) {
+        _reloadingForNewSW = true;
+        // Kasih notice dulu sebelum reload biar user gak kaget tiba-tiba
+        // ke-refresh diam-diam (misal lagi baca Laporan/Riwayat).
+        showToast('Memperbarui aplikasi...', { type: 'info', duration: 8000 });
+        setTimeout(() => window.location.reload(), 1000);
+        return;
+      }
+      if (_pendingReloadCheckInterval) return;
+      showToast('Pembaruan tersedia, akan diterapkan otomatis setelah transaksi selesai', { type: 'info', duration: 8000 });
+      _pendingReloadCheckInterval = setInterval(() => {
+        if (isTransactionOngoing()) return;
+        clearInterval(_pendingReloadCheckInterval);
+        _pendingReloadCheckInterval = null;
+        _reloadingForNewSW = true;
+        showToast('Memperbarui aplikasi...', { type: 'info', duration: 8000 });
+        setTimeout(() => window.location.reload(), 1000);
+      }, 2000);
+    };
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (_reloadingForNewSW || _pendingReloadCheckInterval) return;
+      reloadForNewSW();
+    });
+
+    navigator.serviceWorker.register('service-worker.js')
+      .then(registration => {
+        console.log('Service worker terdaftar.');
+        registration.update().catch(() => {});
+        window.addEventListener('focus', () => registration.update().catch(() => {}));
+      })
+      .catch(err => console.warn('Gagal daftar service worker:', err));
   };
 
   // Dipanggil setelah login/daftar berhasil ATAU saat sesi masih aktif
