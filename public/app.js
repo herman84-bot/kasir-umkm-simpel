@@ -3653,9 +3653,17 @@ ${txRows}
       const email = document.getElementById('loginEmail').value.trim();
       const password = document.getElementById('loginPass').value;
       const res = await handleLogin(email, password);
-      btn.textContent = 'Masuk'; btn.disabled = false;
-      if (res.error) { showAuthError(res.error); return; }
+      
+      if (res.error) { 
+        btn.textContent = 'Masuk'; 
+        btn.disabled = false;
+        showAuthError(res.error); 
+        return; 
+      }
+      
       await enterAppAfterAuth();
+      btn.textContent = 'Masuk'; 
+      btn.disabled = false;
     });
 
     // DAFTAR
