@@ -170,16 +170,20 @@ class KasbonModule {
                 cashierName = cashier.name;
             let transactionId = null;
             if (KasirApp.db && KasirApp.state.storeId) {
+                // Fix: Dapatkan UUID store yang benar dari state.stores, jangan hanya andalkan state.storeId
+                // Ini untuk mengatasi kasus di mana state.storeId mungkin berisi ID integer lama dari localStorage
+                const currentStore = (KasirApp.state.stores || []).find((s) => String(s.id) == String(KasirApp.state.storeId));
+                const storeUuid = currentStore ? currentStore.id : KasirApp.state.storeId;
                 // Validasi UUID untuk mencegah error 'invalid input syntax for type uuid'
                 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-                if (!uuidRegex.test(String(KasirApp.state.storeId))) {
-                    console.error("Kasbon save failed: storeId is not a valid UUID:", KasirApp.state.storeId);
+                if (!uuidRegex.test(String(storeUuid))) {
+                    console.error("Kasbon save failed: storeId is not a valid UUID:", storeUuid);
                     alert('Gagal: Data toko (storeId) tidak valid. Silakan muat ulang halaman atau pilih toko yang benar.');
                     return;
                 }
                 // Gunakan RPC create_debt_transaction
                 const { data, error } = yield KasirApp.db.rpc('create_debt_transaction', {
-                    p_store_id: KasirApp.state.storeId,
+                    p_store_id: storeUuid,
                     p_customer_name: name,
                     p_phone: phone,
                     p_amount: amount,
