@@ -59,3 +59,4 @@ litellm_config.yaml
 proxy.py
 setup_litellm.py
 .claude-todos.json
+.claude/worktrees/
