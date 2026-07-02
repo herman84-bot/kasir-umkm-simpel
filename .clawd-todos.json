@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "content": "Fix kasbon.ts: debtFormAmountLabel → debtTotalDisplay",
+    "activeForm": "Fixing kasbon.ts dom reference",
+    "status": "in_progress"
+  },
+  {
+    "content": "Rewrite kasbon.js: remove __awaiter, use native async/await",
+    "activeForm": "Rewriting kasbon.js",
+    "status": "pending"
+  },
+  {
+    "content": "Verify: script load order & event binding",
+    "activeForm": "Verifying script loading",
+    "status": "pending"
+  }
+]

@@ -156,7 +156,10 @@ class KasbonModule {
         });
         
         KasirApp.dom.debtFormAmount.value = total;
-        KasirApp.dom.debtFormAmountLabel.textContent = KasirApp.formatCurrency(total);
+        const elTotalDisplay = document.getElementById('debtTotalDisplay');
+        if (elTotalDisplay) {
+            elTotalDisplay.textContent = 'Total Hutang: ' + KasirApp.formatCurrency(total);
+        }
     }
 
     static async saveDebt(e: Event) {
