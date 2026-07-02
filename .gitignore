@@ -1,4 +1,3 @@
-```
 # Logs and temp files
 *.log
 *.tmp
@@ -48,7 +47,10 @@ htmlcov/
 
 # Claude local settings (contains tokens)
 .claude/settings.local.json
-```
+
+# API keys / config lokal (jangan pernah commit)
+config.js
+public/config.js
 .claw/
 .sandbox-home/
 *.jsonl
