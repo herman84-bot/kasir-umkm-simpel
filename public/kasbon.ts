@@ -207,6 +207,7 @@ class KasbonModule {
         const cashier = KasirApp.state.cashiers?.find((c: any) => c.id === KasirApp.state.selectedCashierId);
         if (cashier) cashierName = cashier.name;
         
+        let transactionId = null;
         if (KasirApp.db && KasirApp.state.storeId) {
             // Gunakan RPC create_debt_transaction
             const { data, error } = await KasirApp.db.rpc('create_debt_transaction', {
@@ -221,13 +222,15 @@ class KasbonModule {
 
             if (error) {
                 console.error("Kasbon RPC error:", error);
-                // Fallback simpan lokal jika RPC gagal (misal sedang offline atau tabel belum siap)
-                record.id = 'D' + Date.now();
+                alert('Gagal mencatat kasbon: ' + error.message);
+                return;
             } else {
                 record.id = data.debt_id;
+                transactionId = data.transaction_id;
             }
         } else {
-            record.id = 'D' + Date.now();
+            alert('Gagal: Tidak terhubung ke database atau toko tidak ditemukan.');
+            return;
         }
         
         // Kurangi stok produk secara lokal agar UI tidak perlu reload
@@ -241,6 +244,31 @@ class KasbonModule {
         KasirApp.state.debts = KasirApp.state.debts || [];
         KasirApp.state.debts.unshift(record);
         KasirApp.saveDebtsLocal();
+        
+        if (transactionId) {
+            if (!KasirApp.state.transactions) KasirApp.state.transactions = [];
+            KasirApp.state.transactions.unshift({
+                id: transactionId,
+                date: record.created_at,
+                total: record.amount,
+                discount: 0,
+                paymethod: 'Hutang',
+                cashier: cashierName,
+                items: items.map((i: any) => ({
+                    id: i.product_id,
+                    name: i.product_name,
+                    qty: i.qty,
+                    price: i.price
+                }))
+            });
+            // Update Dashboard dan Riwayat secara otomatis
+            if (typeof (window as any).KasirApp?.updateDashboard === 'function') {
+                (window as any).KasirApp.updateDashboard();
+            }
+            if (typeof (window as any).renderHistory === 'function') {
+                (window as any).renderHistory();
+            }
+        }
         
         KasbonModule.closeDebtModal();
         KasbonModule.renderKasbon();
