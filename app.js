@@ -639,7 +639,7 @@ const App = (() => {
   // Hak akses mengikuti OPERATOR yang sedang aktif (admin = semua menu, kasir = terbatas)
   const applyRoleAccess = () => {
     const active = state.cashiers.find(c => c.id === state.selectedCashierId)
-      || state.cashiers.find(c => c.role === 'admin') || state.cashiers[0];
+      || state.cashiers.find(c => c.role === 'kasir') || state.cashiers[0];
     const isAdmin = !active || active.role === 'admin';
     const name = active?.name || state.store?.name || 'Pemilik';
     const nameEl = document.getElementById('sidebarUserName');
@@ -832,6 +832,7 @@ const App = (() => {
     purchaseSupplier: document.getElementById('purchaseSupplier'),
     purchaseInvoice: document.getElementById('purchaseInvoice'),
     purchaseProduct: document.getElementById('purchaseProduct'),
+    purchaseCost: document.getElementById('purchaseCost'),
     purchaseQty: document.getElementById('purchaseQty'),
     addPurchaseItem: document.getElementById('addPurchaseItem'),
     purchaseItemsList: document.getElementById('purchaseItemsList'),
@@ -985,20 +986,20 @@ const App = (() => {
     // cashiers & purchases now loaded from Supabase; these are temp fallbacks
     const cashiersData = localStorage.getItem(STORAGE.cashiers);
     const purchasesData = localStorage.getItem(STORAGE.purchases);
-    try {
-      state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers;
-    } catch (e) {
-      logError('loadLocalSettings: cashiers corrupt', { key: STORAGE.cashiers }, e);
-      localStorage.removeItem(STORAGE.cashiers);
-      state.cashiers = sampleCashiers;
-    }
-    try {
-      state.purchases = purchasesData ? JSON.parse(purchasesData) : [];
-    } catch (e) {
-      logError('loadLocalSettings: purchases corrupt', { key: STORAGE.purchases }, e);
-      localStorage.removeItem(STORAGE.purchases);
-      state.purchases = [];
-    }
+    const productsData = localStorage.getItem(STORAGE.products);
+    const transactionsData = localStorage.getItem(STORAGE.transactions);
+    
+    try { state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers; }
+    catch (e) { logError('loadLocalSettings: cashiers corrupt', { key: STORAGE.cashiers }, e); localStorage.removeItem(STORAGE.cashiers); state.cashiers = sampleCashiers; }
+    
+    try { state.purchases = purchasesData ? JSON.parse(purchasesData) : []; }
+    catch (e) { logError('loadLocalSettings: purchases corrupt', { key: STORAGE.purchases }, e); localStorage.removeItem(STORAGE.purchases); state.purchases = []; }
+
+    try { state.products = productsData ? JSON.parse(productsData) : []; }
+    catch (e) { logError('loadLocalSettings: products corrupt', { key: STORAGE.products }, e); localStorage.removeItem(STORAGE.products); state.products = []; }
+
+    try { state.transactions = transactionsData ? JSON.parse(transactionsData) : []; }
+    catch (e) { logError('loadLocalSettings: transactions corrupt', { key: STORAGE.transactions }, e); localStorage.removeItem(STORAGE.transactions); state.transactions = []; }
     state.selectedCashierId = settings.selectedCashierId || state.cashiers[0]?.id || '';
     state.activeUserId = settings.activeUserId || state.selectedCashierId;
   };
@@ -1111,7 +1112,7 @@ const App = (() => {
       }
       // Pulihkan operator terakhir (agar kasir tidak naik jadi admin hanya dengan reload)
       const savedOp = state.cashiers.find(c => c.id === state.selectedCashierId);
-      state.selectedCashierId = (savedOp || state.cashiers.find(c => c.role === 'admin') || state.cashiers[0])?.id || '';
+      state.selectedCashierId = (savedOp || state.cashiers.find(c => c.role === 'kasir') || state.cashiers[0])?.id || '';
       state.activeUserId = state.selectedCashierId;
 
       setLoadingStatus('Memuat transaksi...', 70);
@@ -1142,12 +1143,7 @@ const App = (() => {
       setLoadingStatus('Siap!', 100);
     } catch (err) {
       logError('loadData: gagal memuat data toko', { storeId: state.storeId }, err);
-      showAppToast('Gagal memuat data toko. Coba refresh halaman.', 'error');
-      state.products = [];
-      state.transactions = [];
-      state.cashiers = [];
-      state.purchases = [];
-      state.debts = [];
+      showAppToast('Gagal memuat data toko. Menggunakan data offline.', 'error');
     }
 
     syncStorage();
@@ -1753,7 +1749,7 @@ const App = (() => {
       dom.purchaseTable.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-500">Belum ada data pembelian.</td></tr>';
       return;
     }
-    dom.purchaseTable.innerHTML = state.purchases.slice().reverse().map(order => {
+    dom.purchaseTable.innerHTML = state.purchases.map(order => {
       const time = new Date(order.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short', year: 'numeric' });
       return `
         <tr class="border-b border-slate-200">
@@ -2003,6 +1999,7 @@ const App = (() => {
     dom.purchaseSupplier.value = '';
     dom.purchaseInvoice.value = state.draftPurchase.invoice;
     dom.purchaseQty.value = 1;
+    dom.purchaseCost.value = '';
     dom.purchaseItemsList.innerHTML = '<p class="text-slate-500">Belum ada item pembelian.</p>';
     dom.purchaseTotal.textContent = formatCurrency(0);
   };
@@ -2083,14 +2080,19 @@ const App = (() => {
   const addPurchaseItemToDraft = () => {
     const productId = dom.purchaseProduct.value;
     const qty = Number(dom.purchaseQty.value) || 1;
+    const costInput = Number(dom.purchaseCost.value) || 0;
     const product = state.products.find(item => item.id === productId);
     if (!product) return;
     const existing = state.draftPurchase.items.find(item => item.id === productId);
     if (existing) {
       existing.qty += qty;
+      existing.price = costInput;
     } else {
-      state.draftPurchase.items.push({ id: product.id, name: product.name, price: product.cost, qty });
+      state.draftPurchase.items.push({ id: product.id, name: product.name, price: costInput, qty });
     }
+    dom.purchaseProduct.value = '';
+    dom.purchaseQty.value = 1;
+    dom.purchaseCost.value = '';
     renderPurchaseDraft();
   };
 
@@ -2458,7 +2460,7 @@ const App = (() => {
   };
 
   const renderHistory = () => {
-    const transactions = getFilteredTransactions().slice().reverse();
+    const transactions = getFilteredTransactions();
     dom.historyTable.innerHTML = transactions.map(tx => {
       const time = new Date(tx.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: 'short', year: 'numeric' });
       const productCount = tx.items.reduce((sum, item) => sum + item.qty, 0);
@@ -4218,6 +4220,19 @@ ${txRows}
     dom.closePurchaseModal.addEventListener('click', closePurchaseModal);
     dom.cancelPurchase.addEventListener('click', closePurchaseModal);
     dom.addPurchaseItem.addEventListener('click', addPurchaseItemToDraft);
+    dom.purchaseProduct.addEventListener('change', () => {
+      const productId = dom.purchaseProduct.value;
+      if (!productId) {
+        dom.purchaseCost.value = '';
+        return;
+      }
+      const product = state.products.find(item => item.id === productId);
+      if (product) {
+        dom.purchaseCost.value = product.cost;
+      } else {
+        dom.purchaseCost.value = '';
+      }
+    });
     dom.savePurchase.addEventListener('click', savePurchaseOrder);
     dom.exportPurchase.addEventListener('click', exportPurchasesCSV);
     dom.exportDataButton.addEventListener('click', exportAppBackup);

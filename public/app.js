@@ -832,6 +832,7 @@ const App = (() => {
     purchaseSupplier: document.getElementById('purchaseSupplier'),
     purchaseInvoice: document.getElementById('purchaseInvoice'),
     purchaseProduct: document.getElementById('purchaseProduct'),
+    purchaseCost: document.getElementById('purchaseCost'),
     purchaseQty: document.getElementById('purchaseQty'),
     addPurchaseItem: document.getElementById('addPurchaseItem'),
     purchaseItemsList: document.getElementById('purchaseItemsList'),
@@ -2003,6 +2004,7 @@ const App = (() => {
     dom.purchaseSupplier.value = '';
     dom.purchaseInvoice.value = state.draftPurchase.invoice;
     dom.purchaseQty.value = 1;
+    dom.purchaseCost.value = '';
     dom.purchaseItemsList.innerHTML = '<p class="text-slate-500">Belum ada item pembelian.</p>';
     dom.purchaseTotal.textContent = formatCurrency(0);
   };
@@ -2083,14 +2085,19 @@ const App = (() => {
   const addPurchaseItemToDraft = () => {
     const productId = dom.purchaseProduct.value;
     const qty = Number(dom.purchaseQty.value) || 1;
+    const costInput = Number(dom.purchaseCost.value) || 0;
     const product = state.products.find(item => item.id === productId);
     if (!product) return;
     const existing = state.draftPurchase.items.find(item => item.id === productId);
     if (existing) {
       existing.qty += qty;
+      existing.price = costInput;
     } else {
-      state.draftPurchase.items.push({ id: product.id, name: product.name, price: product.cost, qty });
+      state.draftPurchase.items.push({ id: product.id, name: product.name, price: costInput, qty });
     }
+    dom.purchaseProduct.value = '';
+    dom.purchaseQty.value = 1;
+    dom.purchaseCost.value = '';
     renderPurchaseDraft();
   };
 
@@ -4218,6 +4225,19 @@ ${txRows}
     dom.closePurchaseModal.addEventListener('click', closePurchaseModal);
     dom.cancelPurchase.addEventListener('click', closePurchaseModal);
     dom.addPurchaseItem.addEventListener('click', addPurchaseItemToDraft);
+    dom.purchaseProduct.addEventListener('change', () => {
+      const productId = dom.purchaseProduct.value;
+      if (!productId) {
+        dom.purchaseCost.value = '';
+        return;
+      }
+      const product = state.products.find(item => item.id === productId);
+      if (product) {
+        dom.purchaseCost.value = product.cost;
+      } else {
+        dom.purchaseCost.value = '';
+      }
+    });
     dom.savePurchase.addEventListener('click', savePurchaseOrder);
     dom.exportPurchase.addEventListener('click', exportPurchasesCSV);
     dom.exportDataButton.addEventListener('click', exportAppBackup);
