@@ -38,7 +38,7 @@ class KasbonModule {
     }
     static addDebtItemRow() {
         const container = KasirApp.dom.debtItemsContainer;
-        const rowId = 'debtRow_' + Date.now() + Math.random().toString(36).substr(2, 5);
+        const rowId = 'debtRow_' + crypto.randomUUID();
         const div = document.createElement('div');
         div.className = 'flex gap-2 mb-2 items-center debt-item-row';
         div.id = rowId;
@@ -289,7 +289,8 @@ class KasbonModule {
     static deleteDebt(id) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a, _b;
-            if (!confirm('Hapus catatan kasbon ini? Riwayat transaksi terkait akan dibatalkan (VOID) dan stok akan dikembalikan.'))
+            const isConfirmed = await window.showCustomConfirm('Hapus catatan kasbon ini? Riwayat transaksi terkait akan dibatalkan (VOID) dan stok akan dikembalikan.', 'HAPUS');
+            if (!isConfirmed)
                 return;
             const debt = (KasirApp.state.debts || []).find((d) => String(d.id) === String(id));
             if (!debt)

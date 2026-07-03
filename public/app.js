@@ -595,6 +595,7 @@ const App = (() => {
     const msg = (err?.message || String(err || '')).toLowerCase();
     if (code === '23505' || msg.includes('duplicate key')) return 'Data sudah ada, tidak bisa duplikat.';
     if (code === '23503' || msg.includes('foreign key')) return 'Data terhubung ke data lain, tidak bisa dihapus dulu.';
+    if (code === 'PGRST205' || msg.includes('could not find the table') || msg.includes('schema cache')) return 'Fitur ini belum siap di server. Hubungi tim kami untuk bantuan.';
     if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('timeout')) return 'Koneksi bermasalah. Pastikan internet aktif dan coba lagi.';
     return 'Terjadi kesalahan. Coba lagi, atau hubungi tim kami jika masalah berlanjut.';
   };
@@ -1091,9 +1092,10 @@ const App = (() => {
       return;
     }
 
-    // Kirim transaksi offline yang tertunda SEBELUM memuat data,
-    // agar stok & riwayat yang dimuat sudah termasuk transaksi tersebut
+    // Kirim transaksi & kasir offline yang tertunda SEBELUM memuat data,
+    // agar stok, riwayat, dan daftar kasir yang dimuat sudah termasuk data tersebut
     await flushOfflineQueue();
+    await flushOfflineCashierQueue();
 
     try {
       setLoadingStatus('Memuat produk...', 40);
@@ -1556,7 +1558,10 @@ const App = (() => {
         const idx = state.cashiers.findIndex(c => c.id === id);
         if (idx >= 0) state.cashiers[idx] = { ...state.cashiers[idx], name, role, ...(password ? { password } : {}) };
       } else {
-        state.cashiers.push({ id: `C${Date.now()}`, name, password, role });
+        const localId = `C${Date.now()}`;
+        state.cashiers.push({ id: localId, name, password, role });
+        // db belum siap (SDK gagal load / offline) — antrekan agar otomatis sinkron ke Supabase saat koneksi pulih
+        queueOfflineCashier({ localId, name, password, role, store_id: state.storeId });
       }
     }
 
@@ -2699,7 +2704,7 @@ const App = (() => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
       return crypto.randomUUID();
     }
-    return Date.now() + '-' + Math.random().toString(36).slice(2);
+    return Date.now() + '-' + crypto.randomUUID();
   };
   const queueOfflineTransaction = entry => {
     const q = getOfflineQueue();
@@ -2757,6 +2762,53 @@ const App = (() => {
     }
     localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
     if (synced > 0) console.log(`✅ ${synced} transaksi offline tersinkron ke cloud.`);
+    return synced;
+  };
+
+  // ── Antrean kasir offline: dibuat saat db belum siap, sinkron saat online ─
+  const OFFLINE_CASHIER_QUEUE_KEY = 'offline_cashier_queue';
+  const getOfflineCashierQueue = () => {
+    try { return JSON.parse(localStorage.getItem(OFFLINE_CASHIER_QUEUE_KEY) || '[]'); } catch { return []; }
+  };
+  const queueOfflineCashier = entry => {
+    const q = getOfflineCashierQueue();
+    q.push({ ...entry, client_id: generateClientId() });
+    localStorage.setItem(OFFLINE_CASHIER_QUEUE_KEY, JSON.stringify(q));
+  };
+  const flushOfflineCashierQueue = async () => {
+    if (!db || !navigator.onLine || !state.storeId) return 0;
+    const q = getOfflineCashierQueue();
+    if (!q.length) return 0;
+    const remaining = [];
+    let synced = 0;
+    for (const entry of q) {
+      try {
+        const { data, error } = await db.from('cashiers')
+          .insert({
+            name: entry.name,
+            password: entry.password,
+            role: entry.role,
+            store_id: entry.store_id || state.storeId,
+            client_id: entry.client_id
+          })
+          .select().single();
+        if (error) throw error;
+        const idx = state.cashiers.findIndex(c => c.id === entry.localId);
+        if (idx >= 0) state.cashiers[idx] = fromDbCashier(data);
+        synced++;
+      } catch (e) {
+        // AC6: sudah tersinkron sebelumnya (client_id dobel) → buang tanpa retry
+        if (e && e.code === '23505') continue;
+        remaining.push(entry); // gagal lagi → coba lain kali
+      }
+    }
+    localStorage.setItem(OFFLINE_CASHIER_QUEUE_KEY, JSON.stringify(remaining));
+    if (synced > 0) {
+      syncStorage();
+      renderCashierSelect();
+      renderCashierManagement();
+      console.log(`✅ ${synced} kasir offline tersinkron ke cloud.`);
+    }
     return synced;
   };
 
@@ -3486,7 +3538,7 @@ ${txRows}
         })
         .eq('id', state.activeShift.id);
       if (error) {
-        alert('Gagal menutup shift di database: ' + error.message);
+        alert('Gagal menutup shift di database: ' + friendlyError(error));
         return;
       }
     }
@@ -4623,7 +4675,7 @@ ${txRows}
     });
 
     // ── Offline auto-sync ──
-    window.addEventListener('online', () => flushOfflineQueue());
+    window.addEventListener('online', () => { flushOfflineQueue(); flushOfflineCashierQueue(); });
 
     // ── Multi-Cabang ──
     document.getElementById('storeSwitcher')?.addEventListener('change', e => switchStore(e.target.value));
@@ -4786,7 +4838,7 @@ ${txRows}
   };
 
   // ── Kasbon / Hutang Pelanggan (Premium: tanpa batas; Gratis: maks 5 aktif) ─
-  const saveDebtsLocal = () => localStorage.setItem('pos_debts', JSON.stringify(state.debts || []));
+  const saveDebtsLocal = () => { /* localStorage removed for PII security */ };
 
   const renderKasbon = () => {
     const list = document.getElementById('debtList');
@@ -4843,7 +4895,7 @@ ${txRows}
   const addDebtItemRow = () => {
     const container = document.getElementById('debtItemsContainer');
     if (!container) return;
-    const rowId = 'debtRow_' + Date.now() + Math.random().toString(36).substr(2, 5);
+    const rowId = 'debtRow_' + crypto.randomUUID();
     const div = document.createElement('div');
     div.className = 'flex gap-2 mb-2 items-center debt-item-row';
     div.id = rowId;
@@ -5034,8 +5086,9 @@ ${txRows}
       });
       
       if (error) {
-        // Fallback jika RPC gagal
-        record.id = 'D' + Date.now();
+        logError('Error creating kasbon', error);
+        alert('Gagal membuat kasbon: ' + (error.message || 'Terjadi kesalahan pada server.'));
+        return;
       } else {
         let rData = data;
         if (Array.isArray(data)) rData = data[0];
@@ -5130,13 +5183,60 @@ ${txRows}
     renderKasbon();
   };
 
+  window.showCustomConfirm = (message, confirmTextToType) => {
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4';
+        overlay.innerHTML = `
+            <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl flex flex-col gap-4">
+                <h3 class="font-bold text-lg text-slate-900">Konfirmasi Hapus</h3>
+                <p class="text-sm text-slate-600">${message}</p>
+                <div class="space-y-1">
+                    <label class="text-xs font-medium text-slate-700">Ketik <strong>${confirmTextToType}</strong> untuk konfirmasi:</label>
+                    <input type="text" class="w-full rounded-xl border border-slate-300 px-3 min-h-[44px] text-sm focus:ring-2 focus:ring-rose-400 focus:outline-none" placeholder="${confirmTextToType}">
+                </div>
+                <div class="flex gap-2 mt-2">
+                    <button class="flex-1 rounded-2xl bg-slate-100 px-3 min-h-[44px] text-sm font-semibold text-slate-700 hover:bg-slate-200 transition btn-cancel">Batal</button>
+                    <button class="flex-1 rounded-2xl bg-rose-600 px-3 min-h-[44px] text-sm font-semibold text-white hover:bg-rose-700 transition opacity-50 cursor-not-allowed btn-confirm" disabled>Hapus</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const input = overlay.querySelector('input');
+        const btnCancel = overlay.querySelector('.btn-cancel');
+        const btnConfirm = overlay.querySelector('.btn-confirm');
+
+        input.addEventListener('input', () => {
+            if (input.value === confirmTextToType) {
+                btnConfirm.disabled = false;
+                btnConfirm.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                btnConfirm.disabled = true;
+                btnConfirm.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        });
+
+        const closeAndResolve = (val) => {
+            document.body.removeChild(overlay);
+            resolve(val);
+        };
+
+        btnCancel.addEventListener('click', () => closeAndResolve(false));
+        btnConfirm.addEventListener('click', () => {
+            if (!btnConfirm.disabled) closeAndResolve(true);
+        });
+    });
+  };
+
   const deleteDebt = async id => {
     const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
     if (activeOp && activeOp.role !== 'admin') {
       alert('Hanya Admin Toko yang diizinkan untuk menghapus catatan kasbon.');
       return;
     }
-    if (!confirm('Hapus catatan kasbon ini? Riwayat transaksi terkait akan dibatalkan (VOID) dan stok akan dikembalikan.')) return;
+    const isConfirmed = await window.showCustomConfirm('Hapus catatan kasbon ini? Riwayat transaksi terkait akan dibatalkan (VOID) dan stok akan dikembalikan.', 'HAPUS');
+    if (!isConfirmed) return;
     
     const debt = (state.debts || []).find(d => String(d.id) === String(id));
     if (!debt) return;

@@ -24,6 +24,10 @@ DECLARE
   v_product_name text;
   v_new_stock numeric;
 BEGIN
+  IF p_amount <= 0 THEN
+    RAISE EXCEPTION 'Amount must be greater than 0';
+  END IF;
+
   -- 1. Insert into debts
   INSERT INTO public.debts (store_id, customer_name, phone, amount, note, status, items)
   VALUES (p_store_id, p_customer_name, p_phone, p_amount, p_note, 'belum', p_items)
@@ -44,6 +48,10 @@ BEGIN
     v_qty := (v_item->>'qty')::numeric;
     v_price := (v_item->>'price')::numeric;
     v_product_name := v_item->>'product_name';
+    
+    IF v_qty <= 0 THEN
+      RAISE EXCEPTION 'Quantity must be greater than 0';
+    END IF;
 
     -- Insert transaction_items
     INSERT INTO public.transaction_items (transaction_id, product_id, product_name, quantity, price_at_sale, subtotal)
@@ -57,9 +65,9 @@ BEGIN
 
     IF v_new_stock IS NOT NULL THEN
       INSERT INTO public.stock_ledgers (
-        store_id, product_id, reference_type, qty_changed, balance_stock, cashier_name, reason, note
+        store_id, product_id, reference_type, qty_changed, balance_stock, cashier_name, reference_id
       ) VALUES (
-        p_store_id, v_product_id, 'kasbon', -v_qty, v_new_stock, p_cashier_name, 'Kasbon', 'Ref: D-' || v_debt_id
+        p_store_id, v_product_id, 'kasbon', -v_qty, v_new_stock, p_cashier_name, 'D-' || v_debt_id
       );
     END IF;
   END LOOP;
