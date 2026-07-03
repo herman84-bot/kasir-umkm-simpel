@@ -1233,7 +1233,8 @@ const App = (() => {
     if (!name) return;
     let pin = prompt('Masukkan PIN untuk admin cabang baru:', '');
     if (pin === null) return;
-    pin = pin.trim() || '1234';
+    pin = pin.trim();
+    if (!pin) { alert('PIN wajib diisi! Penambahan cabang dibatalkan.'); return; }
     if (!db || !state.authUser) { alert('Fitur cabang membutuhkan koneksi & login.'); return; }
     const { data: store, error } = await db.from('stores')
       .insert({ owner_id: state.authUser.id, name }).select().single();
@@ -4736,10 +4737,18 @@ ${txRows}
     // Super admin dibebaskan dari kewajiban memiliki toko
     if (db && state.authUser && !state.storeId && !_isSuperAdmin) {
       let storeName = prompt('Selamat datang! Masukkan nama toko Anda untuk memulai:');
-      storeName = (storeName || '').trim() || 'Toko Saya';
+      if (storeName === null) return;
+      storeName = storeName.trim() || 'Toko Saya';
       const ownerName = prompt('Nama Anda (pemilik):') || 'Pemilik';
+      
       let pin = prompt('Masukkan PIN untuk login kasir/admin:', '');
-      pin = pin ? pin.trim() || '1234' : '1234';
+      if (pin === null) return;
+      pin = pin.trim();
+      if (!pin) {
+        alert('PIN wajib diisi! Pendaftaran toko dibatalkan.');
+        return;
+      }
+      
       const { data: store, error } = await db.from('stores')
         .insert({ owner_id: state.authUser.id, name: storeName }).select().single();
       if (!error && store) {
