@@ -548,7 +548,7 @@ const App = (() => {
   };
 
   // Daftar toko baru: buat akun auth + store + admin cashier
-  const handleRegister = async ({ storeName, ownerName, email, password }) => {
+  const handleRegister = async ({ storeName, ownerName, email, password, pin }) => {
     if (!db) return { error: 'Database tidak tersedia.' };
     const { data, error } = await db.auth.signUp({ email, password });
     if (error) return { error: terjemahAuthError(error.message) };
@@ -571,9 +571,9 @@ const App = (() => {
       .select().single();
     if (sErr) return { error: 'Gagal membuat toko: ' + sErr.message };
 
-    // Buat kasir admin (pemilik) — PIN default 1234
+    // Buat kasir admin (pemilik) dengan PIN custom
     const { error: cashierErr } = await db.from('cashiers').insert({
-      store_id: store.id, name: ownerName.trim(), password: '1234', role: 'admin'
+      store_id: store.id, name: ownerName.trim(), password: pin || '1234', role: 'admin'
     });
     if (cashierErr) logError('cashier insert gagal', { storeId: state.storeId }, cashierErr);
 
@@ -4342,7 +4342,8 @@ ${txRows}
         storeName: document.getElementById('regStoreName').value,
         ownerName: document.getElementById('regOwnerName').value,
         email: document.getElementById('regEmail').value.trim(),
-        password: document.getElementById('regPass').value
+        password: document.getElementById('regPass').value,
+        pin: document.getElementById('regPin').value
       });
       btn.textContent = 'Daftar & Buat Toko'; btn.disabled = false;
       if (res.error) { showAuthError(res.error); return; }
