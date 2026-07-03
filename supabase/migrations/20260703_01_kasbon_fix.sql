@@ -23,9 +23,40 @@ DECLARE
   v_price numeric;
   v_product_name text;
   v_new_stock numeric;
+  v_is_premium boolean;
+  v_active_debt_count int;
 BEGIN
   IF p_amount <= 0 THEN
     RAISE EXCEPTION 'Amount must be greater than 0';
+  END IF;
+
+  -- Server-side validation 1: Check existing unpaid debt for the same customer
+  IF EXISTS (
+    SELECT 1 FROM public.debts 
+    WHERE store_id = p_store_id 
+      AND lower(customer_name) = lower(p_customer_name) 
+      AND status != 'lunas'
+  ) THEN
+    RAISE EXCEPTION 'Pelanggan % masih memiliki kasbon aktif yang belum lunas.', p_customer_name;
+  END IF;
+
+  -- Server-side validation 2: Free tier limit (max 5 active kasbons)
+  SELECT (
+    COALESCE(trial_ends_at, created_at + interval '30 days') > now() OR
+    premium_until > now() OR
+    business_until > now()
+  ) INTO v_is_premium
+  FROM public.stores
+  WHERE id = p_store_id;
+
+  IF COALESCE(v_is_premium, false) = false THEN
+    SELECT count(*) INTO v_active_debt_count
+    FROM public.debts
+    WHERE store_id = p_store_id AND status != 'lunas';
+
+    IF v_active_debt_count >= 5 THEN
+      RAISE EXCEPTION 'Limit tercapai. Upgrade Premium untuk membuat lebih dari 5 kasbon aktif.';
+    END IF;
   END IF;
 
   -- 1. Insert into debts

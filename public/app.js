@@ -5000,20 +5000,43 @@ ${txRows}
   window.calculateDebtTotal = calculateDebtTotal;
 
   const openDebtModal = async () => {
-    // Gerbang premium: gratis maksimal 5 kasbon aktif
-    const activeCount = (state.debts || []).filter(d => d.status !== 'lunas').length;
-    if (activeCount >= 5 && !await requirePremium('Kasbon lebih dari 5 catatan aktif')) return;
-    const m = document.getElementById('debtModal');
-    document.getElementById('debtForm')?.reset();
-    document.getElementById('debtFormError')?.classList.add('hidden');
-    
-    const container = document.getElementById('debtItemsContainer');
-    if (container) container.innerHTML = '';
-    state.currentDebtItems = [];
-    addDebtItemRow();
+    const btn = document.getElementById('addDebtBtn');
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Memproses...';
+    }
 
-    if (m) m.classList.remove('hidden');
-    document.getElementById('debtFormName')?.focus();
+    try {
+      // Gerbang premium: gratis maksimal 5 kasbon aktif. Strictly evaluated server-side.
+      let serverActiveCount = (state.debts || []).filter(d => d.status !== 'lunas').length;
+      if (db && state.storeId) {
+        try {
+          const { count, error } = await db.from('debts').select('*', { count: 'exact', head: true })
+            .eq('store_id', state.storeId).neq('status', 'lunas');
+          if (!error && count !== null) serverActiveCount = count;
+        } catch (e) {
+          console.warn('Gagal memvalidasi limit kasbon ke server:', e);
+        }
+      }
+      if (serverActiveCount >= 5 && !await requirePremium('Kasbon lebih dari 5 catatan aktif')) return;
+      const m = document.getElementById('debtModal');
+      document.getElementById('debtForm')?.reset();
+      document.getElementById('debtFormError')?.classList.add('hidden');
+      
+      const container = document.getElementById('debtItemsContainer');
+      if (container) container.innerHTML = '';
+      state.currentDebtItems = [];
+      addDebtItemRow();
+
+      if (m) m.classList.remove('hidden');
+      document.getElementById('debtFormName')?.focus();
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    }
   };
 
   const closeDebtModal = () => {
@@ -5023,12 +5046,20 @@ ${txRows}
 
   const saveDebt = async e => {
     e.preventDefault();
-    const name = document.getElementById('debtFormName').value.trim();
-    const phone = document.getElementById('debtFormPhone').value.trim();
-    const amount = Number(document.getElementById('debtFormAmount').value);
-    const note = document.getElementById('debtFormNote').value.trim();
-    const errEl = document.getElementById('debtFormError');
-    const items = state.currentDebtItems || [];
+    const btn = document.querySelector('#debtForm button[type="submit"]');
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Memproses...';
+    }
+
+    try {
+      const name = document.getElementById('debtFormName').value.trim();
+      const phone = document.getElementById('debtFormPhone').value.trim();
+      const amount = Number(document.getElementById('debtFormAmount').value);
+      const note = document.getElementById('debtFormNote').value.trim();
+      const errEl = document.getElementById('debtFormError');
+      const items = state.currentDebtItems || [];
     
     if (!name || !amount || amount <= 0) {
       if (errEl) { errEl.textContent = 'Nama dan total hutang wajib diisi.'; errEl.classList.remove('hidden'); }
@@ -5045,8 +5076,18 @@ ${txRows}
         const product = state.products.find(p => p.id === item.product_id);
         if (product && product.stock < item.qty) {
             if (errEl) { errEl.textContent = `Stok tidak cukup untuk produk ${product.name}. Tersedia: ${product.stock}`; errEl.classList.remove('hidden'); }
+            showAppToast(`Stok tidak cukup untuk produk ${product.name}.`, 'error');
             return;
         }
+    }
+
+    // AC1: Verify existing active debt status before allowing new kasbon
+    const existingDebt = (state.debts || []).find(d => d.status !== 'lunas' && d.customer_name.toLowerCase() === name.toLowerCase());
+    if (existingDebt) {
+        if (errEl) { errEl.textContent = `Pelanggan ${name} masih memiliki kasbon aktif yang belum lunas.`; errEl.classList.remove('hidden'); }
+        showAppToast(`Pelanggan ${name} masih memiliki kasbon aktif yang belum lunas.`, 'error');
+        alert(`Pelanggan ${name} masih memiliki kasbon aktif. Harap lunasi kasbon sebelumnya terlebih dahulu.`);
+        return;
     }
 
     let record = { 
@@ -5087,7 +5128,7 @@ ${txRows}
       
       if (error) {
         logError('Error creating kasbon', error);
-        alert('Gagal membuat kasbon: ' + (error.message || 'Terjadi kesalahan pada server.'));
+        alert('Gagal membuat kasbon: ' + friendlyError(error));
         return;
       } else {
         let rData = data;
@@ -5146,6 +5187,12 @@ ${txRows}
     } else {
         alert('Kasbon berhasil disimpan! Transaksi dan stok produk telah dicatat otomatis.');
     }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    }
   };
 
   const markDebtPaid = async id => {
@@ -5156,31 +5203,49 @@ ${txRows}
     }
     const debt = (state.debts || []).find(d => String(d.id) === String(id));
     if (!debt) return;
-    debt.status = 'lunas';
-    debt.paid_at = new Date().toISOString();
-    if (db && !isNaN(parseInt(id))) {
-      const { error } = await db.from('debts').update({ status: 'lunas', paid_at: debt.paid_at }).eq('id', parseInt(id));
-      if (error) logError('markDebtPaid: gagal update', { debtId: id }, error);
-      
-      if (debt.transaction_id) {
-          await db.from('transactions').update({ payment_method: 'Lunas' }).eq('id', debt.transaction_id);
-      }
-    } else if (db && isNaN(parseInt(id))) {
-      console.error('markDebtPaid: ID kasbon tidak valid (NaN). Nilai id:', id);
-      alert('Gagal menandai lunas: ID kasbon tidak valid. Silakan muat ulang halaman.');
-      return;
+
+    const btn = document.querySelector(`[data-debt-paid="${id}"]`);
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>...';
     }
-    
-    if (debt.transaction_id && state.transactions) {
-        const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
-        if (tx) {
-            tx.paymentMethod = 'Lunas';
-            if (typeof renderHistory === 'function') renderHistory();
+
+    try {
+      if (db && !isNaN(parseInt(id))) {
+        const cashierId = state.selectedCashierId ? parseInt(state.selectedCashierId) : null;
+        const { error } = await db.rpc('mark_debt_paid', { p_debt_id: parseInt(id), p_cashier_id: cashierId });
+        if (error) {
+            logError('markDebtPaid: gagal update', { debtId: id }, error);
+            showAppToast('Gagal menandai lunas pada database.', 'error');
+            alert('Gagal menandai lunas: ' + friendlyError(error));
+            return;
         }
+      } else if (db && isNaN(parseInt(id))) {
+        console.error('markDebtPaid: ID kasbon tidak valid (NaN). Nilai id:', id);
+        alert('Gagal menandai lunas: ID kasbon tidak valid. Silakan muat ulang halaman.');
+        return;
+      }
+      
+      debt.status = 'lunas';
+      debt.paid_at = new Date().toISOString();
+      
+      if (debt.transaction_id && state.transactions) {
+          const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
+          if (tx) {
+              tx.paymentMethod = 'Lunas';
+              if (typeof renderHistory === 'function') renderHistory();
+          }
+      }
+      
+      saveDebtsLocal();
+      renderKasbon();
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
     }
-    
-    saveDebtsLocal();
-    renderKasbon();
   };
 
   window.showCustomConfirm = (message, confirmTextToType) => {
@@ -5190,14 +5255,14 @@ ${txRows}
         overlay.innerHTML = `
             <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl flex flex-col gap-4">
                 <h3 class="font-bold text-lg text-slate-900">Konfirmasi Hapus</h3>
-                <p class="text-sm text-slate-600">${message}</p>
+                <p class="text-sm text-slate-600">${esc(message)}</p>
                 <div class="space-y-1">
-                    <label class="text-xs font-medium text-slate-700">Ketik <strong>${confirmTextToType}</strong> untuk konfirmasi:</label>
-                    <input type="text" class="w-full rounded-xl border border-slate-300 px-3 min-h-[44px] text-sm focus:ring-2 focus:ring-rose-400 focus:outline-none" placeholder="${confirmTextToType}">
+                    <label class="text-sm font-medium text-slate-700">Ketik <strong>${esc(confirmTextToType)}</strong> untuk konfirmasi:</label>
+                    <input type="text" class="w-full rounded-xl border border-slate-300 px-3 min-h-[44px] text-sm focus:ring-2 focus:ring-rose-400 focus:outline-none" placeholder="${esc(confirmTextToType)}">
                 </div>
-                <div class="flex gap-2 mt-2">
-                    <button class="flex-1 rounded-2xl bg-slate-100 px-3 min-h-[44px] text-sm font-semibold text-slate-700 hover:bg-slate-200 transition btn-cancel">Batal</button>
-                    <button class="flex-1 rounded-2xl bg-rose-600 px-3 min-h-[44px] text-sm font-semibold text-white hover:bg-rose-700 transition opacity-50 cursor-not-allowed btn-confirm" disabled>Hapus</button>
+                <div class="flex justify-end gap-2 mt-2">
+                    <button class="rounded-2xl bg-slate-100 px-4 min-h-[44px] text-sm font-semibold text-slate-700 hover:bg-slate-200 transition btn-cancel">Batal</button>
+                    <button class="rounded-2xl bg-rose-50 px-4 min-h-[44px] text-sm font-semibold text-rose-600 hover:bg-rose-100 transition opacity-50 cursor-not-allowed btn-confirm" disabled>Hapus</button>
                 </div>
             </div>
         `;
@@ -5243,26 +5308,24 @@ ${txRows}
     
     const adminName = activeOp ? activeOp.name : 'Supervisor';
     
-    if (db && !isNaN(parseInt(id))) {
-      if (debt.transaction_id) {
-          const { error: txErr } = await db.from('transactions').update({
-              status: 'void',
-              void_reason: 'Kasbon Dihapus',
-              void_by: adminName,
-              void_at: new Date().toISOString()
-          }).eq('id', debt.transaction_id);
-          
-          if (!txErr && debt.items) {
-              for (const item of debt.items) {
-                  const numId = parseInt(item.product_id);
-                  if (isNaN(numId) || item.qty <= 0) continue;
-                  await db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
-              }
-          }
-      }
-      const { error } = await db.from('debts').delete().eq('id', parseInt(id));
-      if (error) logError('deleteDebt: gagal delete', { debtId: id }, error);
+    const btn = document.querySelector(`[data-debt-delete="${id}"]`);
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     }
+
+    try {
+      if (db && !isNaN(parseInt(id))) {
+        const cashierId = state.selectedCashierId ? parseInt(state.selectedCashierId) : null;
+        const { error } = await db.rpc('delete_debt_secure', { p_debt_id: parseInt(id), p_cashier_id: cashierId, p_admin_name: adminName });
+        if (error) {
+            logError('deleteDebt: gagal delete', { debtId: id }, error);
+            showAppToast('Gagal menghapus kasbon pada database.', 'error');
+            alert('Gagal menghapus kasbon: ' + friendlyError(error));
+            return;
+        }
+      }
     
     state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
     
@@ -5290,6 +5353,12 @@ ${txRows}
     
     saveDebtsLocal();
     renderKasbon();
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    }
   };
 
   const sendDebtReminder = id => {

@@ -5189,20 +5189,21 @@ ${txRows}
     }
 
     try {
-    debt.status = 'lunas';
-    debt.paid_at = new Date().toISOString();
     if (db && !isNaN(parseInt(id))) {
-      const { error } = await db.from('debts').update({ status: 'lunas', paid_at: debt.paid_at }).eq('id', parseInt(id));
-      if (error) logError('markDebtPaid: gagal update', { debtId: id }, error);
-      
-      if (debt.transaction_id) {
-          await db.from('transactions').update({ payment_method: 'Lunas' }).eq('id', debt.transaction_id);
+      const { error } = await db.rpc('mark_debt_paid', { p_debt_id: parseInt(id) });
+      if (error) {
+        logError('markDebtPaid: gagal update', { debtId: id }, error);
+        alert('Gagal memproses: ' + friendlyError(error));
+        return;
       }
     } else if (db && isNaN(parseInt(id))) {
       console.error('markDebtPaid: ID kasbon tidak valid (NaN). Nilai id:', id);
       alert('Gagal menandai lunas: ID kasbon tidak valid. Silakan muat ulang halaman.');
       return;
     }
+    
+    debt.status = 'lunas';
+    debt.paid_at = new Date().toISOString();
     
     if (debt.transaction_id && state.transactions) {
         const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
@@ -5292,24 +5293,12 @@ ${txRows}
     const adminName = activeOp ? activeOp.name : 'Supervisor';
     
     if (db && !isNaN(parseInt(id))) {
-      if (debt.transaction_id) {
-          const { error: txErr } = await db.from('transactions').update({
-              status: 'void',
-              void_reason: 'Kasbon Dihapus',
-              void_by: adminName,
-              void_at: new Date().toISOString()
-          }).eq('id', debt.transaction_id);
-          
-          if (!txErr && debt.items) {
-              for (const item of debt.items) {
-                  const numId = parseInt(item.product_id);
-                  if (isNaN(numId) || item.qty <= 0) continue;
-                  await db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
-              }
-          }
+      const { error } = await db.rpc('delete_debt_secure', { p_debt_id: parseInt(id), p_admin_name: adminName });
+      if (error) {
+        logError('deleteDebt: gagal delete', { debtId: id }, error);
+        alert('Gagal memproses: ' + friendlyError(error));
+        return;
       }
-      const { error } = await db.from('debts').delete().eq('id', parseInt(id));
-      if (error) logError('deleteDebt: gagal delete', { debtId: id }, error);
     }
     
     state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
