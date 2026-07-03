@@ -1231,17 +1231,20 @@ const App = (() => {
     if ((state.stores || []).length >= 1 && !await requireBusiness('Multi-cabang (lebih dari 1 toko)')) return;
     const name = (prompt('Nama cabang baru:') || '').trim();
     if (!name) return;
+    let pin = prompt('Masukkan PIN untuk admin cabang baru:', '');
+    if (pin === null) return;
+    pin = pin.trim() || '1234';
     if (!db || !state.authUser) { alert('Fitur cabang membutuhkan koneksi & login.'); return; }
     const { data: store, error } = await db.from('stores')
       .insert({ owner_id: state.authUser.id, name }).select().single();
     if (error || !store) { alert('Gagal membuat cabang: ' + friendlyError(error)); return; }
-    // Buat admin default untuk cabang baru agar langsung bisa dipakai (PIN 1234)
+    // Buat admin default untuk cabang baru agar langsung bisa dipakai
     const { error: branchCashierErr } = await db.from('cashiers').insert({
-      store_id: store.id, name: 'Pemilik', password: '1234', role: 'admin'
+      store_id: store.id, name: 'Pemilik', password: pin, role: 'admin'
     });
     if (branchCashierErr) logError('cashier insert gagal', { storeId: state.storeId }, branchCashierErr);
     state.stores.push(store);
-    alert('Cabang "' + name + '" dibuat. PIN admin default: 1234');
+    alert('Cabang "' + name + '" dibuat. PIN admin: ' + pin);
     await switchStore(store.id);
     renderBranchList();
   };
@@ -4735,13 +4738,15 @@ ${txRows}
       let storeName = prompt('Selamat datang! Masukkan nama toko Anda untuk memulai:');
       storeName = (storeName || '').trim() || 'Toko Saya';
       const ownerName = prompt('Nama Anda (pemilik):') || 'Pemilik';
+      let pin = prompt('Masukkan PIN untuk login kasir/admin:', '');
+      pin = pin ? pin.trim() || '1234' : '1234';
       const { data: store, error } = await db.from('stores')
         .insert({ owner_id: state.authUser.id, name: storeName }).select().single();
       if (!error && store) {
         state.store = store;
         state.storeId = store.id;
         const { error: initCashierErr } = await db.from('cashiers').insert({
-          store_id: store.id, name: ownerName.trim(), password: '1234', role: 'admin'
+          store_id: store.id, name: ownerName.trim(), password: pin, role: 'admin'
         });
         if (initCashierErr) logError('cashier insert gagal', { storeId: state.storeId }, initCashierErr);
         await loadData();
