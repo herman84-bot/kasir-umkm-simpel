@@ -3226,6 +3226,11 @@ ${discountHtml}${taxHtml}
   // ── Feature: Shift / Tutup Kasir & Supervisor Otorisasi ───────────────────
   const loadActiveShift = async () => {
     if (!db || !state.storeId || !state.selectedCashierId) return null;
+    if (!/^\d+$/.test(String(state.selectedCashierId))) {
+      state.activeShift = null;
+      state.shiftStartTime = null;
+      return null;
+    }
     try {
       const { data, error } = await db
         .from('cashier_shifts')
@@ -3469,7 +3474,7 @@ ${txRows}
     const discrepancy = actual - expected;
     const note = elNote?.value || '';
 
-    if (db) {
+    if (db && !String(state.activeShift.id).startsWith('offline')) {
       const { error } = await db
         .from('cashier_shifts')
         .update({
@@ -4530,7 +4535,7 @@ ${txRows}
     openShiftForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const floatVal = Number(document.getElementById('openShiftCashFloat').value) || 0;
-      if (db && !String(state.selectedCashierId).startsWith('C')) {
+      if (db && /^\d+$/.test(String(state.selectedCashierId))) {
         const { data, error } = await db
           .from('cashier_shifts')
           .insert({
