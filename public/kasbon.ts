@@ -240,9 +240,14 @@ class KasbonModule {
                 alert('Gagal mencatat kasbon: ' + error.message);
                 return;
             } else {
-                record.id = data.debt_id;
-                record.transaction_id = data.transaction_id;
-                transactionId = data.transaction_id;
+                let rData = data;
+                if (Array.isArray(data)) rData = data[0];
+                if (typeof rData === 'string') {
+                    try { rData = JSON.parse(rData); } catch(e){}
+                }
+                record.id = rData?.debt_id || data?.debt_id;
+                record.transaction_id = rData?.transaction_id || data?.transaction_id;
+                transactionId = record.transaction_id;
             }
         } else {
             alert('Gagal: Tidak terhubung ke database atau toko tidak ditemukan.');
@@ -307,6 +312,10 @@ class KasbonModule {
             if (debt.transaction_id) {
                 await KasirApp.db.from('transactions').update({ payment_method: 'Lunas' }).eq('id', debt.transaction_id);
             }
+        } else if (KasirApp.db && isNaN(parseInt(id))) {
+            console.error('markDebtPaid: ID kasbon tidak valid (NaN). Nilai id:', id);
+            alert('Gagal menandai lunas: ID kasbon tidak valid. Silakan muat ulang halaman.');
+            return;
         }
         
         // Update local transaction state
