@@ -1538,7 +1538,7 @@ const App = (() => {
         const payload = { name, role };
         if (password) payload.password = password;
         const { error } = await db.from('cashiers').update(payload).eq('id', numId);
-        if (error) { showCashierError('Gagal simpan: ' + error.message); return; }
+        if (error) { showCashierError('Gagal simpan: ' + friendlyError(error)); return; }
         const idx = state.cashiers.findIndex(c => c.id === id);
         if (idx >= 0) {
           state.cashiers[idx] = { ...state.cashiers[idx], name, role, ...(password ? { password } : {}) };
@@ -1547,7 +1547,7 @@ const App = (() => {
         // Insert
         const { data, error } = await db.from('cashiers')
           .insert({ name, password, role, store_id: state.storeId }).select().single();
-        if (error) { showCashierError('Gagal tambah: ' + error.message); return; }
+        if (error) { showCashierError('Gagal tambah: ' + friendlyError(error)); return; }
         state.cashiers.push(fromDbCashier(data));
       }
     } else {
@@ -4530,7 +4530,7 @@ ${txRows}
     openShiftForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const floatVal = Number(document.getElementById('openShiftCashFloat').value) || 0;
-      if (db) {
+      if (db && !String(state.selectedCashierId).startsWith('C')) {
         const { data, error } = await db
           .from('cashier_shifts')
           .insert({
@@ -4546,7 +4546,7 @@ ${txRows}
           .select()
           .single();
         if (error) {
-          alert('Gagal membuka shift: ' + error.message);
+          alert('Gagal membuka shift: ' + friendlyError(error));
           return;
         }
         state.activeShift = data;
