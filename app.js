@@ -639,7 +639,7 @@ const App = (() => {
   // Hak akses mengikuti OPERATOR yang sedang aktif (admin = semua menu, kasir = terbatas)
   const applyRoleAccess = () => {
     const active = state.cashiers.find(c => c.id === state.selectedCashierId)
-      || state.cashiers.find(c => c.role === 'kasir') || state.cashiers[0];
+      || state.cashiers.find(c => c.role === 'admin') || state.cashiers[0];
     const isAdmin = !active || active.role === 'admin';
     const name = active?.name || state.store?.name || 'Pemilik';
     const nameEl = document.getElementById('sidebarUserName');
@@ -986,20 +986,20 @@ const App = (() => {
     // cashiers & purchases now loaded from Supabase; these are temp fallbacks
     const cashiersData = localStorage.getItem(STORAGE.cashiers);
     const purchasesData = localStorage.getItem(STORAGE.purchases);
-    const productsData = localStorage.getItem(STORAGE.products);
-    const transactionsData = localStorage.getItem(STORAGE.transactions);
-    
-    try { state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers; }
-    catch (e) { logError('loadLocalSettings: cashiers corrupt', { key: STORAGE.cashiers }, e); localStorage.removeItem(STORAGE.cashiers); state.cashiers = sampleCashiers; }
-    
-    try { state.purchases = purchasesData ? JSON.parse(purchasesData) : []; }
-    catch (e) { logError('loadLocalSettings: purchases corrupt', { key: STORAGE.purchases }, e); localStorage.removeItem(STORAGE.purchases); state.purchases = []; }
-
-    try { state.products = productsData ? JSON.parse(productsData) : []; }
-    catch (e) { logError('loadLocalSettings: products corrupt', { key: STORAGE.products }, e); localStorage.removeItem(STORAGE.products); state.products = []; }
-
-    try { state.transactions = transactionsData ? JSON.parse(transactionsData) : []; }
-    catch (e) { logError('loadLocalSettings: transactions corrupt', { key: STORAGE.transactions }, e); localStorage.removeItem(STORAGE.transactions); state.transactions = []; }
+    try {
+      state.cashiers = cashiersData ? JSON.parse(cashiersData) : sampleCashiers;
+    } catch (e) {
+      logError('loadLocalSettings: cashiers corrupt', { key: STORAGE.cashiers }, e);
+      localStorage.removeItem(STORAGE.cashiers);
+      state.cashiers = sampleCashiers;
+    }
+    try {
+      state.purchases = purchasesData ? JSON.parse(purchasesData) : [];
+    } catch (e) {
+      logError('loadLocalSettings: purchases corrupt', { key: STORAGE.purchases }, e);
+      localStorage.removeItem(STORAGE.purchases);
+      state.purchases = [];
+    }
     state.selectedCashierId = settings.selectedCashierId || state.cashiers[0]?.id || '';
     state.activeUserId = settings.activeUserId || state.selectedCashierId;
   };
@@ -1112,7 +1112,7 @@ const App = (() => {
       }
       // Pulihkan operator terakhir (agar kasir tidak naik jadi admin hanya dengan reload)
       const savedOp = state.cashiers.find(c => c.id === state.selectedCashierId);
-      state.selectedCashierId = (savedOp || state.cashiers.find(c => c.role === 'kasir') || state.cashiers[0])?.id || '';
+      state.selectedCashierId = (savedOp || state.cashiers.find(c => c.role === 'admin') || state.cashiers[0])?.id || '';
       state.activeUserId = state.selectedCashierId;
 
       setLoadingStatus('Memuat transaksi...', 70);
@@ -1143,7 +1143,12 @@ const App = (() => {
       setLoadingStatus('Siap!', 100);
     } catch (err) {
       logError('loadData: gagal memuat data toko', { storeId: state.storeId }, err);
-      showAppToast('Gagal memuat data toko. Menggunakan data offline.', 'error');
+      showAppToast('Gagal memuat data toko. Coba refresh halaman.', 'error');
+      state.products = [];
+      state.transactions = [];
+      state.cashiers = [];
+      state.purchases = [];
+      state.debts = [];
     }
 
     syncStorage();
@@ -1749,7 +1754,7 @@ const App = (() => {
       dom.purchaseTable.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-500">Belum ada data pembelian.</td></tr>';
       return;
     }
-    dom.purchaseTable.innerHTML = state.purchases.map(order => {
+    dom.purchaseTable.innerHTML = state.purchases.slice().reverse().map(order => {
       const time = new Date(order.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short', year: 'numeric' });
       return `
         <tr class="border-b border-slate-200">
@@ -2461,7 +2466,7 @@ const App = (() => {
   };
 
   const renderHistory = () => {
-    const transactions = getFilteredTransactions();
+    const transactions = getFilteredTransactions().slice().reverse();
     dom.historyTable.innerHTML = transactions.map(tx => {
       const time = new Date(tx.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: 'short', year: 'numeric' });
       const productCount = tx.items.reduce((sum, item) => sum + item.qty, 0);
@@ -5013,6 +5018,7 @@ ${txRows}
         record.id = 'D' + Date.now();
       } else {
         record.id = data.debt_id;
+        record.transaction_id = data.transaction_id;
         transactionId = data.transaction_id;
       }
     } else {
@@ -5077,7 +5083,20 @@ ${txRows}
     if (db && !isNaN(parseInt(id))) {
       const { error } = await db.from('debts').update({ status: 'lunas', paid_at: debt.paid_at }).eq('id', parseInt(id));
       if (error) logError('markDebtPaid: gagal update', { debtId: id }, error);
+      
+      if (debt.transaction_id) {
+          await db.from('transactions').update({ payment_method: 'Lunas' }).eq('id', debt.transaction_id);
+      }
     }
+    
+    if (debt.transaction_id && state.transactions) {
+        const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
+        if (tx) {
+            tx.paymentMethod = 'Lunas';
+            if (typeof renderHistory === 'function') renderHistory();
+        }
+    }
+    
     saveDebtsLocal();
     renderKasbon();
   };
@@ -5088,12 +5107,58 @@ ${txRows}
       alert('Hanya Admin Toko yang diizinkan untuk menghapus catatan kasbon.');
       return;
     }
-    if (!confirm('Hapus catatan kasbon ini?')) return;
-    state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
+    if (!confirm('Hapus catatan kasbon ini? Riwayat transaksi terkait akan dibatalkan (VOID) dan stok akan dikembalikan.')) return;
+    
+    const debt = (state.debts || []).find(d => String(d.id) === String(id));
+    if (!debt) return;
+    
+    const adminName = activeOp ? activeOp.name : 'Supervisor';
+    
     if (db && !isNaN(parseInt(id))) {
+      if (debt.transaction_id) {
+          const { error: txErr } = await db.from('transactions').update({
+              status: 'void',
+              void_reason: 'Kasbon Dihapus',
+              void_by: adminName,
+              void_at: new Date().toISOString()
+          }).eq('id', debt.transaction_id);
+          
+          if (!txErr && debt.items) {
+              for (const item of debt.items) {
+                  const numId = parseInt(item.product_id);
+                  if (isNaN(numId) || item.qty <= 0) continue;
+                  await db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
+              }
+          }
+      }
       const { error } = await db.from('debts').delete().eq('id', parseInt(id));
       if (error) logError('deleteDebt: gagal delete', { debtId: id }, error);
     }
+    
+    state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
+    
+    if (debt.transaction_id && state.transactions) {
+         const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
+         if (tx) {
+             tx.status = 'void';
+             tx.voidReason = 'Kasbon Dihapus';
+             tx.voidBy = adminName;
+             tx.voidAt = new Date().toISOString();
+             if (typeof renderHistory === 'function') renderHistory();
+             if (typeof updateDashboard === 'function') updateDashboard();
+         }
+    }
+    
+    if (debt.items) {
+        for (const item of debt.items) {
+            const product = state.products.find(p => String(p.id) === String(item.product_id));
+            if (product) {
+                product.stock += item.qty;
+            }
+        }
+        if (typeof renderProducts === 'function') renderProducts();
+    }
+    
     saveDebtsLocal();
     renderKasbon();
   };

@@ -5018,6 +5018,7 @@ ${txRows}
         record.id = 'D' + Date.now();
       } else {
         record.id = data.debt_id;
+        record.transaction_id = data.transaction_id;
         transactionId = data.transaction_id;
       }
     } else {
@@ -5082,7 +5083,20 @@ ${txRows}
     if (db && !isNaN(parseInt(id))) {
       const { error } = await db.from('debts').update({ status: 'lunas', paid_at: debt.paid_at }).eq('id', parseInt(id));
       if (error) logError('markDebtPaid: gagal update', { debtId: id }, error);
+      
+      if (debt.transaction_id) {
+          await db.from('transactions').update({ payment_method: 'Lunas' }).eq('id', debt.transaction_id);
+      }
     }
+    
+    if (debt.transaction_id && state.transactions) {
+        const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
+        if (tx) {
+            tx.paymentMethod = 'Lunas';
+            if (typeof renderHistory === 'function') renderHistory();
+        }
+    }
+    
     saveDebtsLocal();
     renderKasbon();
   };
@@ -5093,12 +5107,58 @@ ${txRows}
       alert('Hanya Admin Toko yang diizinkan untuk menghapus catatan kasbon.');
       return;
     }
-    if (!confirm('Hapus catatan kasbon ini?')) return;
-    state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
+    if (!confirm('Hapus catatan kasbon ini? Riwayat transaksi terkait akan dibatalkan (VOID) dan stok akan dikembalikan.')) return;
+    
+    const debt = (state.debts || []).find(d => String(d.id) === String(id));
+    if (!debt) return;
+    
+    const adminName = activeOp ? activeOp.name : 'Supervisor';
+    
     if (db && !isNaN(parseInt(id))) {
+      if (debt.transaction_id) {
+          const { error: txErr } = await db.from('transactions').update({
+              status: 'void',
+              void_reason: 'Kasbon Dihapus',
+              void_by: adminName,
+              void_at: new Date().toISOString()
+          }).eq('id', debt.transaction_id);
+          
+          if (!txErr && debt.items) {
+              for (const item of debt.items) {
+                  const numId = parseInt(item.product_id);
+                  if (isNaN(numId) || item.qty <= 0) continue;
+                  await db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
+              }
+          }
+      }
       const { error } = await db.from('debts').delete().eq('id', parseInt(id));
       if (error) logError('deleteDebt: gagal delete', { debtId: id }, error);
     }
+    
+    state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
+    
+    if (debt.transaction_id && state.transactions) {
+         const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
+         if (tx) {
+             tx.status = 'void';
+             tx.voidReason = 'Kasbon Dihapus';
+             tx.voidBy = adminName;
+             tx.voidAt = new Date().toISOString();
+             if (typeof renderHistory === 'function') renderHistory();
+             if (typeof updateDashboard === 'function') updateDashboard();
+         }
+    }
+    
+    if (debt.items) {
+        for (const item of debt.items) {
+            const product = state.products.find(p => String(p.id) === String(item.product_id));
+            if (product) {
+                product.stock += item.qty;
+            }
+        }
+        if (typeof renderProducts === 'function') renderProducts();
+    }
+    
     saveDebtsLocal();
     renderKasbon();
   };
