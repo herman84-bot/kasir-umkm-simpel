@@ -8,6 +8,7 @@ interface DebtItem {
 
 interface DebtRecord {
     id: number | string;
+    transaction_id?: number | string;
     store_id?: string;
     customer_name: string;
     phone: string;
@@ -240,6 +241,7 @@ class KasbonModule {
                 return;
             } else {
                 record.id = data.debt_id;
+                record.transaction_id = data.transaction_id;
                 transactionId = data.transaction_id;
             }
         } else {
@@ -300,17 +302,93 @@ class KasbonModule {
         debt.paid_at = new Date().toISOString();
         if (KasirApp.db && !isNaN(parseInt(id))) {
             await KasirApp.db.from('debts').update({ status: 'lunas', paid_at: debt.paid_at }).eq('id', parseInt(id));
+            
+            // Ubah transaksi di Riwayat dari "Hutang" jadi "Lunas"
+            if (debt.transaction_id) {
+                await KasirApp.db.from('transactions').update({ payment_method: 'Lunas' }).eq('id', debt.transaction_id);
+            }
         }
+        
+        // Update local transaction state
+        if (debt.transaction_id && KasirApp.state.transactions) {
+            const tx = KasirApp.state.transactions.find((t: any) => String(t.id) === String(debt.transaction_id));
+            if (tx) {
+                tx.paymentMethod = 'Lunas';
+                if (typeof (window as any).renderHistory === 'function') {
+                    (window as any).renderHistory();
+                }
+            }
+        }
+        
         KasirApp.saveDebtsLocal();
         KasbonModule.renderKasbon();
     }
 
     static async deleteDebt(id: string) {
-        if (!confirm('Hapus catatan kasbon ini? Jika transaksi sudah terekam di riwayat, Anda harus menghapusnya juga di sana.')) return;
-        KasirApp.state.debts = (KasirApp.state.debts || []).filter((d: any) => String(d.id) !== String(id));
+        if (!confirm('Hapus catatan kasbon ini? Riwayat transaksi terkait akan dibatalkan (VOID) dan stok akan dikembalikan.')) return;
+        
+        const debt = (KasirApp.state.debts || []).find((d: any) => String(d.id) === String(id));
+        if (!debt) return;
+        
+        const adminUser = KasirApp.state.cashiers?.find((c: any) => c.role === 'admin');
+        const adminName = adminUser ? adminUser.name : 'Supervisor';
+        
         if (KasirApp.db && !isNaN(parseInt(id))) {
+            if (debt.transaction_id) {
+                // Mark transaction as void
+                const { error: txErr } = await KasirApp.db.from('transactions').update({
+                    status: 'void',
+                    void_reason: 'Kasbon Dihapus',
+                    void_by: adminName,
+                    void_at: new Date().toISOString()
+                }).eq('id', debt.transaction_id);
+                
+                if (!txErr && debt.items) {
+                    for (const item of debt.items) {
+                        const numId = parseInt(item.product_id as any);
+                        if (isNaN(numId) || item.qty <= 0) continue;
+                        await KasirApp.db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
+                    }
+                }
+            }
+            // Delete debt
             await KasirApp.db.from('debts').delete().eq('id', parseInt(id));
         }
+        
+        // Update local states
+        KasirApp.state.debts = KasirApp.state.debts.filter((d: any) => String(d.id) !== String(id));
+        
+        if (debt.transaction_id && KasirApp.state.transactions) {
+             const tx = KasirApp.state.transactions.find((t: any) => String(t.id) === String(debt.transaction_id));
+             if (tx) {
+                 tx.status = 'void';
+                 tx.voidReason = 'Kasbon Dihapus';
+                 tx.voidBy = adminName;
+                 tx.voidAt = new Date().toISOString();
+                 if (typeof (window as any).renderHistory === 'function') {
+                     (window as any).renderHistory();
+                 }
+                 if (typeof (window as any).KasirApp?.updateDashboard === 'function') {
+                     (window as any).KasirApp.updateDashboard();
+                 }
+             }
+        }
+        
+        // Restore stock locally
+        if (debt.items) {
+            for (const item of debt.items) {
+                const product = KasirApp.state.products.find((p: any) => String(p.id) === String(item.product_id));
+                if (product) {
+                    product.stock += item.qty;
+                }
+            }
+            if (typeof (window as any).renderProducts === 'function') {
+                (window as any).renderProducts();
+            } else if (KasirApp.renderProducts) {
+                KasirApp.renderProducts();
+            }
+        }
+        
         KasirApp.saveDebtsLocal();
         KasbonModule.renderKasbon();
     }
