@@ -2149,11 +2149,12 @@ const App = (() => {
       const product = state.products.find(prod => prod.id === item.id);
       if (product) {
         product.stock += item.qty;
+        product.cost = item.price;
         if (db) {
           const numId = parseInt(product.id);
           if (!isNaN(numId)) {
-            const { error: stockErr } = await db.from('products').update({ stock: product.stock }).eq('id', numId);
-            if (stockErr) logError('savePurchaseOrder: stok gagal update', { productId: numId }, stockErr);
+            const { error: stockErr } = await db.from('products').update({ stock: product.stock, cost: product.cost }).eq('id', numId);
+            if (stockErr) logError('savePurchaseOrder: stok/cost gagal update', { productId: numId }, stockErr);
           }
         }
       }
@@ -4228,7 +4229,8 @@ ${txRows}
       }
       const product = state.products.find(item => item.id === productId);
       if (product) {
-        dom.purchaseCost.value = product.cost;
+        const existingInDraft = state.draftPurchase.items.find(item => item.id === productId);
+        dom.purchaseCost.value = existingInDraft ? existingInDraft.price : product.cost;
       } else {
         dom.purchaseCost.value = '';
       }
