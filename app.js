@@ -422,18 +422,22 @@ const App = (() => {
       db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
         auth: { detectSessionInUrl: true }
       });
-      db.auth.onAuthStateChange(event => {
+      db.auth.onAuthStateChange((event, changedSession) => {
         if (event === 'PASSWORD_RECOVERY') {
           // Event ini bisa telat datang (setelah dashboard sempat mulai
           // render di edge case tertentu) — showNewPasswordForm() dipanggil
           // FORCE di sini (bukan cuma set flag) supaya dashboard yang
           // terlanjur tampil langsung disembunyikan lagi.
           passwordRecoveryMode = true;
-          // Persist ke localStorage juga: sesi PKCE yang sudah di-exchange
-          // SDK tersimpan permanen (persistSession default true), tapi flag
-          // in-memory ini hilang begitu tab reload. Tanpa persist, reload
-          // sebelum password baru dibuat = bypass (sesi valid, guard hilang).
-          localStorage.setItem('pw_recovery_pending', '1');
+          // Persist berbasis USER ID (bukan flag generik '1'): flag generik
+          // tersimpan di localStorage yang SHARED antar semua tab origin ini,
+          // jadi tab lain (user lain, sesi lain) ikut terkunci ke form
+          // recovery kalau reload — regresi yang ditemukan QA. Dengan uid,
+          // guard di init() hanya aktif kalau sesi AKTIF SEKARANG match
+          // persis dengan uid yang tercatat.
+          if (changedSession?.user?.id) {
+            localStorage.setItem('pw_recovery_uid', changedSession.user.id);
+          }
           showNewPasswordForm();
         }
       });
@@ -747,6 +751,7 @@ const App = (() => {
     localStorage.removeItem('offline_tx_queue');
     localStorage.removeItem('debt_queue');
     localStorage.removeItem('pending_subs_order');
+    localStorage.removeItem('pw_recovery_uid');
     Object.keys(localStorage).forEach(k => {
       if (k.startsWith('active_store_') || k.startsWith('shift_start_') || k.startsWith('onboardingDone_')) {
         localStorage.removeItem(k);
@@ -4390,7 +4395,7 @@ ${txRows}
       // bebaskan dari flag recovery yang mungkin masih nyangkut (mis. user
       // pernah mulai proses reset lalu batal, tapi ingat password lama).
       passwordRecoveryMode = false;
-      localStorage.removeItem('pw_recovery_pending');
+      localStorage.removeItem('pw_recovery_uid');
       await enterAppAfterAuth();
     });
 
@@ -4417,7 +4422,7 @@ ${txRows}
         return;
       }
       passwordRecoveryMode = false;
-      localStorage.removeItem('pw_recovery_pending');
+      localStorage.removeItem('pw_recovery_uid');
       const regStoreName2 = document.getElementById('regStoreName')?.value || 'Toko';
       await enterAppAfterAuth();
       // Show onboarding for new registrations
@@ -4593,10 +4598,19 @@ ${txRows}
       const { error } = await db.auth.updateUser({ password: pass1 });
       btn.textContent = 'Simpan Password Baru'; btn.disabled = false;
       if (error) { showErr(terjemahAuthError(error.message)); return; }
-      await db.auth.signOut();
-      history.replaceState(null, '', location.pathname);
-      passwordRecoveryMode = false;
-      localStorage.removeItem('pw_recovery_pending');
+      // signOut dibungkus try/catch: apa pun hasilnya (sukses/gagal), flag
+      // recovery TETAP dibersihkan di finally — jangan sampai user stuck di
+      // form recovery hanya karena signOut gagal karena network error
+      // padahal password sudah berhasil diganti.
+      try {
+        await db.auth.signOut();
+      } catch (signOutErr) {
+        logError('signOut gagal setelah ganti password recovery', {}, signOutErr);
+      } finally {
+        history.replaceState(null, '', location.pathname);
+        passwordRecoveryMode = false;
+        localStorage.removeItem('pw_recovery_uid');
+      }
       hideNewPasswordForm();
       const authSuccess2 = document.getElementById('authSuccess');
       if (authSuccess2) {
@@ -4604,6 +4618,23 @@ ${txRows}
         authSuccess2.classList.remove('hidden');
       }
       document.getElementById('authError')?.classList.add('hidden');
+    });
+
+    // Satu-satunya jalan keluar untuk user yang terjebak di form recovery
+    // (lupa isi / berubah pikiran / cuma numpang buka app). Tanpa tombol
+    // ini, flag pw_recovery_uid tidak pernah hilang tanpa devtools —
+    // dead-end UX fatal untuk user UMKM non-teknis.
+    document.getElementById('cancelRecoveryBtn')?.addEventListener('click', async () => {
+      passwordRecoveryMode = false;
+      localStorage.removeItem('pw_recovery_uid');
+      try {
+        await db?.auth.signOut();
+      } catch (signOutErr) {
+        logError('signOut gagal saat batal recovery', {}, signOutErr);
+      }
+      history.replaceState(null, '', location.pathname);
+      hideNewPasswordForm();
+      showLoginPage();
     });
 
     // ── Feature 5: Shift / Tutup Kasir ──
@@ -5987,18 +6018,6 @@ ${txRows}
 
   const init = async () => {
     setLoadingStatus('Menghubungkan ke database...', 10);
-    // Cek flag persisten PALING AWAL, sebelum logika berbasis URL/sesi apa
-    // pun. Guard in-memory (passwordRecoveryMode) dan resource yang dijaga
-    // (sesi Supabase di localStorage, persistSession default true) punya
-    // lifetime berbeda: URL recovery cuma ada 1x load, tapi sesi hasil
-    // exchange-nya tetap tersimpan lintas reload. Kalau user reload tab
-    // SEBELUM submit password baru, location.hash/search sudah kosong
-    // (sudah dikonsumsi SDK) sehingga deteksi berbasis URL saja gagal dan
-    // sesi valid yang ter-persist bikin lolos ke dashboard tanpa ganti
-    // password. Flag di localStorage ini survive reload sehingga menutup itu.
-    if (localStorage.getItem('pw_recovery_pending') === '1') {
-      passwordRecoveryMode = true;
-    }
     // Snapshot hash & query string SEBELUM createClient dipanggil sama sekali.
     // Root cause bypass: link recovery PKCE dari Supabase membawa
     // "?code=...&type=recovery" di QUERY STRING, bukan hash. Begitu
@@ -6021,7 +6040,6 @@ ${txRows}
       || authQuery.has('code');
     if (isRecoveryLink) {
       passwordRecoveryMode = true;
-      localStorage.setItem('pw_recovery_pending', '1');
     }
     const linkExpired = authHash.includes('error_code=otp_expired') || authHash.includes('error=access_denied');
     if (linkExpired) {
@@ -6044,6 +6062,23 @@ ${txRows}
     // Cek sesi Supabase yang masih aktif
     setLoadingStatus('Memeriksa sesi...', 20);
     const session = await getAuthSession();
+
+    // Baru simpan uid recovery SETELAH sesi benar-benar terbentuk (bukan
+    // sebelum tahu siapa usernya) — link recovery load ini berarti SDK sudah
+    // selesai exchange code jadi sesi di titik ini.
+    if (isRecoveryLink && session?.user?.id) {
+      localStorage.setItem('pw_recovery_uid', session.user.id);
+    }
+    // Guard berbasis USER ID, bukan flag generik: HANYA aktif kalau ADA
+    // flag tercatat DAN ADA sesi aktif SEKARANG yang usernya SAMA PERSIS.
+    // Ini otomatis menutup kasus cross-tab (user lain, uid beda -> tidak
+    // match -> tidak ikut terkunci) dan kasus setelah signOut sukses (sesi
+    // null di semua tab origin ini -> guard tidak pernah terpicu lagi
+    // walau ada sisa flag).
+    const recoveryUid = localStorage.getItem('pw_recovery_uid');
+    if (recoveryUid && session?.user?.id === recoveryUid) {
+      passwordRecoveryMode = true;
+    }
 
     if (passwordRecoveryMode) {
       showNewPasswordForm();
