@@ -306,8 +306,6 @@
           <label class="block">
             <span class="text-slate-700 text-sm font-medium">Email</span>
             <input id="regEmail" type="email" required autocomplete="email"
-              class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 focus:ring-2 focus:ring-sky-400 focus:outline-none"
-              placeholder="email@toko.com" />
           </label>
           <label class="block">
             <span class="text-slate-700 text-sm font-medium">Password (min. 6 karakter)</span>
@@ -316,6 +314,16 @@
                 class="w-full rounded-2xl border border-slate-300 px-4 py-3 pr-12 focus:ring-2 focus:ring-sky-400 focus:outline-none"
                 placeholder="Buat password" />
               <button type="button" data-toggle="regPass"
+                class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">👁</button>
+            </div>
+          </label>
+          <label class="block mt-4">
+            <span class="text-slate-700 text-sm font-medium">PIN Otorisasi Kasir Utama (Angka)</span>
+            <div class="relative mt-2">
+              <input id="regPin" type="password" required minlength="4" maxlength="6" inputmode="numeric"
+                class="w-full rounded-2xl border border-slate-300 px-4 py-3 pr-12 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+                placeholder="Contoh: 123456" />
+              <button type="button" data-toggle="regPin"
                 class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">👁</button>
             </div>
           </label>
@@ -638,7 +646,6 @@
             <p class="text-slate-500">Tambah, edit, dan hapus produk dengan mudah.</p>
           </div>
           <div class="flex flex-wrap gap-3">
-            <button data-screen="opname" class="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">📋 Stok Opname</button>
             <button id="exportInventory" class="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-700 hover:bg-slate-100 transition">Export CSV</button>
             <button id="addProductButton" class="rounded-2xl bg-slate-900 px-5 py-3 text-white hover:bg-slate-800 transition">Tambah Produk</button>
           </div>
@@ -1215,8 +1222,9 @@
           <label class="block"><span class="text-slate-700">Supplier</span><input id="purchaseSupplier" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" /></label>
           <label class="block"><span class="text-slate-700">ID Invoice</span><input id="purchaseInvoice" value="" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="INV-001" /></label>
         </div>
-        <div class="grid gap-4 sm:grid-cols-2">
+        <div class="grid gap-4 sm:grid-cols-3">
           <label class="block"><span class="text-slate-700">Pilih Produk</span><select id="purchaseProduct" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 bg-white"></select></label>
+          <label class="block"><span class="text-slate-700">Harga Beli (Modal)</span><input id="purchaseCost" type="number" min="0" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" /></label>
           <label class="block"><span class="text-slate-700">Jumlah Beli</span><input id="purchaseQty" type="number" min="1" value="1" class="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3" /></label>
         </div>
         <button id="addPurchaseItem" class="rounded-2xl bg-slate-900 px-5 py-3 text-white hover:bg-slate-800 transition">Tambah Item Pembelian</button>
@@ -1626,6 +1634,9 @@
           <button type="button" id="cancelPinAuth" class="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-700 hover:bg-slate-100 transition text-sm">
             Batal
           </button>
+        </div>
+        <div class="text-center mt-3">
+            <a href="#" onclick="alert('Jika Anda lupa PIN, Anda dapat mengubahnya di menu Manajemen Kasir (hanya bisa diakses oleh akun Admin/Pemilik).')" class="text-xs text-sky-600 hover:underline">Lupa PIN?</a>
         </div>
       </form>
     </div>

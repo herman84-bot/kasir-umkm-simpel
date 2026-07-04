@@ -548,7 +548,7 @@ const App = (() => {
   };
 
   // Daftar toko baru: buat akun auth + store + admin cashier
-  const handleRegister = async ({ storeName, ownerName, email, password }) => {
+  const handleRegister = async ({ storeName, ownerName, email, password, pin }) => {
     if (!db) return { error: 'Database tidak tersedia.' };
     const { data, error } = await db.auth.signUp({ email, password });
     if (error) return { error: terjemahAuthError(error.message) };
@@ -571,9 +571,9 @@ const App = (() => {
       .select().single();
     if (sErr) return { error: 'Gagal membuat toko: ' + sErr.message };
 
-    // Buat kasir admin (pemilik) — PIN default 1234
+    // Buat kasir admin (pemilik) dengan PIN custom
     const { error: cashierErr } = await db.from('cashiers').insert({
-      store_id: store.id, name: ownerName.trim(), password: '1234', role: 'admin'
+      store_id: store.id, name: ownerName.trim(), password: pin || '1234', role: 'admin'
     });
     if (cashierErr) logError('cashier insert gagal', { storeId: state.storeId }, cashierErr);
 
@@ -833,6 +833,7 @@ const App = (() => {
     purchaseSupplier: document.getElementById('purchaseSupplier'),
     purchaseInvoice: document.getElementById('purchaseInvoice'),
     purchaseProduct: document.getElementById('purchaseProduct'),
+    purchaseCost: document.getElementById('purchaseCost'),
     purchaseQty: document.getElementById('purchaseQty'),
     addPurchaseItem: document.getElementById('addPurchaseItem'),
     purchaseItemsList: document.getElementById('purchaseItemsList'),
@@ -1234,17 +1235,21 @@ const App = (() => {
     if ((state.stores || []).length >= 1 && !await requireBusiness('Multi-cabang (lebih dari 1 toko)')) return;
     const name = (prompt('Nama cabang baru:') || '').trim();
     if (!name) return;
+    let pin = prompt('Masukkan PIN untuk admin cabang baru:', '');
+    if (pin === null) return;
+    pin = pin.trim();
+    if (!pin) { alert('PIN wajib diisi! Penambahan cabang dibatalkan.'); return; }
     if (!db || !state.authUser) { alert('Fitur cabang membutuhkan koneksi & login.'); return; }
     const { data: store, error } = await db.from('stores')
       .insert({ owner_id: state.authUser.id, name }).select().single();
     if (error || !store) { alert('Gagal membuat cabang: ' + friendlyError(error)); return; }
-    // Buat admin default untuk cabang baru agar langsung bisa dipakai (PIN 1234)
+    // Buat admin default untuk cabang baru agar langsung bisa dipakai
     const { error: branchCashierErr } = await db.from('cashiers').insert({
-      store_id: store.id, name: 'Pemilik', password: '1234', role: 'admin'
+      store_id: store.id, name: 'Pemilik', password: pin, role: 'admin'
     });
     if (branchCashierErr) logError('cashier insert gagal', { storeId: state.storeId }, branchCashierErr);
     state.stores.push(store);
-    alert('Cabang "' + name + '" dibuat. PIN admin default: 1234');
+    alert('Cabang "' + name + '" dibuat. PIN admin: ' + pin);
     await switchStore(store.id);
     renderBranchList();
   };
@@ -1537,7 +1542,7 @@ const App = (() => {
         const payload = { name, role };
         if (password) payload.password = password;
         const { error } = await db.from('cashiers').update(payload).eq('id', numId);
-        if (error) { showCashierError('Gagal simpan: ' + error.message); return; }
+        if (error) { showCashierError('Gagal simpan: ' + friendlyError(error)); return; }
         const idx = state.cashiers.findIndex(c => c.id === id);
         if (idx >= 0) {
           state.cashiers[idx] = { ...state.cashiers[idx], name, role, ...(password ? { password } : {}) };
@@ -1546,7 +1551,7 @@ const App = (() => {
         // Insert
         const { data, error } = await db.from('cashiers')
           .insert({ name, password, role, store_id: state.storeId }).select().single();
-        if (error) { showCashierError('Gagal tambah: ' + error.message); return; }
+        if (error) { showCashierError('Gagal tambah: ' + friendlyError(error)); return; }
         state.cashiers.push(fromDbCashier(data));
       }
     } else {
@@ -2007,6 +2012,7 @@ const App = (() => {
     dom.purchaseSupplier.value = '';
     dom.purchaseInvoice.value = state.draftPurchase.invoice;
     dom.purchaseQty.value = 1;
+    dom.purchaseCost.value = '';
     dom.purchaseItemsList.innerHTML = '<p class="text-slate-500">Belum ada item pembelian.</p>';
     dom.purchaseTotal.textContent = formatCurrency(0);
   };
@@ -2087,14 +2093,19 @@ const App = (() => {
   const addPurchaseItemToDraft = () => {
     const productId = dom.purchaseProduct.value;
     const qty = Number(dom.purchaseQty.value) || 1;
+    const costInput = Number(dom.purchaseCost.value) || 0;
     const product = state.products.find(item => item.id === productId);
     if (!product) return;
     const existing = state.draftPurchase.items.find(item => item.id === productId);
     if (existing) {
       existing.qty += qty;
+      existing.price = costInput;
     } else {
-      state.draftPurchase.items.push({ id: product.id, name: product.name, price: product.cost, qty });
+      state.draftPurchase.items.push({ id: product.id, name: product.name, price: costInput, qty });
     }
+    dom.purchaseProduct.value = '';
+    dom.purchaseQty.value = 1;
+    dom.purchaseCost.value = '';
     renderPurchaseDraft();
   };
 
@@ -2151,11 +2162,12 @@ const App = (() => {
       const product = state.products.find(prod => prod.id === item.id);
       if (product) {
         product.stock += item.qty;
+        product.cost = item.price;
         if (db) {
           const numId = parseInt(product.id);
           if (!isNaN(numId)) {
-            const { error: stockErr } = await db.from('products').update({ stock: product.stock }).eq('id', numId);
-            if (stockErr) logError('savePurchaseOrder: stok gagal update', { productId: numId }, stockErr);
+            const { error: stockErr } = await db.from('products').update({ stock: product.stock, cost: product.cost }).eq('id', numId);
+            if (stockErr) logError('savePurchaseOrder: stok/cost gagal update', { productId: numId }, stockErr);
           }
         }
       }
@@ -3218,6 +3230,11 @@ ${discountHtml}${taxHtml}
   // ── Feature: Shift / Tutup Kasir & Supervisor Otorisasi ───────────────────
   const loadActiveShift = async () => {
     if (!db || !state.storeId || !state.selectedCashierId) return null;
+    if (/^C\d+$/.test(String(state.selectedCashierId))) {
+      state.activeShift = null;
+      state.shiftStartTime = null;
+      return null;
+    }
     try {
       const { data, error } = await db
         .from('cashier_shifts')
@@ -3461,7 +3478,7 @@ ${txRows}
     const discrepancy = actual - expected;
     const note = elNote?.value || '';
 
-    if (db) {
+    if (db && !String(state.activeShift.id).startsWith('offline')) {
       const { error } = await db
         .from('cashier_shifts')
         .update({
@@ -4222,6 +4239,20 @@ ${txRows}
     dom.closePurchaseModal.addEventListener('click', closePurchaseModal);
     dom.cancelPurchase.addEventListener('click', closePurchaseModal);
     dom.addPurchaseItem.addEventListener('click', addPurchaseItemToDraft);
+    dom.purchaseProduct.addEventListener('change', () => {
+      const productId = dom.purchaseProduct.value;
+      if (!productId) {
+        dom.purchaseCost.value = '';
+        return;
+      }
+      const product = state.products.find(item => item.id === productId);
+      if (product) {
+        const existingInDraft = state.draftPurchase.items.find(item => item.id === productId);
+        dom.purchaseCost.value = existingInDraft ? existingInDraft.price : product.cost;
+      } else {
+        dom.purchaseCost.value = '';
+      }
+    });
     dom.savePurchase.addEventListener('click', savePurchaseOrder);
     dom.exportPurchase.addEventListener('click', exportPurchasesCSV);
     dom.exportDataButton.addEventListener('click', exportAppBackup);
@@ -4324,7 +4355,8 @@ ${txRows}
         storeName: document.getElementById('regStoreName').value,
         ownerName: document.getElementById('regOwnerName').value,
         email: document.getElementById('regEmail').value.trim(),
-        password: document.getElementById('regPass').value
+        password: document.getElementById('regPass').value,
+        pin: document.getElementById('regPin').value
       });
       btn.textContent = 'Daftar & Buat Toko'; btn.disabled = false;
       if (res.error) { showAuthError(res.error); return; }
@@ -4507,7 +4539,7 @@ ${txRows}
     openShiftForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const floatVal = Number(document.getElementById('openShiftCashFloat').value) || 0;
-      if (db) {
+      if (db && !/^C\d+$/.test(String(state.selectedCashierId))) {
         const { data, error } = await db
           .from('cashier_shifts')
           .insert({
@@ -4523,7 +4555,7 @@ ${txRows}
           .select()
           .single();
         if (error) {
-          alert('Gagal membuka shift: ' + error.message);
+          alert('Gagal membuka shift: ' + friendlyError(error));
           return;
         }
         state.activeShift = data;
@@ -4717,15 +4749,25 @@ ${txRows}
     // Super admin dibebaskan dari kewajiban memiliki toko
     if (db && state.authUser && !state.storeId && !_isSuperAdmin) {
       let storeName = prompt('Selamat datang! Masukkan nama toko Anda untuk memulai:');
-      storeName = (storeName || '').trim() || 'Toko Saya';
+      if (storeName === null) return;
+      storeName = storeName.trim() || 'Toko Saya';
       const ownerName = prompt('Nama Anda (pemilik):') || 'Pemilik';
+      
+      let pin = prompt('Masukkan PIN untuk login kasir/admin:', '');
+      if (pin === null) return;
+      pin = pin.trim();
+      if (!pin) {
+        alert('PIN wajib diisi! Pendaftaran toko dibatalkan.');
+        return;
+      }
+      
       const { data: store, error } = await db.from('stores')
         .insert({ owner_id: state.authUser.id, name: storeName }).select().single();
       if (!error && store) {
         state.store = store;
         state.storeId = store.id;
         const { error: initCashierErr } = await db.from('cashiers').insert({
-          store_id: store.id, name: ownerName.trim(), password: '1234', role: 'admin'
+          store_id: store.id, name: ownerName.trim(), password: pin, role: 'admin'
         });
         if (initCashierErr) logError('cashier insert gagal', { storeId: state.storeId }, initCashierErr);
         await loadData();
@@ -5099,8 +5141,14 @@ ${txRows}
           return;
         }
       } else {
-        record.id = data.debt_id;
-        transactionId = data.transaction_id;
+        let rData = data;
+        if (Array.isArray(data)) rData = data[0];
+        if (typeof rData === 'string') {
+            try { rData = JSON.parse(rData); } catch(e){}
+        }
+        record.id = rData?.debt_id || data?.debt_id;
+        record.transaction_id = rData?.transaction_id || data?.transaction_id;
+        transactionId = record.transaction_id;
       }
     } else {
       if (!queueDebtOffline()) return;
@@ -5174,9 +5222,20 @@ ${txRows}
         showAppToast('Kasbon belum ditandai lunas. Periksa koneksi internet lalu coba lagi.', 'error');
         return; // jangan ubah state lokal agar tetap sinkron dengan server
       }
+      // Transaksi Hutang terkait ikut ditandai Lunas di server
+      if (debt.transaction_id) {
+        await db.from('transactions').update({ payment_method: 'Lunas' }).eq('id', debt.transaction_id);
+      }
     }
     debt.status = 'lunas';
     debt.paid_at = paidAt;
+    if (debt.transaction_id && state.transactions) {
+      const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
+      if (tx) {
+        tx.paymentMethod = 'Lunas';
+        if (typeof renderHistory === 'function') renderHistory();
+      }
+    }
     saveDebtsLocal();
     renderKasbon();
   };
@@ -5198,19 +5257,39 @@ ${txRows}
     if (!debt) return;
     _debtDeleteId = id;
     const textEl = document.getElementById('debtDeleteText');
-    if (textEl) textEl.textContent = `Catatan kasbon ${debt.customer_name} ${formatCurrency(debt.amount)} akan dihapus permanen dan tidak bisa dikembalikan.`;
+    if (textEl) textEl.textContent = `Catatan kasbon ${debt.customer_name} ${formatCurrency(debt.amount)} akan dihapus permanen. Transaksi terkait dibatalkan dan stok dikembalikan.`;
     document.getElementById('debtDeleteModal')?.classList.remove('hidden');
   };
 
   const confirmDeleteDebt = async () => {
     const id = _debtDeleteId;
     if (id === null) return;
+    const debt = (state.debts || []).find(d => String(d.id) === String(id));
+    if (!debt) { closeDebtDeleteModal(); return; }
+    const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
+    const adminName = activeOp ? activeOp.name : 'Supervisor';
     const confirmBtn = document.getElementById('debtDeleteConfirm');
     if (String(id).startsWith('D')) {
       // Masih di antrean lokal → hapus dari antrean saja
       saveDebtQueue(getDebtQueue().filter(en => String(en.id) !== String(id)));
     } else if (db) {
       if (confirmBtn) confirmBtn.disabled = true; // cegah double-tap selama menunggu server
+      // Batalkan (VOID) transaksi Hutang terkait + kembalikan stok di server
+      if (debt.transaction_id) {
+        const { error: txErr } = await db.from('transactions').update({
+          status: 'void',
+          void_reason: 'Kasbon Dihapus',
+          void_by: adminName,
+          void_at: new Date().toISOString()
+        }).eq('id', debt.transaction_id);
+        if (!txErr && debt.items) {
+          for (const item of debt.items) {
+            const numId = parseInt(item.product_id);
+            if (isNaN(numId) || item.qty <= 0) continue;
+            await db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
+          }
+        }
+      }
       const { error } = await db.from('debts').delete().eq('id', id);
       if (confirmBtn) confirmBtn.disabled = false;
       if (error) {
@@ -5220,6 +5299,24 @@ ${txRows}
       }
     }
     state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
+    if (debt.transaction_id && state.transactions) {
+      const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
+      if (tx) {
+        tx.status = 'void';
+        tx.voidReason = 'Kasbon Dihapus';
+        tx.voidBy = adminName;
+        tx.voidAt = new Date().toISOString();
+        if (typeof renderHistory === 'function') renderHistory();
+        if (typeof updateDashboard === 'function') updateDashboard();
+      }
+    }
+    if (debt.items) {
+      for (const item of debt.items) {
+        const product = state.products.find(p => String(p.id) === String(item.product_id));
+        if (product) product.stock += item.qty;
+      }
+      if (typeof renderProducts === 'function') renderProducts();
+    }
     saveDebtsLocal();
     closeDebtDeleteModal();
     renderKasbon();

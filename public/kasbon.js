@@ -170,16 +170,20 @@ class KasbonModule {
                 cashierName = cashier.name;
             let transactionId = null;
             if (KasirApp.db && KasirApp.state.storeId) {
+                // Fix: Dapatkan UUID store yang benar dari state.stores, jangan hanya andalkan state.storeId
+                // Ini untuk mengatasi kasus di mana state.storeId mungkin berisi ID integer lama dari localStorage
                 const currentStore = (KasirApp.state.stores || []).find((s) => String(s.id) == String(KasirApp.state.storeId));
                 const storeUuid = currentStore ? currentStore.id : null;
+                // Validasi UUID untuk mencegah error 'invalid input syntax for type uuid'
                 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
                 if (!storeUuid || !uuidRegex.test(String(storeUuid))) {
                     console.error("Kasbon save failed: storeId is not a valid UUID or not found. Value was:", KasirApp.state.storeId);
                     alert('Gagal: Data toko (storeId) tidak valid. Silakan muat ulang halaman atau pilih toko yang benar.');
                     return;
                 }
+                // Gunakan RPC create_debt_transaction
                 const { data, error } = yield KasirApp.db.rpc('create_debt_transaction', {
-                    p_store_id: storeUuid, // FIX: Menggunakan UUID yang sudah divalidasi
+                    p_store_id: storeUuid,
                     p_customer_name: name,
                     p_phone: phone,
                     p_amount: amount,
@@ -193,8 +197,14 @@ class KasbonModule {
                     return;
                 }
                 else {
-                    record.id = data.debt_id;
-                    transactionId = data.transaction_id;
+                    let rData = data;
+                    if (Array.isArray(data)) rData = data[0];
+                    if (typeof rData === 'string') {
+                        try { rData = JSON.parse(rData); } catch(e){}
+                    }
+                    record.id = rData?.debt_id || data?.debt_id;
+                    record.transaction_id = rData?.transaction_id || data?.transaction_id;
+                    transactionId = record.transaction_id;
                 }
             }
             else {
@@ -253,6 +263,24 @@ class KasbonModule {
             debt.paid_at = new Date().toISOString();
             if (KasirApp.db && !isNaN(parseInt(id))) {
                 yield KasirApp.db.from('debts').update({ status: 'lunas', paid_at: debt.paid_at }).eq('id', parseInt(id));
+                // Ubah transaksi di Riwayat dari "Hutang" jadi "Lunas"
+                if (debt.transaction_id) {
+                    yield KasirApp.db.from('transactions').update({ payment_method: 'Lunas' }).eq('id', debt.transaction_id);
+                }
+            } else if (KasirApp.db && isNaN(parseInt(id))) {
+                console.error('markDebtPaid: ID kasbon tidak valid (NaN). Nilai id:', id);
+                alert('Gagal menandai lunas: ID kasbon tidak valid. Silakan muat ulang halaman.');
+                return;
+            }
+            // Update local transaction state
+            if (debt.transaction_id && KasirApp.state.transactions) {
+                const tx = KasirApp.state.transactions.find((t) => String(t.id) === String(debt.transaction_id));
+                if (tx) {
+                    tx.paymentMethod = 'Lunas';
+                    if (typeof window.renderHistory === 'function') {
+                        window.renderHistory();
+                    }
+                }
             }
             KasirApp.saveDebtsLocal();
             KasbonModule.renderKasbon();
@@ -260,11 +288,66 @@ class KasbonModule {
     }
     static deleteDebt(id) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (!confirm('Hapus catatan kasbon ini? Jika transaksi sudah terekam di riwayat, Anda harus menghapusnya juga di sana.'))
+            var _a, _b;
+            if (!confirm('Hapus catatan kasbon ini? Riwayat transaksi terkait akan dibatalkan (VOID) dan stok akan dikembalikan.'))
                 return;
-            KasirApp.state.debts = (KasirApp.state.debts || []).filter((d) => String(d.id) !== String(id));
+            const debt = (KasirApp.state.debts || []).find((d) => String(d.id) === String(id));
+            if (!debt)
+                return;
+            const adminUser = (_a = KasirApp.state.cashiers) === null || _a === void 0 ? void 0 : _a.find((c) => c.role === 'admin');
+            const adminName = adminUser ? adminUser.name : 'Supervisor';
             if (KasirApp.db && !isNaN(parseInt(id))) {
+                if (debt.transaction_id) {
+                    // Mark transaction as void
+                    const { error: txErr } = yield KasirApp.db.from('transactions').update({
+                        status: 'void',
+                        void_reason: 'Kasbon Dihapus',
+                        void_by: adminName,
+                        void_at: new Date().toISOString()
+                    }).eq('id', debt.transaction_id);
+                    if (!txErr && debt.items) {
+                        for (const item of debt.items) {
+                            const numId = parseInt(item.product_id);
+                            if (isNaN(numId) || item.qty <= 0)
+                                continue;
+                            yield KasirApp.db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
+                        }
+                    }
+                }
+                // Delete debt
                 yield KasirApp.db.from('debts').delete().eq('id', parseInt(id));
+            }
+            // Update local states
+            KasirApp.state.debts = KasirApp.state.debts.filter((d) => String(d.id) !== String(id));
+            if (debt.transaction_id && KasirApp.state.transactions) {
+                const tx = KasirApp.state.transactions.find((t) => String(t.id) === String(debt.transaction_id));
+                if (tx) {
+                    tx.status = 'void';
+                    tx.voidReason = 'Kasbon Dihapus';
+                    tx.voidBy = adminName;
+                    tx.voidAt = new Date().toISOString();
+                    if (typeof window.renderHistory === 'function') {
+                        window.renderHistory();
+                    }
+                    if (typeof ((_b = window.KasirApp) === null || _b === void 0 ? void 0 : _b.updateDashboard) === 'function') {
+                        window.KasirApp.updateDashboard();
+                    }
+                }
+            }
+            // Restore stock locally
+            if (debt.items) {
+                for (const item of debt.items) {
+                    const product = KasirApp.state.products.find((p) => String(p.id) === String(item.product_id));
+                    if (product) {
+                        product.stock += item.qty;
+                    }
+                }
+                if (typeof window.renderProducts === 'function') {
+                    window.renderProducts();
+                }
+                else if (KasirApp.renderProducts) {
+                    KasirApp.renderProducts();
+                }
             }
             KasirApp.saveDebtsLocal();
             KasbonModule.renderKasbon();
