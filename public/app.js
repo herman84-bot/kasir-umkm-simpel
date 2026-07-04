@@ -593,10 +593,14 @@ const App = (() => {
     const m = (msg || '').toLowerCase();
     if (m.includes('invalid login')) return 'Email atau password salah.';
     if (m.includes('already registered') || m.includes('already been registered')) return 'Email sudah terdaftar. Silakan masuk.';
-    if (m.includes('password should be at least')) return 'Password minimal 6 karakter.';
+    if (m.includes('password should be at least')) return 'Password minimal 8 karakter.';
+    if (m.includes('same as the old password') || m.includes('different from the old')) return 'Password baru tidak boleh sama dengan password lama.';
     if (m.includes('unable to validate email') || m.includes('invalid email')) return 'Format email tidak valid.';
     if (m.includes('email not confirmed')) return 'Email belum dikonfirmasi.';
-    return msg || 'Terjadi kesalahan.';
+    if (m.includes('failed to fetch') || m.includes('network')) return 'Koneksi bermasalah. Periksa internet lalu coba lagi.';
+    // Jangan tampilkan pesan mentah dari server ke user (bisa memuat detail teknis)
+    if (msg) logError('Auth error tanpa terjemahan', { pesan: String(msg).slice(0, 120) }, null);
+    return 'Terjadi kesalahan. Coba lagi.';
   };
 
   const friendlyError = err => {
@@ -4792,6 +4796,13 @@ ${txRows}
 
   // Dipanggil setelah login/daftar berhasil ATAU saat sesi masih aktif
   const enterAppAfterAuth = async () => {
+    // Mode recovery: pemegang link reset TIDAK boleh masuk dashboard
+    // sebelum membuat password baru (guard di semua jalur SIGNED_IN/bootstrap).
+    if (passwordRecoveryMode) {
+      showNewPasswordForm();
+      hideLoadingOverlay();
+      return;
+    }
     showHelpChatFab();
     await loadData();
 
@@ -5952,6 +5963,18 @@ ${txRows}
 
   const init = async () => {
     setLoadingStatus('Menghubungkan ke database...', 10);
+    // Snapshot hash SEBELUM createClient — supabase-js (detectSessionInUrl)
+    // mem-parse lalu menghapus hash; tanpa snapshot ini penanda type=recovery
+    // bisa hilang duluan dan pemegang link reset masuk dashboard tanpa
+    // membuat password baru.
+    const authHash = location.hash;
+    if (authHash.includes('type=recovery')) {
+      passwordRecoveryMode = true;
+    }
+    const linkExpired = authHash.includes('error_code=otp_expired') || authHash.includes('error=access_denied');
+    if (linkExpired) {
+      history.replaceState(null, '', location.pathname);
+    }
     initSupabase();
     window.onerror = (msg, src, line, col, err) => {
       logError(String(msg), { src, line, col }, err);
@@ -5965,15 +5988,6 @@ ${txRows}
     initHelpChat();
     initHardwareScanner();
     registerServiceWorker();
-
-    const authHash = location.hash;
-    if (authHash.includes('type=recovery')) {
-      passwordRecoveryMode = true;
-    }
-    const linkExpired = authHash.includes('error_code=otp_expired') || authHash.includes('error=access_denied');
-    if (linkExpired) {
-      history.replaceState(null, '', location.pathname);
-    }
 
     // Cek sesi Supabase yang masih aktif
     setLoadingStatus('Memeriksa sesi...', 20);
