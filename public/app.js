@@ -414,9 +414,20 @@ const App = (() => {
 
   const initSupabase = () => {
     if (window.supabase) {
-      db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      // detectSessionInUrl WAJIB tetap true (biar link recovery/PKCE tetap
+      // diproses SDK jadi sesi) TAPI passwordRecoveryMode sudah di-set (lihat
+      // init()) SEBELUM baris ini jalan — jadi walau SDK sempat bikin sesi
+      // penuh dari code=... di query string (PKCE flow), guard di
+      // enterAppAfterAuth() sudah aktif duluan dan menahan dashboard.
+      db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: { detectSessionInUrl: true }
+      });
       db.auth.onAuthStateChange(event => {
         if (event === 'PASSWORD_RECOVERY') {
+          // Event ini bisa telat datang (setelah dashboard sempat mulai
+          // render di edge case tertentu) — showNewPasswordForm() dipanggil
+          // FORCE di sini (bukan cuma set flag) supaya dashboard yang
+          // terlanjur tampil langsung disembunyikan lagi.
           passwordRecoveryMode = true;
           showNewPasswordForm();
         }
@@ -5963,12 +5974,27 @@ ${txRows}
 
   const init = async () => {
     setLoadingStatus('Menghubungkan ke database...', 10);
-    // Snapshot hash SEBELUM createClient — supabase-js (detectSessionInUrl)
-    // mem-parse lalu menghapus hash; tanpa snapshot ini penanda type=recovery
-    // bisa hilang duluan dan pemegang link reset masuk dashboard tanpa
-    // membuat password baru.
+    // Snapshot hash & query string SEBELUM createClient dipanggil sama sekali.
+    // Root cause bypass: link recovery PKCE dari Supabase membawa
+    // "?code=...&type=recovery" di QUERY STRING, bukan hash. Begitu
+    // createClient() jalan, SDK (detectSessionInUrl) langsung menukar code
+    // itu jadi SESI PENUH sebagai bagian inisialisasi internal — proses ini
+    // terjadi SEBELUM event PASSWORD_RECOVERY sempat di-fire ke listener kita.
+    // Makanya passwordRecoveryMode HARUS sudah true di sini, SEBELUM
+    // initSupabase()/createClient() di bawah dipanggil, supaya begitu SDK
+    // selesai bikin sesi (dari hash ATAU query), guard di enterAppAfterAuth()
+    // sudah aktif dan menahan dashboard.
     const authHash = location.hash;
-    if (authHash.includes('type=recovery')) {
+    const authQuery = new URLSearchParams(location.search);
+    // Defensif: kalau ada "code" param tapi tanpa penanda type=recovery
+    // eksplisit, tetap jangan langsung dianggap aman — treat sebagai
+    // recovery juga. Lebih baik false-positive (user login biasa diminta
+    // buat password baru & dituntun keluar dari form itu) daripada
+    // false-negative (pemegang link reset dapat akses penuh ke toko orang).
+    const isRecoveryLink = authHash.includes('type=recovery')
+      || authQuery.get('type') === 'recovery'
+      || authQuery.has('code');
+    if (isRecoveryLink) {
       passwordRecoveryMode = true;
     }
     const linkExpired = authHash.includes('error_code=otp_expired') || authHash.includes('error=access_denied');
