@@ -408,10 +408,19 @@ const App = (() => {
   const SUPABASE_URL = 'https://pfmsblktxlnovtajnxvc.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_rF4Ul9n6WS4R00twmmCbdQ_wJ0KAOv6';
   let db = null;
+  // Mode recovery: user datang dari link reset password. Jangan masuk dashboard
+  // sebelum password baru dibuat — pemegang link tidak boleh dapat akses penuh.
+  let passwordRecoveryMode = false;
 
   const initSupabase = () => {
     if (window.supabase) {
       db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      db.auth.onAuthStateChange(event => {
+        if (event === 'PASSWORD_RECOVERY') {
+          passwordRecoveryMode = true;
+          showNewPasswordForm();
+        }
+      });
       return true;
     }
     return false;
@@ -607,6 +616,21 @@ const App = (() => {
     document.getElementById('appContainer').style.display = 'none';
     document.getElementById('helpChatFab')?.classList.add('hidden');
     document.getElementById('helpChatPanel')?.classList.add('hidden');
+  };
+
+  const showNewPasswordForm = () => {
+    showLoginPage();
+    hideLoadingOverlay();
+    document.getElementById('loginForm2')?.classList.add('hidden');
+    document.getElementById('registerForm')?.classList.add('hidden');
+    document.getElementById('tabLogin')?.parentElement?.classList.add('hidden');
+    document.getElementById('newPasswordForm')?.classList.remove('hidden');
+  };
+
+  const hideNewPasswordForm = () => {
+    document.getElementById('newPasswordForm')?.classList.add('hidden');
+    document.getElementById('loginForm2')?.classList.remove('hidden');
+    document.getElementById('tabLogin')?.parentElement?.classList.remove('hidden');
   };
 
   const showApp = () => {
@@ -4509,7 +4533,7 @@ ${txRows}
       if (!email) { alert('Masukkan email terlebih dahulu.'); return; }
       if (!db) { alert('Koneksi database tidak tersedia.'); return; }
       dom.sendResetBtn.textContent = 'Mengirim...'; dom.sendResetBtn.disabled = true;
-      const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+      const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
       dom.sendResetBtn.textContent = 'Kirim Link Reset'; dom.sendResetBtn.disabled = false;
       const authSuccess2 = document.getElementById('authSuccess');
       const authError2 = document.getElementById('authError');
@@ -4523,6 +4547,35 @@ ${txRows}
         authError2.classList.add('hidden');
         if (dom.forgotPasswordForm) dom.forgotPasswordForm.classList.add('hidden');
       }
+    });
+
+    // ── Buat Password Baru (reset password) ──
+    document.getElementById('newPasswordForm')?.addEventListener('submit', async event => {
+      event.preventDefault();
+      const errBox = document.getElementById('newPassError');
+      errBox?.classList.add('hidden');
+      const showErr = txt => {
+        if (errBox) { errBox.textContent = txt; errBox.classList.remove('hidden'); }
+      };
+      const pass1 = document.getElementById('newPass1').value;
+      const pass2 = document.getElementById('newPass2').value;
+      if (pass1.length < 8) { showErr('Password minimal 8 karakter.'); return; }
+      if (pass1 !== pass2) { showErr('Password dan konfirmasi tidak sama.'); return; }
+      const btn = document.getElementById('newPassSubmitBtn');
+      btn.textContent = 'Menyimpan...'; btn.disabled = true;
+      const { error } = await db.auth.updateUser({ password: pass1 });
+      btn.textContent = 'Simpan Password Baru'; btn.disabled = false;
+      if (error) { showErr(terjemahAuthError(error.message)); return; }
+      await db.auth.signOut();
+      history.replaceState(null, '', location.pathname);
+      passwordRecoveryMode = false;
+      hideNewPasswordForm();
+      const authSuccess2 = document.getElementById('authSuccess');
+      if (authSuccess2) {
+        authSuccess2.textContent = 'Password berhasil diganti. Silakan masuk dengan password baru.';
+        authSuccess2.classList.remove('hidden');
+      }
+      document.getElementById('authError')?.classList.add('hidden');
     });
 
     // ── Feature 5: Shift / Tutup Kasir ──
@@ -5913,17 +5966,35 @@ ${txRows}
     initHardwareScanner();
     registerServiceWorker();
 
+    const authHash = location.hash;
+    if (authHash.includes('type=recovery')) {
+      passwordRecoveryMode = true;
+    }
+    const linkExpired = authHash.includes('error_code=otp_expired') || authHash.includes('error=access_denied');
+    if (linkExpired) {
+      history.replaceState(null, '', location.pathname);
+    }
+
     // Cek sesi Supabase yang masih aktif
     setLoadingStatus('Memeriksa sesi...', 20);
     const session = await getAuthSession();
 
-    if (session) {
+    if (passwordRecoveryMode) {
+      showNewPasswordForm();
+    } else if (session) {
       state.authUser = session.user;
       await enterAppAfterAuth();
       hideLoadingOverlay();
     } else {
       hideLoadingOverlay();
       showLoginPage();
+      if (linkExpired) {
+        const authError2 = document.getElementById('authError');
+        if (authError2) {
+          authError2.textContent = 'Link reset sudah kedaluwarsa. Kirim ulang dari menu Lupa Password.';
+          authError2.classList.remove('hidden');
+        }
+      }
     }
   };
 
