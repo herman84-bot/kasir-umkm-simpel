@@ -701,6 +701,7 @@ const App = (() => {
     localStorage.removeItem('qris_image');
     localStorage.removeItem('qris_payload');
     localStorage.removeItem('offline_tx_queue');
+    localStorage.removeItem('debt_queue');
     localStorage.removeItem('pending_subs_order');
     Object.keys(localStorage).forEach(k => {
       if (k.startsWith('active_store_') || k.startsWith('shift_start_') || k.startsWith('onboardingDone_')) {
@@ -1076,7 +1077,7 @@ const App = (() => {
   const loadData = async () => {
     const lastUserId = localStorage.getItem('pos_last_user_id');
     if (lastUserId !== state.authUser?.id) {
-      [...Object.values(STORAGE), 'pos_debts', 'qris_image', 'qris_payload', 'offline_tx_queue', 'pending_subs_order']
+      [...Object.values(STORAGE), 'pos_debts', 'qris_image', 'qris_payload', 'offline_tx_queue', 'debt_queue', 'pending_subs_order']
         .forEach(key => localStorage.removeItem(key));
       _isSuperAdmin = false;
     }
@@ -1094,6 +1095,7 @@ const App = (() => {
     // Kirim transaksi offline yang tertunda SEBELUM memuat data,
     // agar stok & riwayat yang dimuat sudah termasuk transaksi tersebut
     await flushOfflineQueue();
+    await flushDebtQueue();
 
     try {
       setLoadingStatus('Memuat produk...', 40);
@@ -1132,12 +1134,14 @@ const App = (() => {
 
       // Kasbon (tabel bisa belum ada jika 05_kasbon.sql belum dijalankan)
       const { data: debts, error: dErr } = await db
-        .from('debts').select('*').eq('store_id', state.storeId).order('created_at', { ascending: false });
+        .from('debts').select('*').eq('store_id', state.storeId)
+        .order('created_at', { ascending: false }).limit(500);
       if (dErr) {
-        console.warn('Kasbon belum aktif (jalankan supabase/05_kasbon.sql):', dErr.message);
+        logError('loadData: gagal memuat kasbon', { storeId: state.storeId }, dErr);
         try { state.debts = JSON.parse(localStorage.getItem('pos_debts') || '[]'); } catch { state.debts = []; }
       } else {
-        state.debts = debts || [];
+        // Antrean kasbon offline tetap tampil di atas data server sampai tersinkron
+        state.debts = [...getDebtQueue(), ...(debts || [])];
       }
 
       setLoadingStatus('Siap!', 100);
@@ -2557,7 +2561,7 @@ const App = (() => {
     if (screenId === 'inventory') renderInventory();
     if (screenId === 'riwayat') renderHistory();
     if (screenId === 'pembelian') renderPurchaseHistory();
-    if (screenId === 'kasbon') renderKasbon();
+    if (screenId === 'kasbon') { renderKasbon(); refreshDebtsFromServer(); }
     if (screenId === 'kelolaKasir') renderCashierManagement();
     if (screenId === 'pengaturan') renderSettings();
     if (screenId === 'screen-superadmin') superAdminLoadStores();
@@ -4615,6 +4619,9 @@ ${txRows}
     document.getElementById('closeDebtModal')?.addEventListener('click', closeDebtModal);
     document.getElementById('debtForm')?.addEventListener('submit', saveDebt);
     document.getElementById('debtSearchInput')?.addEventListener('input', renderKasbon);
+    document.getElementById('closeDebtDeleteModal')?.addEventListener('click', closeDebtDeleteModal);
+    document.getElementById('debtDeleteCancel')?.addEventListener('click', closeDebtDeleteModal);
+    document.getElementById('debtDeleteConfirm')?.addEventListener('click', confirmDeleteDebt);
 
     // ── Struk WhatsApp ──
     document.getElementById('waReceiptBtn')?.addEventListener('click', () => {
@@ -4623,7 +4630,7 @@ ${txRows}
     });
 
     // ── Offline auto-sync ──
-    window.addEventListener('online', () => flushOfflineQueue());
+    window.addEventListener('online', () => { flushOfflineQueue(); flushDebtQueue(); });
 
     // ── Multi-Cabang ──
     document.getElementById('storeSwitcher')?.addEventListener('change', e => switchStore(e.target.value));
@@ -4788,6 +4795,76 @@ ${txRows}
   // ── Kasbon / Hutang Pelanggan (Premium: tanpa batas; Gratis: maks 5 aktif) ─
   const saveDebtsLocal = () => localStorage.setItem('pos_debts', JSON.stringify(state.debts || []));
 
+  // ── Antrean kasbon offline: Supabase = source of truth, antrean hanya saat offline ─
+  const DEBT_QUEUE_KEY = 'debt_queue';
+  const getDebtQueue = () => {
+    try { return JSON.parse(localStorage.getItem(DEBT_QUEUE_KEY) || '[]'); } catch { return []; }
+  };
+  const saveDebtQueue = q => localStorage.setItem(DEBT_QUEUE_KEY, JSON.stringify(q));
+  // Error jaringan murni (fetch gagal), bukan error dari server/database
+  const isNetworkError = e => /Failed to fetch|NetworkError|Load failed|fetch failed/i.test(e?.message || '');
+
+  // Guard reentrancy: flush dipanggil dari loadData, event 'online', dan refresh layar
+  // Kasbon — tanpa guard, dua flush bersamaan kirim RPC dobel (kasbon & stok terpotong 2x)
+  let debtQueueFlushing = false;
+  const flushDebtQueue = async () => {
+    if (!db || !navigator.onLine || !state.storeId) return 0;
+    if (debtQueueFlushing) return 0;
+    debtQueueFlushing = true;
+    try {
+      const q = getDebtQueue();
+      if (!q.length) return 0;
+      const remaining = [];
+      let synced = 0;
+      for (const entry of q) {
+        try {
+          const { data, error } = await db.rpc('create_debt_transaction', {
+            p_store_id: entry.store_id,
+            p_customer_name: entry.customer_name,
+            p_phone: entry.phone,
+            p_amount: entry.amount,
+            p_note: entry.note,
+            p_items: entry.items,
+            p_cashier_name: entry.cashier_name
+          });
+          if (error) throw error;
+          // Sudah ditandai lunas sebelum tersinkron → susulkan update status di server
+          if (entry.status === 'lunas') {
+            await db.from('debts').update({ status: 'lunas', paid_at: entry.paid_at || new Date().toISOString() }).eq('id', data.debt_id);
+          }
+          // Ganti id lokal 'D...' dengan id server
+          const local = (state.debts || []).find(d => String(d.id) === String(entry.id));
+          if (local) { local.id = data.debt_id; delete local.pending; }
+          synced++;
+        } catch (e) {
+          logError('flushDebtQueue: sinkron kasbon gagal', { debtId: entry.id }, e);
+          remaining.push(entry); // gagal → coba lagi nanti
+        }
+      }
+      saveDebtQueue(remaining);
+      if (synced > 0) { saveDebtsLocal(); renderKasbon(); }
+      return synced;
+    } finally {
+      debtQueueFlushing = false;
+    }
+  };
+
+  const refreshDebtsFromServer = async () => {
+    if (!db || !navigator.onLine || !state.storeId) return;
+    await flushDebtQueue();
+    const { data: debts, error } = await db
+      .from('debts').select('*').eq('store_id', state.storeId)
+      .order('created_at', { ascending: false }).limit(500);
+    if (error) {
+      logError('refreshDebtsFromServer: gagal memuat kasbon', { storeId: state.storeId }, error);
+      return; // pertahankan cache lokal sebagai fallback
+    }
+    // Antrean pending tetap tampil di atas data server sampai tersinkron
+    state.debts = [...getDebtQueue(), ...(debts || [])];
+    saveDebtsLocal();
+    renderKasbon();
+  };
+
   const renderKasbon = () => {
     const list = document.getElementById('debtList');
     if (!list) return;
@@ -4821,7 +4898,10 @@ ${txRows}
               <p class="text-xs text-slate-400">${date}${d.note ? ' — ' + esc(d.note) : ''}</p>
               ${itemsHtml}
             </div>
-            <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
+            <div class="flex flex-col items-end gap-1">
+              <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
+              ${d.pending ? '<span class="rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-xs whitespace-nowrap">Belum tersimpan online</span>' : ''}
+            </div>
           </div>
           <p class="text-2xl font-bold ${isPaid ? 'text-slate-400 line-through' : 'text-rose-600'}">${formatCurrency(d.amount)}</p>
           <div class="flex gap-2">
@@ -4833,7 +4913,7 @@ ${txRows}
     }).join('') || '<div class="col-span-full rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">Belum ada catatan kasbon. Klik "+ Catat Kasbon" untuk mulai.</div>';
 
     list.querySelectorAll('[data-debt-paid]').forEach(btn =>
-      btn.addEventListener('click', () => markDebtPaid(btn.dataset.debtPaid)));
+      btn.addEventListener('click', () => markDebtPaid(btn.dataset.debtPaid, btn)));
     list.querySelectorAll('[data-debt-delete]').forEach(btn =>
       btn.addEventListener('click', () => deleteDebt(btn.dataset.debtDelete)));
     list.querySelectorAll('[data-debt-wa]').forEach(btn =>
@@ -5013,16 +5093,31 @@ ${txRows}
 
     let transactionId = null;
 
-    if (db && state.storeId) {
-      const currentStore = (state.stores || []).find(s => String(s.id) == String(state.storeId));
-      const storeUuid = currentStore ? currentStore.id : null;
-      
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const currentStore = (state.stores || []).find(s => String(s.id) == String(state.storeId));
+    const storeUuid = currentStore ? currentStore.id : null;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    // Offline: masuk antrean lokal, disinkron otomatis saat online.
+    // storeUuid wajib valid — entry tanpa store_id tak akan pernah bisa tersinkron.
+    const queueDebtOffline = () => {
+      if (!storeUuid || !uuidRegex.test(String(storeUuid))) {
+        alert('Gagal: Data toko tidak valid.');
+        return false;
+      }
+      record.id = 'D' + Date.now();
+      record.pending = true;
+      const q = getDebtQueue();
+      q.push({ ...record, store_id: storeUuid, cashier_name: cashierName });
+      saveDebtQueue(q);
+      return true;
+    };
+
+    if (db && state.storeId && navigator.onLine) {
       if (!storeUuid || !uuidRegex.test(String(storeUuid))) {
           alert('Gagal: Data toko tidak valid.');
           return;
       }
-      
+
       const { data, error } = await db.rpc('create_debt_transaction', {
           p_store_id: storeUuid,
           p_customer_name: name,
@@ -5032,10 +5127,19 @@ ${txRows}
           p_items: items,
           p_cashier_name: cashierName
       });
-      
+
       if (error) {
-        // Fallback jika RPC gagal
-        record.id = 'D' + Date.now();
+        if (isNetworkError(error)) {
+          // Jaringan putus di tengah request → antre lokal
+          if (!queueDebtOffline()) return;
+        } else {
+          // RPC gagal saat online: beri tahu user, JANGAN simpan diam-diam
+          logError('saveDebt: create_debt_transaction gagal', { storeId: storeUuid }, error);
+          const msg = 'Kasbon belum tersimpan. Periksa koneksi internet lalu coba lagi.';
+          if (errEl) { errEl.textContent = msg; errEl.classList.remove('hidden'); }
+          showAppToast(msg, 'error');
+          return;
+        }
       } else {
         let rData = data;
         if (Array.isArray(data)) rData = data[0];
@@ -5047,7 +5151,7 @@ ${txRows}
         transactionId = record.transaction_id;
       }
     } else {
-      record.id = 'D' + Date.now();
+      if (!queueDebtOffline()) return;
     }
     
     // Kurangi stok lokal
@@ -5088,14 +5192,14 @@ ${txRows}
 
     closeDebtModal();
     renderKasbon();
-    if (!transactionId) {
-        alert('Kasbon disimpan lokal (tidak ada koneksi) atau gagal memanggil database.');
+    if (record.pending) {
+        alert('Kasbon disimpan di perangkat ini dan akan tersimpan otomatis saat internet kembali.');
     } else {
         alert('Kasbon berhasil disimpan! Transaksi dan stok produk telah dicatat otomatis.');
     }
   };
 
-  const markDebtPaid = async id => {
+  const markDebtPaid = async (id, btn) => {
     const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
     if (activeOp && activeOp.role !== 'admin') {
       alert('Hanya Admin Toko yang diizinkan untuk menandai kasbon lunas.');
@@ -5103,92 +5207,118 @@ ${txRows}
     }
     const debt = (state.debts || []).find(d => String(d.id) === String(id));
     if (!debt) return;
-    debt.status = 'lunas';
-    debt.paid_at = new Date().toISOString();
-    if (db && !isNaN(parseInt(id))) {
-      const { error } = await db.from('debts').update({ status: 'lunas', paid_at: debt.paid_at }).eq('id', parseInt(id));
-      if (error) logError('markDebtPaid: gagal update', { debtId: id }, error);
-      
-      if (debt.transaction_id) {
-          await db.from('transactions').update({ payment_method: 'Lunas' }).eq('id', debt.transaction_id);
+    const paidAt = new Date().toISOString();
+    if (String(id).startsWith('D')) {
+      // Masih di antrean lokal → cukup ubah antrean, status ikut saat sinkron
+      const q = getDebtQueue();
+      const entry = q.find(en => String(en.id) === String(id));
+      if (entry) { entry.status = 'lunas'; entry.paid_at = paidAt; saveDebtQueue(q); }
+    } else if (db) {
+      if (btn) btn.disabled = true; // cegah double-tap selama menunggu server
+      const { error } = await db.from('debts').update({ status: 'lunas', paid_at: paidAt }).eq('id', id);
+      if (error) {
+        if (btn) btn.disabled = false;
+        logError('markDebtPaid: gagal update', { debtId: id }, error);
+        showAppToast('Kasbon belum ditandai lunas. Periksa koneksi internet lalu coba lagi.', 'error');
+        return; // jangan ubah state lokal agar tetap sinkron dengan server
       }
-    } else if (db && isNaN(parseInt(id))) {
-      console.error('markDebtPaid: ID kasbon tidak valid (NaN). Nilai id:', id);
-      alert('Gagal menandai lunas: ID kasbon tidak valid. Silakan muat ulang halaman.');
-      return;
+      // Transaksi Hutang terkait ikut ditandai Lunas di server
+      if (debt.transaction_id) {
+        await db.from('transactions').update({ payment_method: 'Lunas' }).eq('id', debt.transaction_id);
+      }
     }
-    
+    debt.status = 'lunas';
+    debt.paid_at = paidAt;
     if (debt.transaction_id && state.transactions) {
-        const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
-        if (tx) {
-            tx.paymentMethod = 'Lunas';
-            if (typeof renderHistory === 'function') renderHistory();
-        }
+      const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
+      if (tx) {
+        tx.paymentMethod = 'Lunas';
+        if (typeof renderHistory === 'function') renderHistory();
+      }
     }
-    
     saveDebtsLocal();
     renderKasbon();
   };
 
-  const deleteDebt = async id => {
+  let _debtDeleteId = null;
+
+  const closeDebtDeleteModal = () => {
+    _debtDeleteId = null;
+    document.getElementById('debtDeleteModal')?.classList.add('hidden');
+  };
+
+  const deleteDebt = id => {
     const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
     if (activeOp && activeOp.role !== 'admin') {
       alert('Hanya Admin Toko yang diizinkan untuk menghapus catatan kasbon.');
       return;
     }
-    if (!confirm('Hapus catatan kasbon ini? Riwayat transaksi terkait akan dibatalkan (VOID) dan stok akan dikembalikan.')) return;
-    
     const debt = (state.debts || []).find(d => String(d.id) === String(id));
     if (!debt) return;
-    
+    _debtDeleteId = id;
+    const textEl = document.getElementById('debtDeleteText');
+    if (textEl) textEl.textContent = `Catatan kasbon ${debt.customer_name} ${formatCurrency(debt.amount)} akan dihapus permanen. Transaksi terkait dibatalkan dan stok dikembalikan.`;
+    document.getElementById('debtDeleteModal')?.classList.remove('hidden');
+  };
+
+  const confirmDeleteDebt = async () => {
+    const id = _debtDeleteId;
+    if (id === null) return;
+    const debt = (state.debts || []).find(d => String(d.id) === String(id));
+    if (!debt) { closeDebtDeleteModal(); return; }
+    const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
     const adminName = activeOp ? activeOp.name : 'Supervisor';
-    
-    if (db && !isNaN(parseInt(id))) {
+    const confirmBtn = document.getElementById('debtDeleteConfirm');
+    if (String(id).startsWith('D')) {
+      // Masih di antrean lokal → hapus dari antrean saja
+      saveDebtQueue(getDebtQueue().filter(en => String(en.id) !== String(id)));
+    } else if (db) {
+      if (confirmBtn) confirmBtn.disabled = true; // cegah double-tap selama menunggu server
+      // Batalkan (VOID) transaksi Hutang terkait + kembalikan stok di server
       if (debt.transaction_id) {
-          const { error: txErr } = await db.from('transactions').update({
-              status: 'void',
-              void_reason: 'Kasbon Dihapus',
-              void_by: adminName,
-              void_at: new Date().toISOString()
-          }).eq('id', debt.transaction_id);
-          
-          if (!txErr && debt.items) {
-              for (const item of debt.items) {
-                  const numId = parseInt(item.product_id);
-                  if (isNaN(numId) || item.qty <= 0) continue;
-                  await db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
-              }
+        const { error: txErr } = await db.from('transactions').update({
+          status: 'void',
+          void_reason: 'Kasbon Dihapus',
+          void_by: adminName,
+          void_at: new Date().toISOString()
+        }).eq('id', debt.transaction_id);
+        if (!txErr && debt.items) {
+          for (const item of debt.items) {
+            const numId = parseInt(item.product_id);
+            if (isNaN(numId) || item.qty <= 0) continue;
+            await db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
           }
-      }
-      const { error } = await db.from('debts').delete().eq('id', parseInt(id));
-      if (error) logError('deleteDebt: gagal delete', { debtId: id }, error);
-    }
-    
-    state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
-    
-    if (debt.transaction_id && state.transactions) {
-         const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
-         if (tx) {
-             tx.status = 'void';
-             tx.voidReason = 'Kasbon Dihapus';
-             tx.voidBy = adminName;
-             tx.voidAt = new Date().toISOString();
-             if (typeof renderHistory === 'function') renderHistory();
-             if (typeof updateDashboard === 'function') updateDashboard();
-         }
-    }
-    
-    if (debt.items) {
-        for (const item of debt.items) {
-            const product = state.products.find(p => String(p.id) === String(item.product_id));
-            if (product) {
-                product.stock += item.qty;
-            }
         }
-        if (typeof renderProducts === 'function') renderProducts();
+      }
+      const { error } = await db.from('debts').delete().eq('id', id);
+      if (confirmBtn) confirmBtn.disabled = false;
+      if (error) {
+        logError('deleteDebt: gagal delete', { debtId: id }, error);
+        showAppToast('Kasbon belum terhapus. Periksa koneksi internet lalu coba lagi.', 'error');
+        return; // jangan ubah state lokal agar tetap sinkron dengan server
+      }
     }
-    
+    state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
+    if (debt.transaction_id && state.transactions) {
+      const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
+      if (tx) {
+        tx.status = 'void';
+        tx.voidReason = 'Kasbon Dihapus';
+        tx.voidBy = adminName;
+        tx.voidAt = new Date().toISOString();
+        if (typeof renderHistory === 'function') renderHistory();
+        if (typeof updateDashboard === 'function') updateDashboard();
+      }
+    }
+    if (debt.items) {
+      for (const item of debt.items) {
+        const product = state.products.find(p => String(p.id) === String(item.product_id));
+        if (product) product.stock += item.qty;
+      }
+      if (typeof renderProducts === 'function') renderProducts();
+    }
     saveDebtsLocal();
+    closeDebtDeleteModal();
     renderKasbon();
   };
 
