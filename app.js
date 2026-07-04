@@ -4587,6 +4587,9 @@ ${txRows}
     document.getElementById('closeDebtModal')?.addEventListener('click', closeDebtModal);
     document.getElementById('debtForm')?.addEventListener('submit', saveDebt);
     document.getElementById('debtSearchInput')?.addEventListener('input', renderKasbon);
+    document.getElementById('closeDebtDeleteModal')?.addEventListener('click', closeDebtDeleteModal);
+    document.getElementById('debtDeleteCancel')?.addEventListener('click', closeDebtDeleteModal);
+    document.getElementById('debtDeleteConfirm')?.addEventListener('click', confirmDeleteDebt);
 
     // ── Struk WhatsApp ──
     document.getElementById('waReceiptBtn')?.addEventListener('click', () => {
@@ -4855,7 +4858,7 @@ ${txRows}
             </div>
             <div class="flex flex-col items-end gap-1">
               <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
-              ${d.pending ? '<span class="text-[10px] text-amber-600 whitespace-nowrap">Belum tersinkron</span>' : ''}
+              ${d.pending ? '<span class="rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-xs whitespace-nowrap">Belum tersimpan online</span>' : ''}
             </div>
           </div>
           <p class="text-2xl font-bold ${isPaid ? 'text-slate-400 line-through' : 'text-rose-600'}">${formatCurrency(d.amount)}</p>
@@ -4868,7 +4871,7 @@ ${txRows}
     }).join('') || '<div class="col-span-full rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">Belum ada catatan kasbon. Klik "+ Catat Kasbon" untuk mulai.</div>';
 
     list.querySelectorAll('[data-debt-paid]').forEach(btn =>
-      btn.addEventListener('click', () => markDebtPaid(btn.dataset.debtPaid)));
+      btn.addEventListener('click', () => markDebtPaid(btn.dataset.debtPaid, btn)));
     list.querySelectorAll('[data-debt-delete]').forEach(btn =>
       btn.addEventListener('click', () => deleteDebt(btn.dataset.debtDelete)));
     list.querySelectorAll('[data-debt-wa]').forEach(btn =>
@@ -5090,7 +5093,7 @@ ${txRows}
         } else {
           // RPC gagal saat online: beri tahu user, JANGAN simpan diam-diam
           logError('saveDebt: create_debt_transaction gagal', { storeId: storeUuid }, error);
-          const msg = 'Kasbon gagal disimpan ke server. Periksa koneksi lalu coba lagi.';
+          const msg = 'Kasbon belum tersimpan. Periksa koneksi internet lalu coba lagi.';
           if (errEl) { errEl.textContent = msg; errEl.classList.remove('hidden'); }
           showAppToast(msg, 'error');
           return;
@@ -5142,13 +5145,13 @@ ${txRows}
     closeDebtModal();
     renderKasbon();
     if (record.pending) {
-        alert('Kasbon disimpan di perangkat ini. Akan tersinkron otomatis saat kembali online.');
+        alert('Kasbon disimpan di perangkat ini dan akan tersimpan otomatis saat internet kembali.');
     } else {
         alert('Kasbon berhasil disimpan! Transaksi dan stok produk telah dicatat otomatis.');
     }
   };
 
-  const markDebtPaid = async id => {
+  const markDebtPaid = async (id, btn) => {
     const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
     if (activeOp && activeOp.role !== 'admin') {
       alert('Hanya Admin Toko yang diizinkan untuk menandai kasbon lunas.');
@@ -5163,10 +5166,12 @@ ${txRows}
       const entry = q.find(en => String(en.id) === String(id));
       if (entry) { entry.status = 'lunas'; entry.paid_at = paidAt; saveDebtQueue(q); }
     } else if (db) {
+      if (btn) btn.disabled = true; // cegah double-tap selama menunggu server
       const { error } = await db.from('debts').update({ status: 'lunas', paid_at: paidAt }).eq('id', id);
       if (error) {
+        if (btn) btn.disabled = false;
         logError('markDebtPaid: gagal update', { debtId: id }, error);
-        showAppToast('Kasbon gagal ditandai lunas di server. Periksa koneksi lalu coba lagi.', 'error');
+        showAppToast('Kasbon belum ditandai lunas. Periksa koneksi internet lalu coba lagi.', 'error');
         return; // jangan ubah state lokal agar tetap sinkron dengan server
       }
     }
@@ -5176,26 +5181,47 @@ ${txRows}
     renderKasbon();
   };
 
-  const deleteDebt = async id => {
+  let _debtDeleteId = null;
+
+  const closeDebtDeleteModal = () => {
+    _debtDeleteId = null;
+    document.getElementById('debtDeleteModal')?.classList.add('hidden');
+  };
+
+  const deleteDebt = id => {
     const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
     if (activeOp && activeOp.role !== 'admin') {
       alert('Hanya Admin Toko yang diizinkan untuk menghapus catatan kasbon.');
       return;
     }
-    if (!confirm('Hapus catatan kasbon ini?')) return;
+    const debt = (state.debts || []).find(d => String(d.id) === String(id));
+    if (!debt) return;
+    _debtDeleteId = id;
+    const textEl = document.getElementById('debtDeleteText');
+    if (textEl) textEl.textContent = `Catatan kasbon ${debt.customer_name} ${formatCurrency(debt.amount)} akan dihapus permanen dan tidak bisa dikembalikan.`;
+    document.getElementById('debtDeleteModal')?.classList.remove('hidden');
+  };
+
+  const confirmDeleteDebt = async () => {
+    const id = _debtDeleteId;
+    if (id === null) return;
+    const confirmBtn = document.getElementById('debtDeleteConfirm');
     if (String(id).startsWith('D')) {
       // Masih di antrean lokal → hapus dari antrean saja
       saveDebtQueue(getDebtQueue().filter(en => String(en.id) !== String(id)));
     } else if (db) {
+      if (confirmBtn) confirmBtn.disabled = true; // cegah double-tap selama menunggu server
       const { error } = await db.from('debts').delete().eq('id', id);
+      if (confirmBtn) confirmBtn.disabled = false;
       if (error) {
         logError('deleteDebt: gagal delete', { debtId: id }, error);
-        showAppToast('Kasbon gagal dihapus di server. Periksa koneksi lalu coba lagi.', 'error');
+        showAppToast('Kasbon belum terhapus. Periksa koneksi internet lalu coba lagi.', 'error');
         return; // jangan ubah state lokal agar tetap sinkron dengan server
       }
     }
     state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
     saveDebtsLocal();
+    closeDebtDeleteModal();
     renderKasbon();
   };
 
