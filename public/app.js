@@ -701,6 +701,7 @@ const App = (() => {
     localStorage.removeItem('qris_image');
     localStorage.removeItem('qris_payload');
     localStorage.removeItem('offline_tx_queue');
+    localStorage.removeItem('debt_queue');
     localStorage.removeItem('pending_subs_order');
     Object.keys(localStorage).forEach(k => {
       if (k.startsWith('active_store_') || k.startsWith('shift_start_') || k.startsWith('onboardingDone_')) {
@@ -1075,7 +1076,7 @@ const App = (() => {
   const loadData = async () => {
     const lastUserId = localStorage.getItem('pos_last_user_id');
     if (lastUserId !== state.authUser?.id) {
-      [...Object.values(STORAGE), 'pos_debts', 'qris_image', 'qris_payload', 'offline_tx_queue', 'pending_subs_order']
+      [...Object.values(STORAGE), 'pos_debts', 'qris_image', 'qris_payload', 'offline_tx_queue', 'debt_queue', 'pending_subs_order']
         .forEach(key => localStorage.removeItem(key));
       _isSuperAdmin = false;
     }
@@ -4758,40 +4759,49 @@ ${txRows}
   // Error jaringan murni (fetch gagal), bukan error dari server/database
   const isNetworkError = e => /Failed to fetch|NetworkError|Load failed|fetch failed/i.test(e?.message || '');
 
+  // Guard reentrancy: flush dipanggil dari loadData, event 'online', dan refresh layar
+  // Kasbon — tanpa guard, dua flush bersamaan kirim RPC dobel (kasbon & stok terpotong 2x)
+  let debtQueueFlushing = false;
   const flushDebtQueue = async () => {
     if (!db || !navigator.onLine || !state.storeId) return 0;
-    const q = getDebtQueue();
-    if (!q.length) return 0;
-    const remaining = [];
-    let synced = 0;
-    for (const entry of q) {
-      try {
-        const { data, error } = await db.rpc('create_debt_transaction', {
-          p_store_id: entry.store_id,
-          p_customer_name: entry.customer_name,
-          p_phone: entry.phone,
-          p_amount: entry.amount,
-          p_note: entry.note,
-          p_items: entry.items,
-          p_cashier_name: entry.cashier_name
-        });
-        if (error) throw error;
-        // Sudah ditandai lunas sebelum tersinkron → susulkan update status di server
-        if (entry.status === 'lunas') {
-          await db.from('debts').update({ status: 'lunas', paid_at: entry.paid_at || new Date().toISOString() }).eq('id', data.debt_id);
+    if (debtQueueFlushing) return 0;
+    debtQueueFlushing = true;
+    try {
+      const q = getDebtQueue();
+      if (!q.length) return 0;
+      const remaining = [];
+      let synced = 0;
+      for (const entry of q) {
+        try {
+          const { data, error } = await db.rpc('create_debt_transaction', {
+            p_store_id: entry.store_id,
+            p_customer_name: entry.customer_name,
+            p_phone: entry.phone,
+            p_amount: entry.amount,
+            p_note: entry.note,
+            p_items: entry.items,
+            p_cashier_name: entry.cashier_name
+          });
+          if (error) throw error;
+          // Sudah ditandai lunas sebelum tersinkron → susulkan update status di server
+          if (entry.status === 'lunas') {
+            await db.from('debts').update({ status: 'lunas', paid_at: entry.paid_at || new Date().toISOString() }).eq('id', data.debt_id);
+          }
+          // Ganti id lokal 'D...' dengan id server
+          const local = (state.debts || []).find(d => String(d.id) === String(entry.id));
+          if (local) { local.id = data.debt_id; delete local.pending; }
+          synced++;
+        } catch (e) {
+          logError('flushDebtQueue: sinkron kasbon gagal', { debtId: entry.id }, e);
+          remaining.push(entry); // gagal → coba lagi nanti
         }
-        // Ganti id lokal 'D...' dengan id server
-        const local = (state.debts || []).find(d => String(d.id) === String(entry.id));
-        if (local) { local.id = data.debt_id; delete local.pending; }
-        synced++;
-      } catch (e) {
-        logError('flushDebtQueue: sinkron kasbon gagal', { debtId: entry.id }, e);
-        remaining.push(entry); // gagal → coba lagi nanti
       }
+      saveDebtQueue(remaining);
+      if (synced > 0) { saveDebtsLocal(); renderKasbon(); }
+      return synced;
+    } finally {
+      debtQueueFlushing = false;
     }
-    saveDebtQueue(remaining);
-    if (synced > 0) { saveDebtsLocal(); renderKasbon(); }
-    return synced;
   };
 
   const refreshDebtsFromServer = async () => {
@@ -5042,13 +5052,19 @@ ${txRows}
     const storeUuid = currentStore ? currentStore.id : null;
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-    // Offline: masuk antrean lokal, disinkron otomatis saat online
+    // Offline: masuk antrean lokal, disinkron otomatis saat online.
+    // storeUuid wajib valid — entry tanpa store_id tak akan pernah bisa tersinkron.
     const queueDebtOffline = () => {
+      if (!storeUuid || !uuidRegex.test(String(storeUuid))) {
+        alert('Gagal: Data toko tidak valid.');
+        return false;
+      }
       record.id = 'D' + Date.now();
       record.pending = true;
       const q = getDebtQueue();
       q.push({ ...record, store_id: storeUuid, cashier_name: cashierName });
       saveDebtQueue(q);
+      return true;
     };
 
     if (db && state.storeId && navigator.onLine) {
@@ -5070,7 +5086,7 @@ ${txRows}
       if (error) {
         if (isNetworkError(error)) {
           // Jaringan putus di tengah request → antre lokal
-          queueDebtOffline();
+          if (!queueDebtOffline()) return;
         } else {
           // RPC gagal saat online: beri tahu user, JANGAN simpan diam-diam
           logError('saveDebt: create_debt_transaction gagal', { storeId: storeUuid }, error);
@@ -5084,7 +5100,7 @@ ${txRows}
         transactionId = data.transaction_id;
       }
     } else {
-      queueDebtOffline();
+      if (!queueDebtOffline()) return;
     }
     
     // Kurangi stok lokal
