@@ -643,12 +643,16 @@ const App = (() => {
   };
 
   const showNewPasswordForm = () => {
+    // Urutan penting untuk cegah flicker: siapkan SEMUA visibilitas screen
+    // final (form recovery) DULU, baru overlay loading di-fade di ATASNYA.
+    // Kalau overlay dilepas duluan, ada frame di mana overlay transparan
+    // tapi konten di baliknya masih login form biasa (belum newPasswordForm).
     showLoginPage();
-    hideLoadingOverlay();
     document.getElementById('loginForm2')?.classList.add('hidden');
     document.getElementById('registerForm')?.classList.add('hidden');
     document.getElementById('tabLogin')?.parentElement?.classList.add('hidden');
     document.getElementById('newPasswordForm')?.classList.remove('hidden');
+    hideLoadingOverlay();
   };
 
   const hideNewPasswordForm = () => {
@@ -4855,7 +4859,6 @@ ${txRows}
     // sebelum membuat password baru (guard di semua jalur SIGNED_IN/bootstrap).
     if (passwordRecoveryMode) {
       showNewPasswordForm();
-      hideLoadingOverlay();
       return;
     }
     showHelpChatFab();
@@ -6041,6 +6044,16 @@ ${txRows}
     if (isRecoveryLink) {
       passwordRecoveryMode = true;
     }
+    // Sinyal lebih luas dari isRecoveryLink: apapun bentuknya, kalau URL
+    // membawa serpihan hasil redirect auth Supabase (access_token/type di
+    // hash, atau code di query), SDK sedang/baru saja memproses sesi dari
+    // link itu — event PASSWORD_RECOVERY async BISA masih dalam perjalanan
+    // walau heuristik isRecoveryLink di atas tidak match persis. Dipakai
+    // HANYA untuk beri jendela tunggu kecil sebelum commit ke dashboard,
+    // TIDAK untuk mengubah keputusan guard keamanan itu sendiri.
+    const hasAuthCallbackParams = authHash.includes('access_token')
+      || authHash.includes('type=')
+      || authQuery.has('code');
     const linkExpired = authHash.includes('error_code=otp_expired') || authHash.includes('error=access_denied');
     if (linkExpired) {
       history.replaceState(null, '', location.pathname);
@@ -6084,8 +6097,20 @@ ${txRows}
       showNewPasswordForm();
     } else if (session) {
       state.authUser = session.user;
-      await enterAppAfterAuth();
-      hideLoadingOverlay();
+      // Jendela tunggu kecil HANYA kalau URL menunjukkan kita baru datang
+      // dari redirect auth (link recovery/PKCE) — supaya event
+      // PASSWORD_RECOVERY yang sedang diproses SDK (round-trip jaringan)
+      // sempat fire dan set passwordRecoveryMode SEBELUM kita commit ke
+      // dashboard. Login normal (tanpa hash/query auth) tidak kena delay ini.
+      if (hasAuthCallbackParams) {
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+      if (passwordRecoveryMode) {
+        showNewPasswordForm();
+      } else {
+        await enterAppAfterAuth();
+        hideLoadingOverlay();
+      }
     } else {
       hideLoadingOverlay();
       showLoginPage();
