@@ -2585,16 +2585,11 @@ const App = (() => {
     dom.screens.forEach(screen => {
       screen.classList.toggle('hidden', screen.id !== screenId);
     });
-    dom.menuButtons.forEach(button => {
-      button.classList.toggle('bg-ink', button.dataset.screen === screenId);
-      button.classList.toggle('text-white', button.dataset.screen === screenId);
-    });
-    // Update bottom nav active state
-
+    // Update sidebar and bottom nav active state
     document.querySelectorAll('.menu-btn, .bottom-nav-btn').forEach(btn => {
       const isActive = btn.dataset.screen === screenId;
       btn.classList.toggle('text-white', isActive);
-      btn.classList.toggle('text-muted-soft', !isActive);
+      btn.classList.toggle('text-hairline', !isActive);
       btn.classList.toggle('bg-primary-active', isActive);
     });
     _activeScreenId = screenId;
@@ -4350,11 +4345,11 @@ ${txRows}
       loginForm2.classList.toggle('hidden', !onLogin);
       registerForm.classList.toggle('hidden', onLogin);
       tabLogin.className = onLogin
-        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition'
-        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-body transition';
+        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition min-h-[44px]'
+        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-body transition min-h-[44px]';
       tabRegister.className = !onLogin
-        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition'
-        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-body transition';
+        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition min-h-[44px]'
+        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-body transition min-h-[44px]';
     };
     tabLogin?.addEventListener('click', () => activateTab('login'));
     tabRegister?.addEventListener('click', () => activateTab('register'));
