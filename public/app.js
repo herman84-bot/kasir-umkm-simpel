@@ -702,7 +702,7 @@ const App = (() => {
       roleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
       roleEl.className = isAdmin
         ? 'text-xs px-2 py-0.5 rounded-full bg-[#e00b41] text-white/70'
-        : 'text-xs px-2 py-0.5 rounded-full bg-[#333333] text-[#b0b0b0]';
+        : 'text-xs px-2 py-0.5 rounded-full bg-ink text-muted-soft';
     }
     if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
     const mobileNameEl = document.getElementById('mobileUserName');
@@ -713,7 +713,7 @@ const App = (() => {
       mobileRoleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
       mobileRoleEl.className = isAdmin
         ? 'text-xs px-2 py-0.5 rounded-full bg-[#e00b41] text-white/70'
-        : 'text-xs px-2 py-0.5 rounded-full bg-[#333333] text-[#b0b0b0]';
+        : 'text-xs px-2 py-0.5 rounded-full bg-ink text-muted-soft';
     }
     if (mobileAvatar) mobileAvatar.textContent = name.charAt(0).toUpperCase();
     // Sidebar + bottom nav: menu admin disembunyikan untuk operator kasir
@@ -811,7 +811,6 @@ const App = (() => {
     selectedCashierId: '',
     activeUserId: '',
     debts: [],
-    darkMode: false,
     currentTransaction: null,
     draftPurchase: { supplier: '', invoice: '', items: [] },
     scannerContext: 'kasir',
@@ -866,7 +865,6 @@ const App = (() => {
     productImage: document.getElementById('productImage'),
     historyTable: document.getElementById('historyTable'),
     cashierSelect: document.getElementById('cashierSelect'),
-    themeToggle: document.getElementById('themeToggle'),
     reportRangeSelect: document.getElementById('reportRangeSelect'),
     reportSales: document.getElementById('reportSales'),
     reportTransactions: document.getElementById('reportTransactions'),
@@ -1034,7 +1032,6 @@ const App = (() => {
       localStorage.removeItem(STORAGE.settings);
       settings = {};
     }
-    state.darkMode = settings.darkMode || false;
     state.reportRange = settings.reportRange || '7';
     state.historySearch = settings.historySearch || '';
     // cashiers & purchases now loaded from Supabase; these are temp fallbacks
@@ -1220,7 +1217,6 @@ const App = (() => {
       localStorage.setItem(STORAGE.cashiers, JSON.stringify(state.cashiers.map(({ password: _pw, ...rest }) => rest)));
       localStorage.setItem(STORAGE.purchases, JSON.stringify(state.purchases));
       localStorage.setItem(STORAGE.settings, JSON.stringify({
-        darkMode: state.darkMode,
         selectedCashierId: state.selectedCashierId,
         activeUserId: state.activeUserId,
         reportRange: state.reportRange,
@@ -1353,13 +1349,13 @@ const App = (() => {
     list.innerHTML = stores.map(s => {
       const isActive = String(s.id) === String(state.storeId);
       const isPrimary = String(s.id) === primaryId;
-      return `<div class="flex items-center justify-between gap-3 rounded-lg border ${isActive ? 'border-primary bg-[#fff1f3]' : 'border-[#dddddd] bg-white'} px-4 py-3">
+      return `<div class="flex items-center justify-between gap-3 rounded-lg border ${isActive ? 'border-primary bg-[#fff1f3]' : 'border-hairline bg-white'} px-4 py-3">
         <div class="min-w-0">
           <p class="font-semibold truncate">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-primary">(Pusat)</span>' : ''}${isActive ? ' <span class="text-xs text-emerald-600">• aktif</span>' : ''}</p>
         </div>
         <div class="flex gap-1 shrink-0">
           ${isActive ? '' : `<button data-branch-switch="${esc(s.id)}" class="rounded-lg bg-primary px-2.5 py-1.5 text-white text-xs hover:bg-[#e00b41]">Buka</button>`}
-          <button data-branch-rename="${esc(s.id)}" class="rounded-lg bg-[#ebebeb] px-2.5 py-1.5 text-[#3f3f3f] text-xs hover:bg-[#dddddd]">Nama</button>
+          <button data-branch-rename="${esc(s.id)}" class="rounded-lg bg-hairline-soft px-2.5 py-1.5 text-body text-xs hover:bg-hairline">Nama</button>
           ${(stores.length > 1 && !isPrimary) ? `<button data-branch-delete="${esc(s.id)}" class="rounded-lg bg-rose-100 px-2.5 py-1.5 text-rose-700 text-xs hover:bg-rose-200">Hapus</button>` : ''}
         </div>
       </div>`;
@@ -1390,7 +1386,7 @@ const App = (() => {
     // Ambil transaksi hari ini SEMUA cabang sekaligus (tanpa filter store_id → RLS membatasi ke milik owner)
     const { data: txs, error } = await db.from('transactions')
       .select('store_id,total_amount').gte('created_at', startIso);
-    if (error) { body.innerHTML = `<p class="text-[#6a6a6a] text-sm p-4">Gagal memuat rekap: ${esc(error.message)}</p>`; return; }
+    if (error) { body.innerHTML = `<p class="text-muted text-sm p-4">Gagal memuat rekap: ${esc(error.message)}</p>`; return; }
     const byStore = {};
     (txs || []).forEach(t => {
       const k = String(t.store_id);
@@ -1411,13 +1407,13 @@ const App = (() => {
     }).join('');
     body.innerHTML = `
       <table class="w-full text-sm">
-        <thead><tr class="text-left text-[#6a6a6a] border-b border-[#dddddd]">
+        <thead><tr class="text-left text-muted border-b border-hairline">
           <th class="px-4 py-2 font-medium">Cabang</th>
           <th class="px-4 py-2 font-medium text-right">Omzet Hari Ini</th>
           <th class="px-4 py-2 font-medium text-right">Transaksi</th>
         </tr></thead>
         <tbody class="divide-y border-hairline">${rows}</tbody>
-        <tfoot><tr class="border-t-2 border-[#dddddd] font-semibold">
+        <tfoot><tr class="border-t-2 border-hairline font-semibold">
           <td class="px-4 py-3">TOTAL Semua Cabang</td>
           <td class="px-4 py-3 text-right text-primary">${formatCurrency(grandTotal)}</td>
           <td class="px-4 py-3 text-right">${grandCount}</td>
@@ -1440,11 +1436,6 @@ const App = (() => {
     dom.cashierSelect.value = state.selectedCashierId;
   };
 
-  const applyTheme = () => {
-    document.body.classList.toggle('dark', state.darkMode);
-    dom.themeToggle.textContent = state.darkMode ? '☀️ Terang' : '🌙 Tema';
-  };
-
   // ── Kelola Kasir ──────────────────────────────────────────────────────────
   const renderCashierManagement = () => {
     if (!dom.cashierGrid) return;
@@ -1460,15 +1451,15 @@ const App = (() => {
       const isSelf = c.id === activeId;
       const initial = esc(c.name.charAt(0).toUpperCase());
       const roleLabel = isAdmin ? '👑 Admin' : '🧾 Kasir';
-      const roleBg = isAdmin ? 'bg-[#fff1f3] text-primary' : 'bg-[#f7f7f7] text-[#3f3f3f]';
-      const avatarBg = isAdmin ? 'bg-primary' : 'bg-[#f7f7f7]0';
+      const roleBg = isAdmin ? 'bg-[#fff1f3] text-primary' : 'bg-surface-soft text-body';
+      const avatarBg = isAdmin ? 'bg-primary' : 'bg-surface-soft0';
       return `
-        <div class="rounded-xl bg-white border border-[#dddddd] shadow-sm p-5 flex flex-col gap-4">
+        <div class="rounded-xl bg-white border border-hairline shadow-sm p-5 flex flex-col gap-4">
           <div class="flex items-center gap-4">
             <div class="w-14 h-14 rounded-full ${avatarBg} flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">${initial}</div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <p class="font-semibold text-[#222222] truncate">${esc(c.name)}</p>
+                <p class="font-semibold text-ink truncate">${esc(c.name)}</p>
                 ${isSelf ? '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Anda</span>' : ''}
               </div>
               <span class="text-xs px-2 py-0.5 rounded-full ${roleBg} font-medium mt-1 inline-block">${roleLabel}</span>
@@ -1476,7 +1467,7 @@ const App = (() => {
           </div>
           <div class="flex gap-2">
             <button data-edit-cashier="${c.id}"
-              class="flex-1 rounded-lg border border-[#dddddd] bg-white px-3 py-2 text-sm text-[#3f3f3f] hover:bg-[#f7f7f7] transition font-medium">
+              class="flex-1 rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-body hover:bg-surface-soft transition font-medium">
               ✏️ Edit
             </button>
             <button data-delete-cashier="${c.id}" ${isSelf ? 'disabled title="Tidak bisa hapus akun sendiri"' : ''}
@@ -1528,7 +1519,7 @@ const App = (() => {
     dom.deleteAccountError.classList.add('hidden');
     dom.deleteAccountConfirmBtn.disabled = true;
     dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'hover:bg-rose-700', 'text-white', 'cursor-pointer');
-    dom.deleteAccountConfirmBtn.classList.add('bg-[#ebebeb]', 'text-[#929292]', 'cursor-not-allowed');
+    dom.deleteAccountConfirmBtn.classList.add('bg-hairline-soft', 'text-muted-soft', 'cursor-not-allowed');
     dom.deleteAccountModal.classList.remove('hidden');
     dom.deleteAccountEmailInput.focus();
   };
@@ -1711,7 +1702,6 @@ const App = (() => {
       purchases: state.purchases,
       cashiers: state.cashiers,
       settings: {
-        darkMode: state.darkMode,
         selectedCashierId: state.selectedCashierId,
         activeUserId: state.activeUserId,
         reportRange: state.reportRange,
@@ -1741,7 +1731,6 @@ const App = (() => {
         state.purchases = data.purchases || state.purchases;
         state.cashiers = data.cashiers || state.cashiers;
         if (data.settings) {
-          state.darkMode = data.settings.darkMode ?? state.darkMode;
           state.selectedCashierId = data.settings.selectedCashierId || state.selectedCashierId;
           state.activeUserId = data.settings.activeUserId || state.activeUserId;
           state.reportRange = data.settings.reportRange || state.reportRange;
@@ -1812,13 +1801,13 @@ const App = (() => {
 
   const renderPurchaseHistory = () => {
     if (!state?.purchases) {
-      dom.purchaseTable.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-[#6a6a6a]">Belum ada data pembelian.</td></tr>';
+      dom.purchaseTable.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-muted">Belum ada data pembelian.</td></tr>';
       return;
     }
     dom.purchaseTable.innerHTML = state.purchases.slice().reverse().map(order => {
       const time = new Date(order.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short', year: 'numeric' });
       return `
-        <tr class="border-b border-[#dddddd]">
+        <tr class="border-b border-hairline">
           <td class="p-3">${time}</td>
           <td class="p-3">#${esc(order.id)}</td>
           <td class="p-3">${esc(order.supplier)}</td>
@@ -1827,7 +1816,7 @@ const App = (() => {
           <td class="p-3">${esc(order.status)}</td>
         </tr>
       `;
-    }).join('') || '<tr><td colspan="6" class="p-8 text-center text-[#6a6a6a]">Belum ada data pembelian.</td></tr>';
+    }).join('') || '<tr><td colspan="6" class="p-8 text-center text-muted">Belum ada data pembelian.</td></tr>';
   };
 
   const getActiveUser = () => {
@@ -2066,7 +2055,7 @@ const App = (() => {
     dom.purchaseInvoice.value = state.draftPurchase.invoice;
     dom.purchaseQty.value = 1;
     dom.purchaseCost.value = '';
-    dom.purchaseItemsList.innerHTML = '<p class="text-[#6a6a6a]">Belum ada item pembelian.</p>';
+    dom.purchaseItemsList.innerHTML = '<p class="text-muted">Belum ada item pembelian.</p>';
     dom.purchaseTotal.textContent = formatCurrency(0);
   };
 
@@ -2093,7 +2082,7 @@ const App = (() => {
 
   const renderPurchaseDraft = () => {
     if (!state.draftPurchase.items.length) {
-      dom.purchaseItemsList.innerHTML = '<p class="text-[#6a6a6a]">Belum ada item pembelian.</p>';
+      dom.purchaseItemsList.innerHTML = '<p class="text-muted">Belum ada item pembelian.</p>';
       dom.purchaseTotal.textContent = formatCurrency(0);
       return;
     }
@@ -2102,10 +2091,10 @@ const App = (() => {
       const subtotal = item.qty * item.price;
       total += subtotal;
       return `
-        <div class="flex items-center justify-between gap-3 rounded-lg bg-white p-3 border border-[#dddddd] mb-3">
+        <div class="flex items-center justify-between gap-3 rounded-lg bg-white p-3 border border-hairline mb-3">
           <div>
             <p class="font-semibold">${esc(item.name)}</p>
-            <p class="text-[#6a6a6a] text-sm">Qty ${item.qty} x ${formatCurrency(item.price)}</p>
+            <p class="text-muted text-sm">Qty ${item.qty} x ${formatCurrency(item.price)}</p>
           </div>
           <span class="font-semibold">${formatCurrency(subtotal)}</span>
         </div>
@@ -2354,24 +2343,24 @@ const App = (() => {
     dom.productGrid.innerHTML = filtered.map(product => {
       const isCritical = product.stock <= (product.minStock || 5);
       return `
-        <article data-id="${esc(product.id)}" class="group cursor-pointer overflow-hidden rounded-xl border border-[#dddddd] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+        <article data-id="${esc(product.id)}" class="group cursor-pointer overflow-hidden rounded-xl border border-hairline bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
           <img src="${esc(product.image)}" alt="${esc(product.name)}" class="h-44 w-full object-cover" />
           <div class="p-5">
             <div class="flex items-center justify-between gap-3">
               <div>
                 <h4 class="text-lg font-semibold">${esc(product.name)}</h4>
-                <p class="text-[#6a6a6a] text-sm">${esc(product.category)}</p>
+                <p class="text-muted text-sm">${esc(product.category)}</p>
               </div>
-              <span class="rounded-lg bg-[#f7f7f7] px-3 py-1 text-xs text-[#3f3f3f]">Stok: ${esc(product.stock)}${isCritical ? ' ⚠️' : ''}</span>
+              <span class="rounded-lg bg-surface-soft px-3 py-1 text-xs text-body">Stok: ${esc(product.stock)}${isCritical ? ' ⚠️' : ''}</span>
             </div>
             <div class="mt-4 flex items-center justify-between">
-              <span class="text-xl font-semibold text-[#222222]">${formatCurrency(product.price)}</span>
+              <span class="text-xl font-semibold text-ink">${formatCurrency(product.price)}</span>
               <span class="rounded-full px-3 py-1 text-xs font-semibold ${isCritical ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}">${isCritical ? 'Kritis' : 'Tersedia'}</span>
             </div>
           </div>
         </article>
       `;
-    }).join('') || '<div class="col-span-full rounded-xl border border-dashed border-[#dddddd] bg-[#f7f7f7] p-8 text-center text-[#6a6a6a]">Tidak ada produk sesuai filter.</div>';
+    }).join('') || '<div class="col-span-full rounded-xl border border-dashed border-hairline bg-surface-soft p-8 text-center text-muted">Tidak ada produk sesuai filter.</div>';
 
     dom.productGrid.querySelectorAll('article[data-id]').forEach(card => {
       card.addEventListener('click', () => addToCart(card.dataset.id));
@@ -2386,7 +2375,7 @@ const App = (() => {
   };
 
   const getExpiryStatus = (expiryDate) => {
-    if (!expiryDate) return { label: '-', class: 'text-[#6a6a6a]' };
+    if (!expiryDate) return { label: '-', class: 'text-muted' };
     const today = new Date();
     today.setHours(0,0,0,0);
     const exp = new Date(expiryDate);
@@ -2435,22 +2424,22 @@ const App = (() => {
     const totals = calculateCart();
 
     dom.cartList.innerHTML = items.length ? items.map(item => `
-      <div class="rounded-xl border border-[#dddddd] bg-[#f7f7f7] p-4">
+      <div class="rounded-xl border border-hairline bg-surface-soft p-4">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h4 class="font-semibold text-[#222222]">${esc(item.name)}</h4>
-            <p class="text-[#6a6a6a] text-sm">${formatCurrency(item.price)} x ${esc(item.qty)}</p>
+            <h4 class="font-semibold text-ink">${esc(item.name)}</h4>
+            <p class="text-muted text-sm">${formatCurrency(item.price)} x ${esc(item.qty)}</p>
           </div>
           <button data-remove="${esc(item.id)}" class="rounded-full bg-rose-100 px-3 py-2 text-rose-700">Hapus</button>
         </div>
-        <div class="mt-3 flex items-center gap-2 text-sm text-[#3f3f3f]">
-          <button data-decrease="${esc(item.id)}" class="rounded-lg border border-[#dddddd] bg-white px-3 py-2">−</button>
+        <div class="mt-3 flex items-center gap-2 text-sm text-body">
+          <button data-decrease="${esc(item.id)}" class="rounded-lg border border-hairline bg-white px-3 py-2">−</button>
           <span class="font-semibold">${esc(item.qty)}</span>
-          <button data-increase="${esc(item.id)}" class="rounded-lg border border-[#dddddd] bg-white px-3 py-2">+</button>
-          <span class="ml-auto font-semibold text-[#222222]">${formatCurrency(item.price * item.qty)}</span>
+          <button data-increase="${esc(item.id)}" class="rounded-lg border border-hairline bg-white px-3 py-2">+</button>
+          <span class="ml-auto font-semibold text-ink">${formatCurrency(item.price * item.qty)}</span>
         </div>
       </div>
-    `).join('') : '<div class="rounded-xl border border-dashed border-[#dddddd] bg-[#f7f7f7] p-8 text-center text-[#6a6a6a]">Keranjang kosong. Tambahkan produk untuk memulai transaksi.</div>';
+    `).join('') : '<div class="rounded-xl border border-dashed border-hairline bg-surface-soft p-8 text-center text-muted">Keranjang kosong. Tambahkan produk untuk memulai transaksi.</div>';
 
     dom.cartList.querySelectorAll('[data-remove]').forEach(btn => {
       btn.addEventListener('click', () => removeCartItem(btn.dataset.remove));
@@ -2491,13 +2480,13 @@ const App = (() => {
     dom.inventoryTable.innerHTML = state.products.map(product => {
       const isLowStock = product.stock <= (product.minStock || 5);
       const criticalClass = isLowStock ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800';
-      const rowClass = isLowStock ? 'border-b border-rose-200 bg-rose-50/30' : 'border-b border-[#dddddd]';
+      const rowClass = isLowStock ? 'border-b border-rose-200 bg-rose-50/30' : 'border-b border-hairline';
       const expStatus = getExpiryStatus(product.expiry_date);
       return `
         <tr class="${rowClass}">
           <td class="p-3 font-semibold">${esc(product.code)}</td>
           <td class="p-3">${esc(product.name)}${isLowStock ? ' <span class="text-rose-500 text-xs font-bold">⚠ Stok Rendah</span>' : ''}</td>
-          <td class="p-3 text-xs text-[#6a6a6a] font-mono">${esc(product.barcode || '-')}</td>
+          <td class="p-3 text-xs text-muted font-mono">${esc(product.barcode || '-')}</td>
           <td class="p-3">${esc(product.category)}</td>
           <td class="p-3">${formatCurrency(product.price)}</td>
           <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${criticalClass}">${product.stock} / min ${product.minStock || 5}</span></td>
@@ -2505,7 +2494,7 @@ const App = (() => {
           <td class="p-3 space-x-2 whitespace-nowrap">
             <button data-adjust="${product.id}" class="rounded-lg bg-amber-600 px-4 py-2 text-white text-sm" title="Sesuaikan Stok">⚙️</button>
             <button data-ledger="${product.id}" class="rounded-lg bg-primary px-4 py-2 text-white text-sm" title="Kartu Stok">📋</button>
-            <button data-edit="${product.id}" class="rounded-lg bg-[#222222] px-4 py-2 text-white text-sm">Edit</button>
+            <button data-edit="${product.id}" class="rounded-lg bg-ink px-4 py-2 text-white text-sm">Edit</button>
             <button data-delete="${product.id}" class="rounded-lg bg-rose-600 px-4 py-2 text-white text-sm">Hapus</button>
           </td>
         </tr>
@@ -2535,7 +2524,7 @@ const App = (() => {
       const diffDays = Math.ceil((new Date() - new Date(tx.date)) / (1000 * 60 * 60 * 24));
       const canReturn = tx.status !== 'void' && diffDays <= 3;
       const isVoided = tx.status === 'void';
-      const rowClass = isVoided ? 'border-b border-[#dddddd] opacity-60 bg-rose-50/20' : 'border-b border-[#dddddd]';
+      const rowClass = isVoided ? 'border-b border-hairline opacity-60 bg-rose-50/20' : 'border-b border-hairline';
 
       return `
         <tr class="${rowClass}">
@@ -2548,7 +2537,7 @@ const App = (() => {
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.cash) : '-'}</td>
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.change) : '-'}</td>
           <td class="p-3 space-x-1 whitespace-nowrap">
-            <button data-reprint="${esc(tx.id)}" class="rounded-lg border border-[#dddddd] bg-white px-3 py-1.5 text-xs text-[#3f3f3f] hover:bg-[#f7f7f7] transition whitespace-nowrap">🖨 Struk</button>
+            <button data-reprint="${esc(tx.id)}" class="rounded-lg border border-hairline bg-white px-3 py-1.5 text-xs text-body hover:bg-surface-soft transition whitespace-nowrap">🖨 Struk</button>
             ${isVoided ? `
               <span class="inline-block rounded-full bg-rose-100 text-rose-700 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider">VOID</span>
             ` : `
@@ -2558,7 +2547,7 @@ const App = (() => {
           </td>
         </tr>
       `;
-    }).join('') || '<tr><td colspan="9" class="p-8 text-center text-[#6a6a6a]">Belum ada transaksi.</td></tr>';
+    }).join('') || '<tr><td colspan="9" class="p-8 text-center text-muted">Belum ada transaksi.</td></tr>';
 
     // Cetak ulang struk dari riwayat
     dom.historyTable.querySelectorAll('[data-reprint]').forEach(btn => {
@@ -2597,7 +2586,7 @@ const App = (() => {
       screen.classList.toggle('hidden', screen.id !== screenId);
     });
     dom.menuButtons.forEach(button => {
-      button.classList.toggle('bg-[#333333]', button.dataset.screen === screenId);
+      button.classList.toggle('bg-ink', button.dataset.screen === screenId);
       button.classList.toggle('text-white', button.dataset.screen === screenId);
     });
     // Update bottom nav active state
@@ -2605,8 +2594,8 @@ const App = (() => {
     document.querySelectorAll('.menu-btn, .bottom-nav-btn').forEach(btn => {
       const isActive = btn.dataset.screen === screenId;
       btn.classList.toggle('text-white', isActive);
-      btn.classList.toggle('text-[#929292]', !isActive);
-      btn.classList.toggle('bg-[#1a1a1a]', isActive);
+      btn.classList.toggle('text-muted-soft', !isActive);
+      btn.classList.toggle('bg-primary-active', isActive);
     });
     _activeScreenId = screenId;
     if (screenId === 'dashboard') { updateDashboard(); renderSalesChart(); renderReportSummary(); renderDashboardPusat(); }
@@ -3041,7 +3030,7 @@ const App = (() => {
     dom.receiptItems.innerHTML = data.items.map(item => `
       <div>
         <div class="flex justify-between font-medium">${esc(item.name)}<span>${formatCurrency(item.price * item.qty)}</span></div>
-        <div class="text-[#6a6a6a] ml-1">${item.qty} x ${formatCurrency(item.price)}</div>
+        <div class="text-muted ml-1">${item.qty} x ${formatCurrency(item.price)}</div>
       </div>
     `).join('');
 
@@ -3658,14 +3647,14 @@ ${txRows}
       }
 
       itemsList.innerHTML = tx.items.map(item => `
-        <div class="flex items-center justify-between border-b border-[#ebebeb] py-3">
+        <div class="flex items-center justify-between border-b border-hairline-soft py-3">
           <div class="flex-1">
-            <p class="font-semibold text-[#222222]">${esc(item.name)}</p>
-            <p class="text-xs text-[#6a6a6a]">${formatCurrency(item.price)} • Beli: ${item.qty} pcs</p>
+            <p class="font-semibold text-ink">${esc(item.name)}</p>
+            <p class="text-xs text-muted">${formatCurrency(item.price)} • Beli: ${item.qty} pcs</p>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-xs text-[#929292]">Retur:</span>
-            <input type="number" min="0" max="${item.qty}" value="0" data-product-id="${item.id}" data-price="${item.price}" class="return-qty-input w-20 text-center rounded-xl border border-[#dddddd] px-2 py-1.5 focus:border-[#222222] focus:border-2 focus:ring-0" />
+            <span class="text-xs text-muted-soft">Retur:</span>
+            <input type="number" min="0" max="${item.qty}" value="0" data-product-id="${item.id}" data-price="${item.price}" class="return-qty-input w-20 text-center rounded-xl border border-hairline px-2 py-1.5 focus:border-ink focus:border-2 focus:ring-0" />
           </div>
         </div>
       `).join('');
@@ -3889,7 +3878,7 @@ ${txRows}
       [step1, step2, step3].forEach((s, i) => s && s.classList.toggle('hidden', i !== n - 1));
       [dot1, dot2, dot3].forEach((d, i) => {
         if (!d) return;
-        d.className = i === n - 1 ? 'w-2 h-2 rounded-full bg-primary' : 'w-2 h-2 rounded-full bg-[#4a4a4a]';
+        d.className = i === n - 1 ? 'w-2 h-2 rounded-full bg-primary' : 'w-2 h-2 rounded-full bg-muted';
       });
     };
 
@@ -3903,7 +3892,7 @@ ${txRows}
     state.paymentMethod = method;
     document.querySelectorAll('.paymethod-btn').forEach(btn => {
       const active = btn.dataset.paymethod === method;
-      btn.className = `paymethod-btn flex-1 rounded-lg border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-primary bg-[#fff1f3] text-primary' : 'border-[#dddddd] bg-white text-[#3f3f3f] hover:border-[#dddddd]'}`;
+      btn.className = `paymethod-btn flex-1 rounded-lg border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-primary bg-[#fff1f3] text-primary' : 'border-hairline bg-white text-body hover:border-hairline'}`;
     });
     const splitWrapper = document.getElementById('splitInputWrapper');
     if (dom.cashInputWrapper) {
@@ -4042,7 +4031,7 @@ ${txRows}
           const typeName = typeMap[row.reference_type] || row.reference_type;
           const qtyText = row.qty_changed > 0 ? `<span class="text-emerald-600 font-bold">+${row.qty_changed}</span>` : `<span class="text-rose-600 font-bold">${row.qty_changed}</span>`;
           return `
-            <tr class="border-b border-[#ebebeb] hover:bg-[#f7f7f7]">
+            <tr class="border-b border-hairline-soft hover:bg-surface-soft">
               <td class="p-3">${time}</td>
               <td class="p-3">${esc(row.cashier_name || '-')}</td>
               <td class="p-3">${esc(typeName)}</td>
@@ -4090,10 +4079,10 @@ ${txRows}
       const lossText = loss === 0 ? '-' : (loss < 0 ? `<span class="text-rose-600">${formatCurrency(Math.abs(loss))}</span>` : `<span class="text-emerald-600">+${formatCurrency(loss)}</span>`);
       const diffText = diff === 0 ? '-' : (diff < 0 ? `<span class="text-rose-600">${diff}</span>` : `<span class="text-emerald-600">+${diff}</span>`);
       return `
-        <tr class="border-b border-[#ebebeb] hover:bg-[#f7f7f7]">
+        <tr class="border-b border-hairline-soft hover:bg-surface-soft">
           <td class="p-3 font-medium">${esc(p.name)}</td>
           <td class="p-3">${p.stock}</td>
-          <td class="p-3"><input type="number" min="0" value="${p.physical}" data-opname-id="${p.id}" class="opname-input w-24 rounded border border-[#dddddd] px-2 py-1 focus:border-[#222222] focus:border-2 focus:ring-0" /></td>
+          <td class="p-3"><input type="number" min="0" value="${p.physical}" data-opname-id="${p.id}" class="opname-input w-24 rounded border border-hairline px-2 py-1 focus:border-ink focus:border-2 focus:ring-0" /></td>
           <td class="p-3">${p.physical === '' ? '-' : diffText}</td>
           <td class="p-3">${p.physical === '' ? '-' : lossText}</td>
         </tr>
@@ -4146,7 +4135,7 @@ ${txRows}
       
       document.getElementById('applyOpnameButton').classList.add('hidden');
       document.getElementById('opnameSummary').classList.add('hidden');
-      document.getElementById('opnameTable').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-[#6a6a6a]">Stok opname selesai.</td></tr>';
+      document.getElementById('opnameTable').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-muted">Stok opname selesai.</td></tr>';
       opnameData = [];
     } else {
         alert('Tidak bisa stok opname dalam mode offline.');
@@ -4224,12 +4213,6 @@ ${txRows}
     document.getElementById('toggleCashierPassword')?.addEventListener('click', () => {
       const inp = dom.cashierFormPassword;
       inp.type = inp.type === 'password' ? 'text' : 'password';
-    });
-
-    dom.themeToggle.addEventListener('click', () => {
-      state.darkMode = !state.darkMode;
-      applyTheme();
-      syncStorage();
     });
 
     dom.reportRangeSelect.addEventListener('change', event => {
@@ -4367,11 +4350,11 @@ ${txRows}
       loginForm2.classList.toggle('hidden', !onLogin);
       registerForm.classList.toggle('hidden', onLogin);
       tabLogin.className = onLogin
-        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-[#222222] shadow-sm transition'
-        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-[#6a6a6a] hover:text-[#3f3f3f] transition';
+        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition'
+        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-body transition';
       tabRegister.className = !onLogin
-        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-[#222222] shadow-sm transition'
-        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-[#6a6a6a] hover:text-[#3f3f3f] transition';
+        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition'
+        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-body transition';
     };
     tabLogin?.addEventListener('click', () => activateTab('login'));
     tabRegister?.addEventListener('click', () => activateTab('register'));
@@ -4775,11 +4758,11 @@ ${txRows}
       const match = dom.deleteAccountEmailInput.value.trim().toLowerCase() === (state.authUser?.email || '').toLowerCase();
       dom.deleteAccountConfirmBtn.disabled = !match;
       if (match) {
-        dom.deleteAccountConfirmBtn.classList.remove('bg-[#ebebeb]', 'text-[#929292]', 'cursor-not-allowed');
+        dom.deleteAccountConfirmBtn.classList.remove('bg-hairline-soft', 'text-muted-soft', 'cursor-not-allowed');
         dom.deleteAccountConfirmBtn.classList.add('bg-rose-600', 'text-white', 'hover:bg-rose-700', 'cursor-pointer');
       } else {
         dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'text-white', 'hover:bg-rose-700', 'cursor-pointer');
-        dom.deleteAccountConfirmBtn.classList.add('bg-[#ebebeb]', 'text-[#929292]', 'cursor-not-allowed');
+        dom.deleteAccountConfirmBtn.classList.add('bg-hairline-soft', 'text-muted-soft', 'cursor-not-allowed');
       }
     });
     dom.deleteAccountConfirmBtn?.addEventListener('click', handleDeleteAccount);
@@ -4794,7 +4777,6 @@ ${txRows}
     dom.todayDate.textContent = '📅 ' + new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
     renderStoreSwitcher();
     renderCashierSelect();
-    applyTheme();
     dom.reportRangeSelect.value = state.reportRange;
     dom.historySearchInput.value = state.historySearch;
     switch (_activeScreenId) {
@@ -5010,14 +4992,14 @@ ${txRows}
       const tagBtn = (!isPaid && d.phone) ? `<button data-debt-wa="${esc(d.id)}" class="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs text-white font-semibold hover:bg-green-700 transition">💬 Tagih</button>` : '';
       let itemsHtml = '';
       if (d.items && Array.isArray(d.items) && d.items.length > 0) {
-          itemsHtml = `<div class="text-xs text-[#6a6a6a] mt-1">${d.items.map(i => `${esc(i.product_name)} (${i.qty}x)`).join(', ')}</div>`;
+          itemsHtml = `<div class="text-xs text-muted mt-1">${d.items.map(i => `${esc(i.product_name)} (${i.qty}x)`).join(', ')}</div>`;
       }
       return `
-        <div class="rounded-xl bg-white border ${isPaid ? 'border-[#dddddd] opacity-60' : 'border-amber-200'} shadow-sm p-5 space-y-3">
+        <div class="rounded-xl bg-white border ${isPaid ? 'border-hairline opacity-60' : 'border-amber-200'} shadow-sm p-5 space-y-3">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
-              <p class="font-semibold text-[#222222] truncate">${esc(d.customer_name)}</p>
-              <p class="text-xs text-[#929292]">${date}${d.note ? ' — ' + esc(d.note) : ''}</p>
+              <p class="font-semibold text-ink truncate">${esc(d.customer_name)}</p>
+              <p class="text-xs text-muted-soft">${date}${d.note ? ' — ' + esc(d.note) : ''}</p>
               ${itemsHtml}
             </div>
             <div class="flex flex-col items-end gap-1">
@@ -5025,14 +5007,14 @@ ${txRows}
               ${d.pending ? '<span class="rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-xs whitespace-nowrap">Belum tersimpan online</span>' : ''}
             </div>
           </div>
-          <p class="text-2xl font-bold ${isPaid ? 'text-[#929292] line-through' : 'text-rose-600'}">${formatCurrency(d.amount)}</p>
+          <p class="text-2xl font-bold ${isPaid ? 'text-muted-soft line-through' : 'text-rose-600'}">${formatCurrency(d.amount)}</p>
           <div class="flex gap-2">
             ${tagBtn}
             ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-lg bg-primary px-3 py-2 text-xs text-white font-semibold hover:bg-[#e00b41] transition">✅ Tandai Lunas</button>` : ''}
             <button data-debt-delete="${esc(d.id)}" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 hover:bg-rose-100 transition">🗑</button>
           </div>
         </div>`;
-    }).join('') || '<div class="col-span-full rounded-xl border border-dashed border-[#dddddd] bg-[#f7f7f7] p-8 text-center text-[#6a6a6a]">Belum ada catatan kasbon. Klik "+ Catat Kasbon" untuk mulai.</div>';
+    }).join('') || '<div class="col-span-full rounded-xl border border-dashed border-hairline bg-surface-soft p-8 text-center text-muted">Belum ada catatan kasbon. Klik "+ Catat Kasbon" untuk mulai.</div>';
 
     list.querySelectorAll('[data-debt-paid]').forEach(btn =>
       btn.addEventListener('click', () => markDebtPaid(btn.dataset.debtPaid, btn)));
@@ -5060,16 +5042,16 @@ ${txRows}
     
     div.innerHTML = `
         <div class="w-[45%]">
-            <select class="w-full rounded-xl border border-[#dddddd] px-2 py-1.5 text-sm focus:border-[#222222] focus:border-2 focus:ring-0 focus:outline-none debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
+            <select class="w-full rounded-xl border border-hairline px-2 py-1.5 text-sm focus:border-ink focus:border-2 focus:ring-0 focus:outline-none debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
                 <option value="" disabled selected>Pilih Produk</option>
                 ${productOptions}
             </select>
         </div>
         <div class="w-[20%]">
-            <input type="number" min="1" value="1" class="w-full rounded-xl border border-[#dddddd] px-2 py-1.5 text-sm focus:border-[#222222] focus:border-2 focus:ring-0 focus:outline-none debt-qty-input" oninput="calculateDebtTotal()">
+            <input type="number" min="1" value="1" class="w-full rounded-xl border border-hairline px-2 py-1.5 text-sm focus:border-ink focus:border-2 focus:ring-0 focus:outline-none debt-qty-input" oninput="calculateDebtTotal()">
         </div>
         <div class="w-[25%]">
-             <input type="text" class="w-full rounded-xl border border-[#dddddd] bg-[#f7f7f7] px-2 py-1.5 text-sm text-[#6a6a6a]" readonly value="0">
+             <input type="text" class="w-full rounded-xl border border-hairline bg-surface-soft px-2 py-1.5 text-sm text-muted" readonly value="0">
         </div>
         <div class="w-[10%] flex justify-end">
              <button type="button" class="rounded-xl bg-rose-100 text-rose-600 px-3 py-1.5 hover:bg-rose-200 transition font-bold" onclick="removeDebtItemRow('${rowId}')">✕</button>
@@ -5590,7 +5572,7 @@ ${txRows}
       const div = document.createElement('div');
       div.className = who === 'user'
         ? 'ml-auto max-w-[85%] rounded-lg rounded-br-md bg-primary text-white px-4 py-2.5'
-        : 'mr-auto max-w-[85%] rounded-lg rounded-bl-md bg-white border border-[#dddddd] text-[#3f3f3f] px-4 py-2.5';
+        : 'mr-auto max-w-[85%] rounded-lg rounded-bl-md bg-white border border-hairline text-body px-4 py-2.5';
       // Selalu pakai textContent (bukan innerHTML) agar aman dari XSS jawaban LLM/input pengguna
       div.textContent = text;
       messages.appendChild(div);
@@ -5637,7 +5619,7 @@ ${txRows}
     ['Cara cetak struk?', 'Cara pakai QRIS?', 'Soal langganan', 'Tambah kasir'].forEach(label => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'rounded-full border border-[#dddddd] bg-[#fff1f3] text-primary px-3 py-1 text-xs hover:bg-[#fff1f3] transition';
+      b.className = 'rounded-full border border-hairline bg-[#fff1f3] text-primary px-3 py-1 text-xs hover:bg-[#fff1f3] transition';
       b.textContent = label;
       b.addEventListener('click', () => ask(label));
       quick.appendChild(b);
@@ -5758,11 +5740,11 @@ ${txRows}
     if (bizMs  && bizMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-xs font-semibold">Bisnis</span>';
     if (premMs && premMs > now) return '<span class="px-2 py-0.5 rounded-full bg-[#fff1f3] text-primary text-xs font-semibold">Premium</span>';
     if (triMs  && triMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">Trial</span>';
-    return '<span class="px-2 py-0.5 rounded-full bg-[#f7f7f7] text-[#6a6a6a] text-xs font-semibold">Gratis</span>';
+    return '<span class="px-2 py-0.5 rounded-full bg-surface-soft text-muted text-xs font-semibold">Gratis</span>';
   };
 
   const superAdminFmtDate = v => {
-    if (!v) return '<span class="text-[#b0b0b0]">—</span>';
+    if (!v) return '<span class="text-muted-soft">—</span>';
     return esc(new Date(v).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }));
   };
 
@@ -5779,14 +5761,14 @@ ${txRows}
       ).join('');
 
     if (!stores.length) {
-      wrapper.innerHTML = '<p class="text-[#929292] text-sm">Belum ada toko terdaftar.</p>';
+      wrapper.innerHTML = '<p class="text-muted-soft text-sm">Belum ada toko terdaftar.</p>';
       return;
     }
 
     wrapper.innerHTML = `
       <table class="w-full text-sm border-collapse">
         <thead>
-          <tr class="border-b border-[#dddddd] text-left text-[#6a6a6a] text-xs uppercase tracking-wide">
+          <tr class="border-b border-hairline text-left text-muted text-xs uppercase tracking-wide">
             <th class="py-2 pr-4 font-medium">Nama Toko</th>
             <th class="py-2 pr-4 font-medium">Owner ID</th>
             <th class="py-2 pr-4 font-medium">Email Pemilik</th>
@@ -5798,10 +5780,10 @@ ${txRows}
         </thead>
         <tbody>
           ${stores.map(s => `
-            <tr class="border-b border-[#ebebeb] hover:bg-[#f7f7f7] transition">
-              <td class="py-2 pr-4 font-medium text-[#222222]">${esc(s.name || '-')}</td>
-              <td class="py-2 pr-4 text-[#6a6a6a] font-mono text-xs">${esc(s.owner_id || '-')}</td>
-              <td class="py-2 pr-4 text-[#6a6a6a]">${esc(s.owner_email || '-')}</td>
+            <tr class="border-b border-hairline-soft hover:bg-surface-soft transition">
+              <td class="py-2 pr-4 font-medium text-ink">${esc(s.name || '-')}</td>
+              <td class="py-2 pr-4 text-muted font-mono text-xs">${esc(s.owner_id || '-')}</td>
+              <td class="py-2 pr-4 text-muted">${esc(s.owner_email || '-')}</td>
               <td class="py-2 pr-4">${superAdminFmtDate(s.trial_ends_at)}</td>
               <td class="py-2 pr-4">${superAdminFmtDate(s.premium_until)}</td>
               <td class="py-2 pr-4">${superAdminFmtDate(s.business_until)}</td>
@@ -5814,7 +5796,7 @@ ${txRows}
   const superAdminLoadStores = async () => {
     const wrapper = document.getElementById('superAdminTableWrapper');
     const sel = document.getElementById('superAdminStoreSelect');
-    if (wrapper) wrapper.innerHTML = '<p class="text-[#929292] text-sm">Memuat data...</p>';
+    if (wrapper) wrapper.innerHTML = '<p class="text-muted-soft text-sm">Memuat data...</p>';
     if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
     try {
       // Strategi 1: panggil RPC list_all_stores_for_admin (lebih andal, tanpa Edge Function)
@@ -5934,7 +5916,7 @@ ${txRows}
       if (!wrapper) return;
       const btn = document.getElementById('superAdminLoadLogsBtn');
       if (btn) { btn.disabled = true; btn.textContent = 'Memuat...'; }
-      wrapper.innerHTML = '<p class="text-[#6a6a6a] text-sm">Memuat log error...</p>';
+      wrapper.innerHTML = '<p class="text-muted text-sm">Memuat log error...</p>';
       if (copyWrapper) copyWrapper.classList.add('hidden');
       try {
         const { data, error } = await db.rpc('list_error_logs_for_admin');
@@ -5943,16 +5925,16 @@ ${txRows}
           return;
         }
         if (!data || !data.length) {
-          wrapper.innerHTML = '<p class="text-[#929292] text-sm">Tidak ada log error.</p>';
+          wrapper.innerHTML = '<p class="text-muted-soft text-sm">Tidak ada log error.</p>';
           return;
         }
         wrapper._logsData = data;
-        wrapper.innerHTML = `<p class="text-[#6a6a6a] text-sm mb-2">${data.length} entri log terbaru:</p>` +
-          data.map(row => `<div class="rounded-lg border border-[#dddddd] bg-[#f7f7f7] p-3 mb-2 text-xs font-mono overflow-x-auto">
-            <span class="text-[#929292]">${esc(row.created_at ? new Date(row.created_at).toLocaleString('id-ID') : '')}</span>
+        wrapper.innerHTML = `<p class="text-muted text-sm mb-2">${data.length} entri log terbaru:</p>` +
+          data.map(row => `<div class="rounded-lg border border-hairline bg-surface-soft p-3 mb-2 text-xs font-mono overflow-x-auto">
+            <span class="text-muted-soft">${esc(row.created_at ? new Date(row.created_at).toLocaleString('id-ID') : '')}</span>
             <span class="ml-2 text-rose-600 font-semibold">${esc(row.message)}</span>
-            ${row.store_name ? `<span class="ml-2 text-[#6a6a6a]">[${esc(row.store_name)}]</span>` : ''}
-            ${row.url ? `<span class="ml-2 text-[#929292]">${esc(row.url)}</span>` : ''}
+            ${row.store_name ? `<span class="ml-2 text-muted">[${esc(row.store_name)}]</span>` : ''}
+            ${row.url ? `<span class="ml-2 text-muted-soft">${esc(row.url)}</span>` : ''}
           </div>`).join('');
         if (copyWrapper) copyWrapper.classList.remove('hidden');
       } catch (e) {

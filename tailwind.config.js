@@ -6,6 +6,7 @@ module.exports = {
       colors: {
         primary: '#ff385c',
         'primary-active': '#e00b41',
+        'primary-light': '#fff1f3',
         'primary-disabled': '#ffd1da',
         ink: '#222222',
         body: '#3f3f3f',
