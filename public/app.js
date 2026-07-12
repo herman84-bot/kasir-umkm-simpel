@@ -701,7 +701,7 @@ const App = (() => {
     if (roleEl) {
       roleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
       roleEl.className = isAdmin
-        ? 'text-xs px-2 py-0.5 rounded-full bg-[#e00b41] text-white/70'
+        ? 'text-xs px-2 py-0.5 rounded-full bg-primary-active text-white/70'
         : 'text-xs px-2 py-0.5 rounded-full bg-ink text-muted-soft';
     }
     if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
@@ -712,7 +712,7 @@ const App = (() => {
     if (mobileRoleEl) {
       mobileRoleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
       mobileRoleEl.className = isAdmin
-        ? 'text-xs px-2 py-0.5 rounded-full bg-[#e00b41] text-white/70'
+        ? 'text-xs px-2 py-0.5 rounded-full bg-primary-active text-white/70'
         : 'text-xs px-2 py-0.5 rounded-full bg-ink text-muted-soft';
     }
     if (mobileAvatar) mobileAvatar.textContent = name.charAt(0).toUpperCase();
@@ -1349,12 +1349,12 @@ const App = (() => {
     list.innerHTML = stores.map(s => {
       const isActive = String(s.id) === String(state.storeId);
       const isPrimary = String(s.id) === primaryId;
-      return `<div class="flex items-center justify-between gap-3 rounded-lg border ${isActive ? 'border-primary bg-[#fff1f3]' : 'border-hairline bg-white'} px-4 py-3">
+      return `<div class="flex items-center justify-between gap-3 rounded-lg border ${isActive ? 'border-primary bg-primary-light' : 'border-hairline bg-white'} px-4 py-3">
         <div class="min-w-0">
           <p class="font-semibold truncate">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-primary">(Pusat)</span>' : ''}${isActive ? ' <span class="text-xs text-emerald-600">• aktif</span>' : ''}</p>
         </div>
         <div class="flex gap-1 shrink-0">
-          ${isActive ? '' : `<button data-branch-switch="${esc(s.id)}" class="rounded-lg bg-primary px-2.5 py-1.5 text-white text-xs hover:bg-[#e00b41]">Buka</button>`}
+          ${isActive ? '' : `<button data-branch-switch="${esc(s.id)}" class="rounded-lg bg-primary px-2.5 py-1.5 text-white text-xs hover:bg-primary-active">Buka</button>`}
           <button data-branch-rename="${esc(s.id)}" class="rounded-lg bg-hairline-soft px-2.5 py-1.5 text-body text-xs hover:bg-hairline">Nama</button>
           ${(stores.length > 1 && !isPrimary) ? `<button data-branch-delete="${esc(s.id)}" class="rounded-lg bg-rose-100 px-2.5 py-1.5 text-rose-700 text-xs hover:bg-rose-200">Hapus</button>` : ''}
         </div>
@@ -1399,7 +1399,7 @@ const App = (() => {
       const d = byStore[String(s.id)] || { total: 0, count: 0 };
       grandTotal += d.total; grandCount += d.count;
       const isActive = String(s.id) === String(state.storeId);
-      return `<tr class="${isActive ? 'bg-[#fff1f3]' : ''}">
+      return `<tr class="${isActive ? 'bg-primary-light' : ''}">
         <td class="px-4 py-3 font-medium">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-primary">(Pusat)</span>' : ''}</td>
         <td class="px-4 py-3 text-right">${formatCurrency(d.total)}</td>
         <td class="px-4 py-3 text-right">${d.count}</td>
@@ -1451,7 +1451,7 @@ const App = (() => {
       const isSelf = c.id === activeId;
       const initial = esc(c.name.charAt(0).toUpperCase());
       const roleLabel = isAdmin ? '👑 Admin' : '🧾 Kasir';
-      const roleBg = isAdmin ? 'bg-[#fff1f3] text-primary' : 'bg-surface-soft text-body';
+      const roleBg = isAdmin ? 'bg-primary-light text-primary' : 'bg-surface-soft text-body';
       const avatarBg = isAdmin ? 'bg-primary' : 'bg-surface-soft0';
       return `
         <div class="rounded-xl bg-white border border-hairline shadow-sm p-5 flex flex-col gap-4">
@@ -3892,7 +3892,7 @@ ${txRows}
     state.paymentMethod = method;
     document.querySelectorAll('.paymethod-btn').forEach(btn => {
       const active = btn.dataset.paymethod === method;
-      btn.className = `paymethod-btn flex-1 rounded-lg border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-primary bg-[#fff1f3] text-primary' : 'border-hairline bg-white text-body hover:border-hairline'}`;
+      btn.className = `paymethod-btn flex-1 rounded-lg border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-primary bg-primary-light text-primary' : 'border-hairline bg-white text-body hover:border-hairline'}`;
     });
     const splitWrapper = document.getElementById('splitInputWrapper');
     if (dom.cashInputWrapper) {
@@ -4825,7 +4825,7 @@ ${txRows}
       window.location.reload();
     });
 
-    navigator.serviceWorker.register('service-worker.js')
+    navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' })
       .then(registration => {
         console.log('Service worker terdaftar.');
         // Paksa cek versi baru tiap load + tiap kembali fokus ke app.
@@ -5010,7 +5010,7 @@ ${txRows}
           <p class="text-2xl font-bold ${isPaid ? 'text-muted-soft line-through' : 'text-rose-600'}">${formatCurrency(d.amount)}</p>
           <div class="flex gap-2">
             ${tagBtn}
-            ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-lg bg-primary px-3 py-2 text-xs text-white font-semibold hover:bg-[#e00b41] transition">✅ Tandai Lunas</button>` : ''}
+            ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-lg bg-primary px-3 py-2 text-xs text-white font-semibold hover:bg-primary-active transition">✅ Tandai Lunas</button>` : ''}
             <button data-debt-delete="${esc(d.id)}" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 hover:bg-rose-100 transition">🗑</button>
           </div>
         </div>`;
@@ -5619,7 +5619,7 @@ ${txRows}
     ['Cara cetak struk?', 'Cara pakai QRIS?', 'Soal langganan', 'Tambah kasir'].forEach(label => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'rounded-full border border-hairline bg-[#fff1f3] text-primary px-3 py-1 text-xs hover:bg-[#fff1f3] transition';
+      b.className = 'rounded-full border border-hairline bg-primary-light text-primary px-3 py-1 text-xs hover:bg-primary-light transition';
       b.textContent = label;
       b.addEventListener('click', () => ask(label));
       quick.appendChild(b);
@@ -5738,7 +5738,7 @@ ${txRows}
     const premMs = store.premium_until  ? new Date(store.premium_until).getTime()  : null;
     const triMs  = store.trial_ends_at  ? new Date(store.trial_ends_at).getTime()  : null;
     if (bizMs  && bizMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-xs font-semibold">Bisnis</span>';
-    if (premMs && premMs > now) return '<span class="px-2 py-0.5 rounded-full bg-[#fff1f3] text-primary text-xs font-semibold">Premium</span>';
+    if (premMs && premMs > now) return '<span class="px-2 py-0.5 rounded-full bg-primary-light text-primary text-xs font-semibold">Premium</span>';
     if (triMs  && triMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">Trial</span>';
     return '<span class="px-2 py-0.5 rounded-full bg-surface-soft text-muted text-xs font-semibold">Gratis</span>';
   };

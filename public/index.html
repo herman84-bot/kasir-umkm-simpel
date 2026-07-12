@@ -23,7 +23,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="tailwind.css?v=3" />
+  <link rel="stylesheet" href="tailwind.css?v=4" />
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -147,11 +147,11 @@
           <div class="text-center mt-2">
             <button type="button" id="forgotPasswordBtn" class="text-sm text-primary hover:underline">Lupa Password?</button>
           </div>
-          <div id="forgotPasswordForm" class="hidden mt-3 space-y-3 rounded-lg bg-[#fff1f3] border border-hairline p-4">
+          <div id="forgotPasswordForm" class="hidden mt-3 space-y-3 rounded-lg bg-primary-light border border-hairline p-4">
             <p class="text-sm font-medium text-ink">Masukkan email untuk reset password:</p>
             <input id="resetEmail" type="email" placeholder="email@toko.com"
               class="w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none text-sm" />
-            <button type="button" id="sendResetBtn" class="w-full rounded-lg bg-primary px-4 py-2.5 text-white text-sm font-semibold hover:bg-[#e00b41] transition min-h-[44px]">
+            <button type="button" id="sendResetBtn" class="w-full rounded-lg bg-primary px-4 py-2.5 text-white text-sm font-semibold hover:bg-primary-active transition min-h-[44px]">
               Kirim Link Reset
             </button>
           </div>
@@ -183,7 +183,7 @@
             </div>
           </label>
           <button type="submit" id="newPassSubmitBtn"
-            class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-[#e00b41] transition min-h-[44px] mt-2">
+            class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition min-h-[44px] mt-2">
             Simpan Password Baru
           </button>
           <button type="button" id="cancelRecoveryBtn"
@@ -231,7 +231,7 @@
             </div>
           </label>
           <button type="submit" id="registerSubmitBtn"
-            class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-[#e00b41] transition mt-2">
+            class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition mt-2">
             Daftar & Buat Toko
           </button>
           <p class="text-xs text-muted-soft text-center">Dengan mendaftar, Anda otomatis menjadi Admin toko.</p>
@@ -356,7 +356,7 @@
         <div id="dashboardPusat" class="hidden rounded-xl bg-white p-6 shadow-sm border border-hairline mb-6">
           <div class="flex items-center gap-2 mb-4">
             <h3 class="text-xl font-semibold">🏢 Dashboard Pusat</h3>
-            <span class="text-xs px-2 py-0.5 rounded-full bg-[#fff1f3] text-primary">Semua Cabang</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-primary-light text-primary">Semua Cabang</span>
           </div>
           <div class="overflow-x-auto" id="dashboardPusatBody"></div>
         </div>
@@ -369,19 +369,19 @@
           <article class="rounded-xl bg-white p-6 shadow-sm border border-hairline">
             <h3 class="text-sm uppercase tracking-[0.2em] text-muted">Produk Terjual</h3>
             <p class="mt-4 text-4xl font-semibold text-ink" id="statProductsSold">0</p>
-            <p class="mt-2 text-muted">Unit produk terjual hari ini.</p>
+            <p class="mt-2 text-body">Unit produk terjual hari ini.</p>
           </article>
           <article class="rounded-xl bg-white p-6 shadow-sm border border-hairline">
             <h3 class="text-sm uppercase tracking-[0.2em] text-muted">Estimasi Keuntungan Bersih</h3>
             <p class="mt-4 text-4xl font-semibold text-ink" id="statProfit">Rp0</p>
-            <p class="mt-2 text-muted">Laba hari ini (harga jual − modal − diskon).</p>
+            <p class="mt-2 text-body">Laba hari ini (harga jual − modal − diskon).</p>
           </article>
         </div>
         <div class="rounded-xl bg-white p-6 shadow-sm border border-hairline mb-6">
           <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h3 class="text-xl font-semibold">Status Persediaan</h3>
-              <p class="text-muted">Awas produk dengan stok rendah.</p>
+              <p class="text-body">Awas produk dengan stok rendah.</p>
             </div>
             <div class="rounded-xl bg-rose-50 px-4 py-3 text-rose-700 shadow-sm" id="lowStockAlert">Tidak ada stok kritis.</div>
           </div>
@@ -406,7 +406,7 @@
           <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
             <div>
               <h3 class="text-xl font-semibold">Tren Penjualan 7 Hari Terakhir</h3>
-              <p class="text-muted">Ringkasan transaksi harian dari data yang tersimpan.</p>
+              <p class="text-body">Ringkasan transaksi harian dari data yang tersimpan.</p>
             </div>
           </div>
           <div class="relative w-full h-56 md:h-64"><canvas id="salesChart"></canvas></div>
@@ -415,7 +415,7 @@
           <div class="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center mb-4">
             <div>
               <h3 class="text-xl font-semibold">Laporan Cepat</h3>
-              <p class="text-muted">Pilih rentang harian atau mingguan untuk ringkasan penjualan.</p>
+              <p class="text-body">Pilih rentang harian atau mingguan untuk ringkasan penjualan.</p>
             </div>
             <div class="flex gap-2 items-center">
               <select id="reportRangeSelect" class="rounded-lg border border-hairline bg-white px-4 py-3">
@@ -453,7 +453,7 @@
             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-5">
               <div>
                 <h3 class="text-xl font-semibold">Cari Produk</h3>
-                <p class="text-muted">Klik produk untuk menambah ke keranjang.</p>
+                <p class="text-body">Klik produk untuk menambah ke keranjang.</p>
               </div>
               <div class="flex flex-wrap gap-3">
                 <input id="searchInput" type="search" placeholder="Cari nama atau kode..." class="flex-1 min-w-[200px] rounded-full border border-hairline px-6 py-3 focus:border-ink focus:border-2 focus:ring-0" />
@@ -501,7 +501,7 @@
               <div>
                 <span class="text-body text-sm font-medium block mb-2">Metode Pembayaran</span>
                 <div class="flex gap-2">
-                  <button type="button" data-paymethod="Tunai" class="paymethod-btn flex-1 rounded-lg border-2 border-primary bg-[#fff1f3] px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-primary transition">💵 Tunai</button>
+                  <button type="button" data-paymethod="Tunai" class="paymethod-btn flex-1 rounded-lg border-2 border-primary bg-primary-light px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-primary transition">💵 Tunai</button>
                   <button type="button" data-paymethod="QRIS" class="paymethod-btn flex-1 rounded-lg border-2 border-hairline bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-body transition hover:border-hairline">📱 QRIS</button>
                   <button type="button" data-paymethod="Transfer" class="paymethod-btn flex-1 rounded-lg border-2 border-hairline bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-body transition hover:border-hairline">🏦 Transfer</button>
                   <button type="button" data-paymethod="Split" class="paymethod-btn flex-1 rounded-lg border-2 border-hairline bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-body transition hover:border-hairline">⚖️ Split</button>
@@ -532,7 +532,7 @@
                   <span id="splitRemaining" class="font-semibold text-ink">Rp0</span>
                 </div>
               </div>
-              <button id="payButton" class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-[#e00b41] transition">Bayar & Simpan Transaksi</button>
+              <button id="payButton" class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition">Bayar & Simpan Transaksi</button>
               <button id="printButton" class="w-full rounded-lg border border-hairline bg-white px-5 py-3 text-body font-semibold hover:bg-surface-soft transition">Cetak Struk</button>
             </div>
           </div>
@@ -543,7 +543,7 @@
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
           <div>
             <h3 class="text-2xl font-semibold">Manajemen Inventory</h3>
-            <p class="text-muted">Tambah, edit, dan hapus produk dengan mudah.</p>
+            <p class="text-body">Tambah, edit, dan hapus produk dengan mudah.</p>
           </div>
           <div class="flex flex-wrap gap-3">
             <button id="exportInventory" class="rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">Export CSV</button>
@@ -573,10 +573,10 @@
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
           <div>
             <h3 class="text-2xl font-semibold">Stok Opname</h3>
-            <p class="text-muted">Pencocokan stok fisik harian/bulanan di toko dengan data di sistem.</p>
+            <p class="text-body">Pencocokan stok fisik harian/bulanan di toko dengan data di sistem.</p>
           </div>
           <div class="flex flex-wrap gap-3">
-            <button id="applyOpnameButton" class="rounded-lg bg-primary px-5 py-3 text-white hover:bg-[#e00b41] font-semibold transition hidden">Terapkan Hasil Opname</button>
+            <button id="applyOpnameButton" class="rounded-lg bg-primary px-5 py-3 text-white hover:bg-primary-active font-semibold transition hidden">Terapkan Hasil Opname</button>
             <button id="startOpnameButton" class="rounded-lg bg-ink px-5 py-3 text-white hover:bg-primary-active transition">Mulai Stok Opname</button>
           </div>
         </div>
@@ -607,7 +607,7 @@
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
           <div>
             <h3 class="text-2xl font-semibold">Pembelian Supplier</h3>
-            <p class="text-muted">Catat pembelian stok dan kelola invoice supplier.</p>
+            <p class="text-body">Catat pembelian stok dan kelola invoice supplier.</p>
           </div>
           <div class="flex flex-wrap gap-3">
             <button id="addPurchaseButton" class="rounded-lg bg-ink px-5 py-3 text-white hover:bg-primary-active transition">Tambah Pembelian</button>
@@ -635,7 +635,7 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div>
             <h3 class="text-2xl font-semibold">Riwayat Transaksi</h3>
-            <p class="text-muted">Semua transaksi sukses tercatat otomatis.</p>
+            <p class="text-body">Semua transaksi sukses tercatat otomatis.</p>
           </div>
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
             <input id="historySearchInput" type="search" placeholder="Cari transaksi..." class="rounded-full border border-hairline bg-white px-6 py-3 text-ink" />
@@ -667,9 +667,9 @@
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div>
             <h3 class="text-2xl font-semibold">📒 Kasbon Pelanggan</h3>
-            <p class="text-muted">Catat hutang pelanggan dan tandai saat lunas. <span class="text-amber-600 font-medium">Gratis: maks. 5 kasbon aktif — Premium: tanpa batas 👑</span></p>
+            <p class="text-body">Catat hutang pelanggan dan tandai saat lunas. <span class="text-amber-600 font-medium">Gratis: maks. 5 kasbon aktif — Premium: tanpa batas 👑</span></p>
           </div>
-          <button id="addDebtBtn" class="rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-[#e00b41] transition whitespace-nowrap">+ Catat Kasbon</button>
+          <button id="addDebtBtn" class="rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition whitespace-nowrap">+ Catat Kasbon</button>
         </div>
         <div class="grid grid-cols-2 gap-4 mb-6">
           <div class="rounded-xl bg-white border border-hairline shadow-sm p-5">
@@ -689,7 +689,7 @@
       <section id="pengaturan" class="screen hidden">
         <div class="mb-6">
           <h3 class="text-2xl font-semibold">Pengaturan Toko</h3>
-          <p class="text-muted">Info toko akan tampil di struk cetak pelanggan.</p>
+          <p class="text-body">Info toko akan tampil di struk cetak pelanggan.</p>
         </div>
 
         <!-- Multi-Cabang -->
@@ -697,7 +697,7 @@
           <div class="rounded-xl bg-white border border-hairline shadow-sm p-6">
             <div class="flex items-center justify-between gap-3 mb-1">
               <h4 class="text-lg font-semibold">🏪 Cabang Toko</h4>
-              <button id="addBranchBtn" class="rounded-lg bg-primary px-4 py-2 text-white text-sm font-semibold hover:bg-[#e00b41] transition whitespace-nowrap">+ Tambah Cabang</button>
+              <button id="addBranchBtn" class="rounded-lg bg-primary px-4 py-2 text-white text-sm font-semibold hover:bg-primary-active transition whitespace-nowrap">+ Tambah Cabang</button>
             </div>
             <p class="text-muted text-sm mb-4">Kelola banyak cabang dalam satu akun. Tiap cabang punya stok & transaksi sendiri; pemilik dapat memantau semua dari Dashboard Pusat. <span class="text-amber-600 font-medium">Paket Bisnis Rp50.000/bulan 🏢</span></p>
             <div id="branchList" class="space-y-2"></div>
@@ -814,7 +814,7 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div>
             <h3 class="text-2xl font-semibold">Kelola Kasir</h3>
-            <p class="text-muted">Tambah, edit, atau hapus operator kasir toko.</p>
+            <p class="text-body">Tambah, edit, atau hapus operator kasir toko.</p>
           </div>
           <button id="addCashierBtn" class="rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-primary-active transition">+ Tambah Kasir</button>
         </div>
@@ -836,7 +836,7 @@
         </div>
 
         <!-- Info cara kerja kasir -->
-        <div class="rounded-lg bg-[#fff1f3] border border-hairline px-4 py-3 text-sm text-ink mb-4">
+        <div class="rounded-lg bg-primary-light border border-hairline px-4 py-3 text-sm text-ink mb-4">
           💡 <strong>Cara kerja:</strong> Pemilik toko login dengan <strong>email & password</strong> di halaman awal.
           Kasir di bawah ini adalah <strong>operator</strong> yang dipilih lewat dropdown di halaman Kasir — tidak perlu login ulang, cukup pilih nama & masukkan PIN.
         </div>
@@ -849,13 +849,13 @@
       <section id="tentang" class="screen hidden">
         <div class="mb-6">
           <h3 class="text-2xl font-semibold">Tentang Aplikasi</h3>
-          <p class="text-muted">Informasi aplikasi dan kebijakan privasi.</p>
+          <p class="text-body">Informasi aplikasi dan kebijakan privasi.</p>
         </div>
         <div class="max-w-xl space-y-6">
           <div class="rounded-xl bg-white border border-hairline shadow-sm p-6 text-center">
             <div class="text-6xl mb-3">🛒</div>
             <h2 class="text-2xl font-bold text-ink">Kasir UMKM Simpel</h2>
-            <span class="inline-block mt-2 rounded-full bg-[#fff1f3] text-primary px-4 py-1 text-sm font-semibold">Versi 1.0.0</span>
+            <span class="inline-block mt-2 rounded-full bg-primary-light text-primary px-4 py-1 text-sm font-semibold">Versi 1.0.0</span>
             <p class="mt-4 text-body">Aplikasi kasir lengkap untuk UMKM Indonesia. Point of Sale, Inventory, Laporan, dan lebih banyak fitur dalam satu aplikasi.</p>
             <p class="mt-2 text-muted text-sm font-medium">Dikembangkan untuk UMKM Indonesia</p>
             <div class="mt-4 flex flex-wrap justify-center gap-2">
@@ -874,7 +874,7 @@
           <div class="rounded-xl bg-white border border-hairline shadow-sm p-6 space-y-2">
             <h4 class="font-semibold text-ink">Dukungan & Kontak</h4>
             <a href="https://t.me/+veK2jeQuBkQwNzU1" target="_blank" rel="noopener noreferrer"
-              class="inline-flex items-center gap-2 rounded-lg bg-[#fff1f3] border border-hairline px-3 py-2.5 min-h-[44px] text-sm font-medium text-primary hover:bg-[#fff1f3] transition">
+              class="inline-flex items-center gap-2 rounded-lg bg-primary-light border border-hairline px-3 py-2.5 min-h-[44px] text-sm font-medium text-primary hover:bg-primary-light transition">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-primary shrink-0"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
               Telegram
             </a>
@@ -887,9 +887,9 @@
         <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 class="text-2xl font-semibold">Panel Super Admin</h3>
-            <p class="text-muted">Manajemen langganan terpusat semua toko.</p>
+            <p class="text-body">Manajemen langganan terpusat semua toko.</p>
           </div>
-          <button id="superAdminRefreshBtn" class="rounded-lg bg-primary px-4 py-2.5 text-white text-sm font-semibold hover:bg-[#e00b41] transition whitespace-nowrap">🔄 Muat Ulang</button>
+          <button id="superAdminRefreshBtn" class="rounded-lg bg-primary px-4 py-2.5 text-white text-sm font-semibold hover:bg-primary-active transition whitespace-nowrap">🔄 Muat Ulang</button>
         </div>
 
         <!-- Form Aktivasi -->
@@ -930,7 +930,7 @@
               </label>
             </div>
             <div class="flex gap-3 pt-2">
-              <button id="superAdminActivateBtn" class="flex-1 rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-[#e00b41] transition">✅ Aktifkan</button>
+              <button id="superAdminActivateBtn" class="flex-1 rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition">✅ Aktifkan</button>
               <button id="superAdminRevokeBtn" class="flex-1 rounded-lg bg-rose-600 px-5 py-3 text-white font-semibold hover:bg-rose-700 transition">🗑 Revokasi</button>
             </div>
           </div>
@@ -948,7 +948,7 @@
         <div class="rounded-xl bg-white border border-hairline shadow-sm p-6">
           <h4 class="text-lg font-semibold mb-1">Log Error Aplikasi</h4>
           <p class="text-muted text-sm mb-4">Pantau error yang terjadi di sisi klien dari semua toko.</p>
-          <button id="superAdminLoadLogsBtn" class="rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-[#e00b41] transition text-sm">Muat Log</button>
+          <button id="superAdminLoadLogsBtn" class="rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition text-sm">Muat Log</button>
           <div id="superAdminErrorLogsWrapper" class="mt-4"></div>
           <div id="superAdminCopyLogsWrapper" class="hidden mt-3 flex items-center gap-3">
             <button id="superAdminCopyLogsBtn" class="rounded-lg border border-hairline px-4 py-3 text-body text-sm font-medium hover:bg-surface-soft transition">Salin Semua (JSON)</button>
@@ -1047,7 +1047,7 @@
     <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
       <div class="border-b border-hairline p-5">
         <h3 class="text-xl font-semibold">Ganti Operator Kasir</h3>
-        <p class="text-muted">Pilih kasir yang akan bertugas sekarang.</p>
+        <p class="text-body">Pilih kasir yang akan bertugas sekarang.</p>
       </div>
       <form id="loginForm" class="space-y-4 p-6">
         <label class="block"><span class="text-body">Nama Kasir</span><input id="loginName" required class="mt-2 w-full rounded-lg border border-hairline px-4 py-3" placeholder="contoh: Budi" /></label>
@@ -1066,7 +1066,7 @@
       <div class="flex items-center justify-between border-b border-hairline p-5">
         <div>
           <h3 class="text-xl font-semibold">Scan Barcode</h3>
-          <p id="scannerSubtitle" class="text-muted">Gunakan kamera untuk scan kode produk.</p>
+          <p id="scannerSubtitle" class="text-body">Gunakan kamera untuk scan kode produk.</p>
         </div>
         <button id="closeScanner" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft">×</button>
       </div>
@@ -1091,7 +1091,7 @@
           <p id="scannerNotFoundCode" class="text-red-600 text-sm mt-1"></p>
         </div>
         <div class="mt-4 flex flex-wrap items-center gap-3">
-          <button id="startScanner" class="rounded-lg bg-primary px-5 py-3 text-white hover:bg-[#e00b41] transition">▶ Mulai Scan</button>
+          <button id="startScanner" class="rounded-lg bg-primary px-5 py-3 text-white hover:bg-primary-active transition">▶ Mulai Scan</button>
           <button id="stopScanner" class="rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">⏹ Hentikan</button>
           <div class="flex-1 text-right">
             <span id="scannerStatus" class="text-sm text-muted italic">Siap memindai.</span>
@@ -1113,7 +1113,7 @@
       <div class="flex items-center justify-between border-b border-hairline p-5 flex-shrink-0">
         <div>
           <h3 class="text-xl font-semibold">Tambah Pembelian</h3>
-          <p class="text-muted">Catat barang masuk dari supplier.</p>
+          <p class="text-body">Catat barang masuk dari supplier.</p>
         </div>
         <button id="closePurchaseModal" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft">×</button>
       </div>
@@ -1136,7 +1136,7 @@
           <span id="purchaseTotal">Rp0</span>
         </div>
         <div class="flex gap-3">
-          <button id="savePurchase" class="flex-1 rounded-lg bg-primary px-5 py-3 text-white hover:bg-[#e00b41] transition">Simpan Pembelian</button>
+          <button id="savePurchase" class="flex-1 rounded-lg bg-primary px-5 py-3 text-white hover:bg-primary-active transition">Simpan Pembelian</button>
           <button id="cancelPurchase" class="flex-1 rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">Batal</button>
         </div>
       </div>
@@ -1179,7 +1179,7 @@
       </div>
       <div class="flex flex-wrap gap-3 border-t border-hairline p-4 no-print">
         <button id="waReceiptBtn" class="flex-1 rounded-lg bg-green-600 px-4 py-3 text-white font-semibold hover:bg-green-700 transition text-sm whitespace-nowrap">💬 Kirim via WA</button>
-        <button id="printBluetoothBtn" class="hidden flex-1 rounded-lg bg-primary px-4 py-3 text-white font-semibold hover:bg-[#e00b41] transition text-sm whitespace-nowrap">📶 Cetak Bluetooth</button>
+        <button id="printBluetoothBtn" class="hidden flex-1 rounded-lg bg-primary px-4 py-3 text-white font-semibold hover:bg-primary-active transition text-sm whitespace-nowrap">📶 Cetak Bluetooth</button>
         <button id="printThermalBtn" class="flex-1 rounded-lg bg-ink px-4 py-3 text-white font-semibold hover:bg-primary-active transition text-sm">🖨 Cetak Thermal</button>
         <button id="printReceipt" class="flex-1 rounded-lg bg-white border border-hairline px-4 py-3 text-body hover:bg-surface-soft transition text-sm">🖨 Cetak Biasa</button>
         <button id="closeReceiptBottom" class="rounded-lg border border-hairline bg-white px-4 py-3 text-body hover:bg-surface-soft transition text-sm">Tutup</button>
@@ -1193,7 +1193,7 @@
       <div class="flex items-center justify-between border-b border-hairline p-5 flex-shrink-0">
         <div>
           <h3 class="text-xl font-semibold" id="inventoryModalTitle">Tambah Produk</h3>
-          <p class="text-muted">Kelola data produk dan stok.</p>
+          <p class="text-body">Kelola data produk dan stok.</p>
         </div>
         <button id="closeInventoryModal" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft">×</button>
       </div>
@@ -1253,7 +1253,7 @@
               <span class="text-body font-medium text-sm">Barcode Produk</span>
               <input id="productBarcode" maxlength="50" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" placeholder="Scan atau ketik" />
             </label>
-            <button type="button" id="inventoryScanButton" class="mb-0.5 rounded-lg bg-primary px-4 py-3 text-white hover:bg-[#e00b41] transition whitespace-nowrap">📷</button>
+            <button type="button" id="inventoryScanButton" class="mb-0.5 rounded-lg bg-primary px-4 py-3 text-white hover:bg-primary-active transition whitespace-nowrap">📷</button>
           </div>
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
@@ -1322,7 +1322,7 @@
       <div class="flex items-center justify-between mb-4 shrink-0">
         <div>
             <h3 class="text-xl font-semibold">Kartu Stok (Mutasi)</h3>
-            <p id="ledgerProductName" class="text-muted font-medium"></p>
+            <p id="ledgerProductName" class="text-body font-medium"></p>
         </div>
         <button id="closeLedgerModal" class="rounded-full bg-surface-soft p-2 hover:bg-hairline-soft">×</button>
       </div>
@@ -1359,7 +1359,7 @@
         <p id="subsOverlayDesc" class="text-muted mt-2 text-sm">Fitur dasar tetap gratis selamanya.
           Premium membuka fitur tambahan untuk toko yang makin ramai.</p>
 
-        <div class="mt-5 rounded-lg bg-[#fff1f3] border border-hairline p-4">
+        <div class="mt-5 rounded-lg bg-primary-light border border-hairline p-4">
           <p id="subsOverlayPrice" class="text-3xl font-bold text-primary">Rp25.000<span class="text-base font-medium text-primary">/bulan</span></p>
           <div id="subsOverlayFeatures" class="text-xs text-primary mt-2 text-left space-y-1">
             <p>✅ QRIS Dinamis — nominal otomatis tertanam di QR</p>
@@ -1377,7 +1377,7 @@
         </div>
 
         <a id="subsPayBtn" href="#"
-          class="mt-4 block w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-[#e00b41] transition">
+          class="mt-4 block w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition">
           💳 Bayar Sekarang via Pakasir
         </a>
         <p class="text-xs text-muted-soft mt-2">Pembayaran diproses oleh Pakasir — gateway resmi berlisensi QRIS</p>
@@ -1442,7 +1442,7 @@
             <p class="text-xs text-emerald-600 uppercase tracking-wide">Total Penjualan</p>
             <p class="text-lg font-bold mt-1 text-emerald-700" id="shiftTotalSales">Rp0</p>
           </div>
-          <div class="rounded-lg bg-[#fff1f3] border border-hairline p-4 text-center">
+          <div class="rounded-lg bg-primary-light border border-hairline p-4 text-center">
             <p class="text-xs text-primary uppercase tracking-wide">Item Terjual</p>
             <p class="text-lg font-bold mt-1 text-primary" id="shiftItemsSold">0</p>
           </div>
@@ -1506,7 +1506,7 @@
           <label class="block text-body text-sm font-medium mb-2">Uang Modal Awal (Cash Float)</label>
           <input id="openShiftCashFloat" type="number" min="0" value="100000" required class="w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0" />
         </div>
-        <button type="submit" class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-[#e00b41] transition">
+        <button type="submit" class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition">
           Mulai Shift & Mulai Jualan
         </button>
       </form>
@@ -1528,7 +1528,7 @@
           <input id="pinAuthInput" type="password" placeholder="Masukkan PIN" required class="w-full text-center text-2xl tracking-widest rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0" />
         </div>
         <div class="flex gap-3">
-          <button type="submit" class="flex-1 rounded-lg bg-primary px-4 py-3 text-white font-semibold hover:bg-[#e00b41] transition text-sm">
+          <button type="submit" class="flex-1 rounded-lg bg-primary px-4 py-3 text-white font-semibold hover:bg-primary-active transition text-sm">
             Verifikasi
           </button>
           <button type="button" id="cancelPinAuth" class="flex-1 rounded-lg border border-hairline bg-white px-4 py-3 text-body hover:bg-surface-soft transition text-sm">
@@ -1619,13 +1619,13 @@
         <div class="text-7xl mb-4">🎉</div>
         <h2 class="text-2xl font-bold mb-2">Selamat Datang!</h2>
         <p class="text-muted-soft text-lg mb-6" id="onboardingWelcomeText">Toko siap digunakan.</p>
-        <button id="onboardingNext1" class="w-full rounded-lg bg-primary px-6 py-3 text-white font-semibold hover:bg-[#e00b41] transition">Lanjut →</button>
+        <button id="onboardingNext1" class="w-full rounded-lg bg-primary px-6 py-3 text-white font-semibold hover:bg-primary-active transition">Lanjut →</button>
       </div>
       <div id="onboardingStep2" class="onboarding-step hidden">
         <div class="text-7xl mb-4">📦</div>
         <h2 class="text-2xl font-bold mb-2">Langkah 2</h2>
         <p class="text-muted-soft text-lg mb-6">Tambah produk dulu di menu Inventory.</p>
-        <button id="onboardingNext2" class="w-full rounded-lg bg-primary px-6 py-3 text-white font-semibold hover:bg-[#e00b41] transition">Lanjut →</button>
+        <button id="onboardingNext2" class="w-full rounded-lg bg-primary px-6 py-3 text-white font-semibold hover:bg-primary-active transition">Lanjut →</button>
       </div>
       <div id="onboardingStep3" class="onboarding-step hidden">
         <div class="text-7xl mb-4">🧾</div>
@@ -1663,7 +1663,7 @@
           </div>
 
           <!-- Total -->
-          <div class="flex justify-between items-center bg-[#fff1f3] p-3 rounded-lg border border-hairline">
+          <div class="flex justify-between items-center bg-primary-light p-3 rounded-lg border border-hairline">
             <span id="debtTotalDisplay" class="font-bold text-ink">Total Hutang: Rp 0</span>
             <input type="hidden" id="debtFormAmount" value="0" />
           </div>
@@ -1691,7 +1691,7 @@
           </label>
         </div>
         <div class="p-5 border-t border-hairline shrink-0">
-          <button type="submit" class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-[#e00b41] transition">💾 Simpan Kasbon</button>
+          <button type="submit" class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition">💾 Simpan Kasbon</button>
         </div>
       </form>
     </div>
@@ -1770,7 +1770,7 @@
     <div id="helpChatQuick" class="px-4 pb-2 pt-1 bg-surface-soft flex flex-wrap gap-2"></div>
     <form id="helpChatForm" class="flex gap-2 border-t border-hairline p-3 bg-white">
       <input id="helpChatInput" type="text" placeholder="Ketik pertanyaan..." class="flex-1 rounded-lg border border-hairline px-4 py-2.5 text-sm focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" autocomplete="off" />
-      <button type="submit" class="rounded-lg bg-primary px-4 py-2.5 text-white text-sm font-semibold hover:bg-[#e00b41] transition">Kirim</button>
+      <button type="submit" class="rounded-lg bg-primary px-4 py-2.5 text-white text-sm font-semibold hover:bg-primary-active transition">Kirim</button>
     </form>
   </div>
 

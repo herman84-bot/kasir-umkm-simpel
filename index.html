@@ -23,7 +23,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="tailwind.css?v=3" />
+  <link rel="stylesheet" href="tailwind.css?v=4" />
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -369,19 +369,19 @@
           <article class="rounded-xl bg-white p-6 shadow-sm border border-hairline">
             <h3 class="text-sm uppercase tracking-[0.2em] text-muted">Produk Terjual</h3>
             <p class="mt-4 text-4xl font-semibold text-ink" id="statProductsSold">0</p>
-            <p class="mt-2 text-muted">Unit produk terjual hari ini.</p>
+            <p class="mt-2 text-body">Unit produk terjual hari ini.</p>
           </article>
           <article class="rounded-xl bg-white p-6 shadow-sm border border-hairline">
             <h3 class="text-sm uppercase tracking-[0.2em] text-muted">Estimasi Keuntungan Bersih</h3>
             <p class="mt-4 text-4xl font-semibold text-ink" id="statProfit">Rp0</p>
-            <p class="mt-2 text-muted">Laba hari ini (harga jual − modal − diskon).</p>
+            <p class="mt-2 text-body">Laba hari ini (harga jual − modal − diskon).</p>
           </article>
         </div>
         <div class="rounded-xl bg-white p-6 shadow-sm border border-hairline mb-6">
           <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h3 class="text-xl font-semibold">Status Persediaan</h3>
-              <p class="text-muted">Awas produk dengan stok rendah.</p>
+              <p class="text-body">Awas produk dengan stok rendah.</p>
             </div>
             <div class="rounded-xl bg-rose-50 px-4 py-3 text-rose-700 shadow-sm" id="lowStockAlert">Tidak ada stok kritis.</div>
           </div>
@@ -406,7 +406,7 @@
           <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
             <div>
               <h3 class="text-xl font-semibold">Tren Penjualan 7 Hari Terakhir</h3>
-              <p class="text-muted">Ringkasan transaksi harian dari data yang tersimpan.</p>
+              <p class="text-body">Ringkasan transaksi harian dari data yang tersimpan.</p>
             </div>
           </div>
           <div class="relative w-full h-56 md:h-64"><canvas id="salesChart"></canvas></div>
@@ -415,7 +415,7 @@
           <div class="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center mb-4">
             <div>
               <h3 class="text-xl font-semibold">Laporan Cepat</h3>
-              <p class="text-muted">Pilih rentang harian atau mingguan untuk ringkasan penjualan.</p>
+              <p class="text-body">Pilih rentang harian atau mingguan untuk ringkasan penjualan.</p>
             </div>
             <div class="flex gap-2 items-center">
               <select id="reportRangeSelect" class="rounded-lg border border-hairline bg-white px-4 py-3">
@@ -453,7 +453,7 @@
             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-5">
               <div>
                 <h3 class="text-xl font-semibold">Cari Produk</h3>
-                <p class="text-muted">Klik produk untuk menambah ke keranjang.</p>
+                <p class="text-body">Klik produk untuk menambah ke keranjang.</p>
               </div>
               <div class="flex flex-wrap gap-3">
                 <input id="searchInput" type="search" placeholder="Cari nama atau kode..." class="flex-1 min-w-[200px] rounded-full border border-hairline px-6 py-3 focus:border-ink focus:border-2 focus:ring-0" />
@@ -543,7 +543,7 @@
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
           <div>
             <h3 class="text-2xl font-semibold">Manajemen Inventory</h3>
-            <p class="text-muted">Tambah, edit, dan hapus produk dengan mudah.</p>
+            <p class="text-body">Tambah, edit, dan hapus produk dengan mudah.</p>
           </div>
           <div class="flex flex-wrap gap-3">
             <button id="exportInventory" class="rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">Export CSV</button>
@@ -573,7 +573,7 @@
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
           <div>
             <h3 class="text-2xl font-semibold">Stok Opname</h3>
-            <p class="text-muted">Pencocokan stok fisik harian/bulanan di toko dengan data di sistem.</p>
+            <p class="text-body">Pencocokan stok fisik harian/bulanan di toko dengan data di sistem.</p>
           </div>
           <div class="flex flex-wrap gap-3">
             <button id="applyOpnameButton" class="rounded-lg bg-primary px-5 py-3 text-white hover:bg-primary-active font-semibold transition hidden">Terapkan Hasil Opname</button>
@@ -607,7 +607,7 @@
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
           <div>
             <h3 class="text-2xl font-semibold">Pembelian Supplier</h3>
-            <p class="text-muted">Catat pembelian stok dan kelola invoice supplier.</p>
+            <p class="text-body">Catat pembelian stok dan kelola invoice supplier.</p>
           </div>
           <div class="flex flex-wrap gap-3">
             <button id="addPurchaseButton" class="rounded-lg bg-ink px-5 py-3 text-white hover:bg-primary-active transition">Tambah Pembelian</button>
@@ -635,7 +635,7 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div>
             <h3 class="text-2xl font-semibold">Riwayat Transaksi</h3>
-            <p class="text-muted">Semua transaksi sukses tercatat otomatis.</p>
+            <p class="text-body">Semua transaksi sukses tercatat otomatis.</p>
           </div>
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
             <input id="historySearchInput" type="search" placeholder="Cari transaksi..." class="rounded-full border border-hairline bg-white px-6 py-3 text-ink" />
@@ -667,7 +667,7 @@
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div>
             <h3 class="text-2xl font-semibold">📒 Kasbon Pelanggan</h3>
-            <p class="text-muted">Catat hutang pelanggan dan tandai saat lunas. <span class="text-amber-600 font-medium">Gratis: maks. 5 kasbon aktif — Premium: tanpa batas 👑</span></p>
+            <p class="text-body">Catat hutang pelanggan dan tandai saat lunas. <span class="text-amber-600 font-medium">Gratis: maks. 5 kasbon aktif — Premium: tanpa batas 👑</span></p>
           </div>
           <button id="addDebtBtn" class="rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition whitespace-nowrap">+ Catat Kasbon</button>
         </div>
@@ -689,7 +689,7 @@
       <section id="pengaturan" class="screen hidden">
         <div class="mb-6">
           <h3 class="text-2xl font-semibold">Pengaturan Toko</h3>
-          <p class="text-muted">Info toko akan tampil di struk cetak pelanggan.</p>
+          <p class="text-body">Info toko akan tampil di struk cetak pelanggan.</p>
         </div>
 
         <!-- Multi-Cabang -->
@@ -814,7 +814,7 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div>
             <h3 class="text-2xl font-semibold">Kelola Kasir</h3>
-            <p class="text-muted">Tambah, edit, atau hapus operator kasir toko.</p>
+            <p class="text-body">Tambah, edit, atau hapus operator kasir toko.</p>
           </div>
           <button id="addCashierBtn" class="rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-primary-active transition">+ Tambah Kasir</button>
         </div>
@@ -849,7 +849,7 @@
       <section id="tentang" class="screen hidden">
         <div class="mb-6">
           <h3 class="text-2xl font-semibold">Tentang Aplikasi</h3>
-          <p class="text-muted">Informasi aplikasi dan kebijakan privasi.</p>
+          <p class="text-body">Informasi aplikasi dan kebijakan privasi.</p>
         </div>
         <div class="max-w-xl space-y-6">
           <div class="rounded-xl bg-white border border-hairline shadow-sm p-6 text-center">
@@ -887,7 +887,7 @@
         <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 class="text-2xl font-semibold">Panel Super Admin</h3>
-            <p class="text-muted">Manajemen langganan terpusat semua toko.</p>
+            <p class="text-body">Manajemen langganan terpusat semua toko.</p>
           </div>
           <button id="superAdminRefreshBtn" class="rounded-lg bg-primary px-4 py-2.5 text-white text-sm font-semibold hover:bg-primary-active transition whitespace-nowrap">🔄 Muat Ulang</button>
         </div>
@@ -1047,7 +1047,7 @@
     <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
       <div class="border-b border-hairline p-5">
         <h3 class="text-xl font-semibold">Ganti Operator Kasir</h3>
-        <p class="text-muted">Pilih kasir yang akan bertugas sekarang.</p>
+        <p class="text-body">Pilih kasir yang akan bertugas sekarang.</p>
       </div>
       <form id="loginForm" class="space-y-4 p-6">
         <label class="block"><span class="text-body">Nama Kasir</span><input id="loginName" required class="mt-2 w-full rounded-lg border border-hairline px-4 py-3" placeholder="contoh: Budi" /></label>
@@ -1066,7 +1066,7 @@
       <div class="flex items-center justify-between border-b border-hairline p-5">
         <div>
           <h3 class="text-xl font-semibold">Scan Barcode</h3>
-          <p id="scannerSubtitle" class="text-muted">Gunakan kamera untuk scan kode produk.</p>
+          <p id="scannerSubtitle" class="text-body">Gunakan kamera untuk scan kode produk.</p>
         </div>
         <button id="closeScanner" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft">×</button>
       </div>
@@ -1113,7 +1113,7 @@
       <div class="flex items-center justify-between border-b border-hairline p-5 flex-shrink-0">
         <div>
           <h3 class="text-xl font-semibold">Tambah Pembelian</h3>
-          <p class="text-muted">Catat barang masuk dari supplier.</p>
+          <p class="text-body">Catat barang masuk dari supplier.</p>
         </div>
         <button id="closePurchaseModal" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft">×</button>
       </div>
@@ -1193,7 +1193,7 @@
       <div class="flex items-center justify-between border-b border-hairline p-5 flex-shrink-0">
         <div>
           <h3 class="text-xl font-semibold" id="inventoryModalTitle">Tambah Produk</h3>
-          <p class="text-muted">Kelola data produk dan stok.</p>
+          <p class="text-body">Kelola data produk dan stok.</p>
         </div>
         <button id="closeInventoryModal" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft">×</button>
       </div>
@@ -1322,7 +1322,7 @@
       <div class="flex items-center justify-between mb-4 shrink-0">
         <div>
             <h3 class="text-xl font-semibold">Kartu Stok (Mutasi)</h3>
-            <p id="ledgerProductName" class="text-muted font-medium"></p>
+            <p id="ledgerProductName" class="text-body font-medium"></p>
         </div>
         <button id="closeLedgerModal" class="rounded-full bg-surface-soft p-2 hover:bg-hairline-soft">×</button>
       </div>

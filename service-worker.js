@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kasir-umkm-cache-v28';
+const CACHE_NAME = 'kasir-umkm-cache-v29';
 // CATATAN PENTING: jangan masukkan 'index.html' di sini. Vercel cleanUrls=true
 // me-redirect /index.html -> / (308); Cache API menolak menyimpan response
 // hasil redirect sehingga cache.addAll() reject dan install SW GAGAL TOTAL —
@@ -55,7 +55,7 @@ self.addEventListener('fetch', event => {
         const copy = res.clone();
         caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
         return res;
-      }).catch(() => caches.match(req).then(r => r || caches.match('index.html')))
+      }).catch(() => caches.match(req).then(r => r || caches.match('./')))
     );
   } else {
     // Aset eksternal (CDN): cache-first

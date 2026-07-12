@@ -4825,7 +4825,7 @@ ${txRows}
       window.location.reload();
     });
 
-    navigator.serviceWorker.register('service-worker.js')
+    navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' })
       .then(registration => {
         console.log('Service worker terdaftar.');
         // Paksa cek versi baru tiap load + tiap kembali fokus ke app.
