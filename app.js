@@ -277,7 +277,7 @@ const App = (() => {
     if (desc) desc.textContent = featureName
       ? `${featureName} termasuk paket ${p.label}. Aplikasi dasar tetap gratis selamanya.`
       : 'Fitur dasar tetap gratis selamanya.';
-    if (price) price.innerHTML = `${esc(p.price)}<span class="text-base font-medium text-sky-500">/bulan</span>`;
+    if (price) price.innerHTML = `${esc(p.price)}<span class="text-base font-medium text-primary">/bulan</span>`;
     if (feats) feats.innerHTML = p.features.map(f => `<p>✅ ${esc(f)}</p>`).join('');
     showSubsOverlay(p);
   };
@@ -701,7 +701,7 @@ const App = (() => {
     if (roleEl) {
       roleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
       roleEl.className = isAdmin
-        ? 'text-xs px-2 py-0.5 rounded-full bg-[#e00b41] text-sky-100'
+        ? 'text-xs px-2 py-0.5 rounded-full bg-[#e00b41] text-white/70'
         : 'text-xs px-2 py-0.5 rounded-full bg-[#333333] text-[#b0b0b0]';
     }
     if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
@@ -712,7 +712,7 @@ const App = (() => {
     if (mobileRoleEl) {
       mobileRoleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
       mobileRoleEl.className = isAdmin
-        ? 'text-xs px-2 py-0.5 rounded-full bg-[#e00b41] text-sky-100'
+        ? 'text-xs px-2 py-0.5 rounded-full bg-[#e00b41] text-white/70'
         : 'text-xs px-2 py-0.5 rounded-full bg-[#333333] text-[#b0b0b0]';
     }
     if (mobileAvatar) mobileAvatar.textContent = name.charAt(0).toUpperCase();
@@ -1353,13 +1353,13 @@ const App = (() => {
     list.innerHTML = stores.map(s => {
       const isActive = String(s.id) === String(state.storeId);
       const isPrimary = String(s.id) === primaryId;
-      return `<div class="flex items-center justify-between gap-3 rounded-lg border ${isActive ? 'border-sky-400 bg-[#fff1f3]' : 'border-[#dddddd] bg-white'} px-4 py-3">
+      return `<div class="flex items-center justify-between gap-3 rounded-lg border ${isActive ? 'border-primary bg-[#fff1f3]' : 'border-[#dddddd] bg-white'} px-4 py-3">
         <div class="min-w-0">
           <p class="font-semibold truncate">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-primary">(Pusat)</span>' : ''}${isActive ? ' <span class="text-xs text-emerald-600">• aktif</span>' : ''}</p>
         </div>
         <div class="flex gap-1 shrink-0">
           ${isActive ? '' : `<button data-branch-switch="${esc(s.id)}" class="rounded-lg bg-primary px-2.5 py-1.5 text-white text-xs hover:bg-[#e00b41]">Buka</button>`}
-          <button data-branch-rename="${esc(s.id)}" class="rounded-lg bg-[#ebebeb] px-2.5 py-1.5 text-[#3f3f3f] text-xs hover:bg-slate-300">Nama</button>
+          <button data-branch-rename="${esc(s.id)}" class="rounded-lg bg-[#ebebeb] px-2.5 py-1.5 text-[#3f3f3f] text-xs hover:bg-[#dddddd]">Nama</button>
           ${(stores.length > 1 && !isPrimary) ? `<button data-branch-delete="${esc(s.id)}" class="rounded-lg bg-rose-100 px-2.5 py-1.5 text-rose-700 text-xs hover:bg-rose-200">Hapus</button>` : ''}
         </div>
       </div>`;
@@ -1416,7 +1416,7 @@ const App = (() => {
           <th class="px-4 py-2 font-medium text-right">Omzet Hari Ini</th>
           <th class="px-4 py-2 font-medium text-right">Transaksi</th>
         </tr></thead>
-        <tbody class="divide-y divide-slate-100">${rows}</tbody>
+        <tbody class="divide-y border-hairline">${rows}</tbody>
         <tfoot><tr class="border-t-2 border-[#dddddd] font-semibold">
           <td class="px-4 py-3">TOTAL Semua Cabang</td>
           <td class="px-4 py-3 text-right text-primary">${formatCurrency(grandTotal)}</td>
@@ -3658,7 +3658,7 @@ ${txRows}
       }
 
       itemsList.innerHTML = tx.items.map(item => `
-        <div class="flex items-center justify-between border-b border-slate-100 py-3">
+        <div class="flex items-center justify-between border-b border-[#ebebeb] py-3">
           <div class="flex-1">
             <p class="font-semibold text-[#222222]">${esc(item.name)}</p>
             <p class="text-xs text-[#6a6a6a]">${formatCurrency(item.price)} • Beli: ${item.qty} pcs</p>
@@ -3889,7 +3889,7 @@ ${txRows}
       [step1, step2, step3].forEach((s, i) => s && s.classList.toggle('hidden', i !== n - 1));
       [dot1, dot2, dot3].forEach((d, i) => {
         if (!d) return;
-        d.className = i === n - 1 ? 'w-2 h-2 rounded-full bg-sky-400' : 'w-2 h-2 rounded-full bg-[#4a4a4a]';
+        d.className = i === n - 1 ? 'w-2 h-2 rounded-full bg-primary' : 'w-2 h-2 rounded-full bg-[#4a4a4a]';
       });
     };
 
@@ -3903,7 +3903,7 @@ ${txRows}
     state.paymentMethod = method;
     document.querySelectorAll('.paymethod-btn').forEach(btn => {
       const active = btn.dataset.paymethod === method;
-      btn.className = `paymethod-btn flex-1 rounded-lg border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-primary bg-[#fff1f3] text-primary' : 'border-[#dddddd] bg-white text-[#3f3f3f] hover:border-sky-300'}`;
+      btn.className = `paymethod-btn flex-1 rounded-lg border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-primary bg-[#fff1f3] text-primary' : 'border-[#dddddd] bg-white text-[#3f3f3f] hover:border-[#dddddd]'}`;
     });
     const splitWrapper = document.getElementById('splitInputWrapper');
     if (dom.cashInputWrapper) {
@@ -4042,7 +4042,7 @@ ${txRows}
           const typeName = typeMap[row.reference_type] || row.reference_type;
           const qtyText = row.qty_changed > 0 ? `<span class="text-emerald-600 font-bold">+${row.qty_changed}</span>` : `<span class="text-rose-600 font-bold">${row.qty_changed}</span>`;
           return `
-            <tr class="border-b border-slate-100 hover:bg-[#f7f7f7]">
+            <tr class="border-b border-[#ebebeb] hover:bg-[#f7f7f7]">
               <td class="p-3">${time}</td>
               <td class="p-3">${esc(row.cashier_name || '-')}</td>
               <td class="p-3">${esc(typeName)}</td>
@@ -4090,7 +4090,7 @@ ${txRows}
       const lossText = loss === 0 ? '-' : (loss < 0 ? `<span class="text-rose-600">${formatCurrency(Math.abs(loss))}</span>` : `<span class="text-emerald-600">+${formatCurrency(loss)}</span>`);
       const diffText = diff === 0 ? '-' : (diff < 0 ? `<span class="text-rose-600">${diff}</span>` : `<span class="text-emerald-600">+${diff}</span>`);
       return `
-        <tr class="border-b border-slate-100 hover:bg-[#f7f7f7]">
+        <tr class="border-b border-[#ebebeb] hover:bg-[#f7f7f7]">
           <td class="p-3 font-medium">${esc(p.name)}</td>
           <td class="p-3">${p.stock}</td>
           <td class="p-3"><input type="number" min="0" value="${p.physical}" data-opname-id="${p.id}" class="opname-input w-24 rounded border border-[#dddddd] px-2 py-1 focus:border-[#222222] focus:border-2 focus:ring-0" /></td>
@@ -5060,16 +5060,16 @@ ${txRows}
     
     div.innerHTML = `
         <div class="w-[45%]">
-            <select class="w-full rounded-xl border border-[#dddddd] px-2 py-1.5 text-sm focus:border-[#222222] focus:border-2 focus:ring-0 focus:outline-none dark:bg-[#1a1a1a] dark:text-white dark:border-[#333333] debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
+            <select class="w-full rounded-xl border border-[#dddddd] px-2 py-1.5 text-sm focus:border-[#222222] focus:border-2 focus:ring-0 focus:outline-none debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
                 <option value="" disabled selected>Pilih Produk</option>
                 ${productOptions}
             </select>
         </div>
         <div class="w-[20%]">
-            <input type="number" min="1" value="1" class="w-full rounded-xl border border-[#dddddd] px-2 py-1.5 text-sm focus:border-[#222222] focus:border-2 focus:ring-0 focus:outline-none dark:bg-[#1a1a1a] dark:text-white dark:border-[#333333] debt-qty-input" oninput="calculateDebtTotal()">
+            <input type="number" min="1" value="1" class="w-full rounded-xl border border-[#dddddd] px-2 py-1.5 text-sm focus:border-[#222222] focus:border-2 focus:ring-0 focus:outline-none debt-qty-input" oninput="calculateDebtTotal()">
         </div>
         <div class="w-[25%]">
-             <input type="text" class="w-full rounded-xl border border-[#dddddd] bg-[#f7f7f7] px-2 py-1.5 text-sm text-[#6a6a6a] dark:bg-[#1a1a1a] dark:text-white dark:border-[#333333]" readonly value="0">
+             <input type="text" class="w-full rounded-xl border border-[#dddddd] bg-[#f7f7f7] px-2 py-1.5 text-sm text-[#6a6a6a]" readonly value="0">
         </div>
         <div class="w-[10%] flex justify-end">
              <button type="button" class="rounded-xl bg-rose-100 text-rose-600 px-3 py-1.5 hover:bg-rose-200 transition font-bold" onclick="removeDebtItemRow('${rowId}')">✕</button>
@@ -5637,7 +5637,7 @@ ${txRows}
     ['Cara cetak struk?', 'Cara pakai QRIS?', 'Soal langganan', 'Tambah kasir'].forEach(label => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'rounded-full border border-sky-300 bg-[#fff1f3] text-primary px-3 py-1 text-xs hover:bg-[#fff1f3] transition';
+      b.className = 'rounded-full border border-[#dddddd] bg-[#fff1f3] text-primary px-3 py-1 text-xs hover:bg-[#fff1f3] transition';
       b.textContent = label;
       b.addEventListener('click', () => ask(label));
       quick.appendChild(b);
@@ -5798,7 +5798,7 @@ ${txRows}
         </thead>
         <tbody>
           ${stores.map(s => `
-            <tr class="border-b border-slate-100 hover:bg-[#f7f7f7] transition">
+            <tr class="border-b border-[#ebebeb] hover:bg-[#f7f7f7] transition">
               <td class="py-2 pr-4 font-medium text-[#222222]">${esc(s.name || '-')}</td>
               <td class="py-2 pr-4 text-[#6a6a6a] font-mono text-xs">${esc(s.owner_id || '-')}</td>
               <td class="py-2 pr-4 text-[#6a6a6a]">${esc(s.owner_email || '-')}</td>

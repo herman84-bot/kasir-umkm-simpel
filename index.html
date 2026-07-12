@@ -33,142 +33,10 @@
       max-width: 100%;
     }
     body {
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: Inter, -apple-system, system-ui, Roboto, "Helvetica Neue", sans-serif;
     }
     .print-hidden {
       display: none;
-    }
-    body.dark {
-      background: #0f172a;
-      color: #f8fafc;
-    }
-    body.dark .bg-white {
-      background-color: #1e293b !important;
-    }
-    body.dark .bg-[#f7f7f7] {
-      background-color: #0f172a !important;
-    }
-    body.dark .bg-[#f7f7f7] {
-      background-color: #111827 !important;
-    }
-    body.dark .bg-[#222222] {
-      background-color: #0f172a !important;
-    }
-    body.dark .bg-[#fff1f3] {
-      background-color: #1e293b !important;
-    }
-    body.dark .text-[#222222] {
-      color: #f8fafc !important;
-    }
-    body.dark .text-[#3f3f3f],
-    body.dark .text-[#222222],
-    body.dark .text-[#222222] {
-      color: #f8fafc !important;
-    }
-    body.dark .text-[#6a6a6a],
-    body.dark .text-[#3f3f3f] {
-      color: #cbd5e1 !important;
-    }
-    body.dark .border-[#dddddd],
-    body.dark .border-[#dddddd] {
-      border-color: #334155 !important;
-    }
-    /* Badge/banner berlatar terang: gelapkan latar + terangkan teks agar tetap kontras di dark mode */
-    body.dark .bg-[#ebebeb] {
-      background-color: #334155 !important;
-    }
-    body.dark .bg-[#fff1f3] {
-      background-color: #0c4a6e !important;
-    }
-    body.dark .border-sky-100,
-    body.dark .border-[#dddddd] {
-      border-color: #075985 !important;
-    }
-    body.dark .text-primary,
-    body.dark .text-primary {
-      color: #7dd3fc !important;
-    }
-    body.dark .bg-amber-50,
-    body.dark .bg-amber-100 {
-      background-color: #451a03 !important;
-    }
-    body.dark .border-amber-200 {
-      border-color: #92400e !important;
-    }
-    body.dark .text-amber-800,
-    body.dark .text-amber-700,
-    body.dark .text-amber-600 {
-      color: #fcd34d !important;
-    }
-    body.dark .bg-green-50,
-    body.dark .bg-green-100,
-    body.dark .bg-emerald-50,
-    body.dark .bg-emerald-100 {
-      background-color: #064e3b !important;
-    }
-    body.dark .border-green-200,
-    body.dark .border-emerald-200 {
-      border-color: #065f46 !important;
-    }
-    body.dark .text-green-800,
-    body.dark .text-green-700,
-    body.dark .text-green-600,
-    body.dark .text-emerald-700,
-    body.dark .text-emerald-600 {
-      color: #6ee7b7 !important;
-    }
-    body.dark .bg-red-50,
-    body.dark .bg-rose-50,
-    body.dark .bg-rose-100,
-    body.dark .bg-rose-200 {
-      background-color: #450a0a !important;
-    }
-    body.dark .hover\:bg-rose-100:hover,
-    body.dark .hover\:bg-rose-200:hover {
-      background-color: #7f1d1d !important;
-    }
-    body.dark .bg-blue-100 {
-      background-color: #172554 !important;
-    }
-    body.dark .text-blue-700 {
-      color: #93c5fd !important;
-    }
-    body.dark .border-red-200,
-    body.dark .border-rose-200 {
-      border-color: #991b1b !important;
-    }
-    body.dark .text-red-700,
-    body.dark .text-red-600,
-    body.dark .text-rose-700,
-    body.dark .text-rose-600 {
-      color: #fca5a5 !important;
-    }
-    body.dark .text-red-500 {
-      color: #f87171 !important;
-    }
-    body.dark .bg-purple-100 {
-      background-color: #3b0764 !important;
-    }
-    body.dark .text-purple-700 {
-      color: #d8b4fe !important;
-    }
-    body.dark input,
-    body.dark select,
-    body.dark textarea {
-      background-color: #1e293b !important;
-      color: #ffffff !important;
-      border-color: #334155 !important;
-    }
-    body.dark input::placeholder,
-    body.dark textarea::placeholder,
-    body.dark select::placeholder {
-      color: #94a3b8 !important;
-    }
-    body.dark .shadow-sm {
-      box-shadow: 0 1px 2px rgba(15,23,42,0.3);
-    }
-    body.dark .shadow-sm {
-      box-shadow: 0 20px 25px rgba(15,23,42,0.2);
     }
     @media print {
       body * { visibility: hidden; }
@@ -237,7 +105,7 @@
   </div>
 
   <!-- Login / Register Page -->
-  <div id="loginPage" class="fixed inset-0 z-[99] hidden items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-sky-900 overflow-y-auto py-8">
+  <div id="loginPage" class="fixed inset-0 z-[99] hidden items-center justify-center bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0c4a6e] overflow-y-auto py-8">
     <div class="w-full max-w-md px-6">
       <div class="text-center mb-6">
         <div class="text-6xl mb-3">🛒</div>
@@ -409,7 +277,7 @@
     </aside>
 
     <!-- Gradient scroll indicator untuk mobile bottom nav agar user tahu bisa di-scroll -->
-    <div class="fixed bottom-0 right-0 z-50 w-12 h-[56px] md:hidden pointer-events-none bg-gradient-to-l from-slate-900 to-transparent"></div>
+    <div class="fixed bottom-0 right-0 z-50 w-12 h-[56px] md:hidden pointer-events-none bg-gradient-to-l from-[#0f172a] to-transparent"></div>
     <!-- Bottom Navigation Bar: visible on mobile only -->
     <nav id="bottomNav" class="fixed bottom-0 left-0 right-0 z-40 bg-[#222222] md:hidden flex items-stretch border-t border-[#333333] overflow-x-auto scroll-smooth hide-scrollbar" style="-webkit-overflow-scrolling: touch; scrollbar-width: none;">
       <button data-screen="dashboard" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-[#929292] hover:text-white transition min-h-[56px]">
@@ -499,7 +367,7 @@
           <article class="rounded-xl bg-gradient-to-br from-cyan-500 to-[#222222] text-white p-6 shadow-sm">
             <h3 class="text-sm uppercase tracking-[0.2em] opacity-90">Penjualan Hari Ini</h3>
             <p class="mt-4 text-4xl font-semibold" id="statSalesToday">Rp0</p>
-            <p class="mt-2 text-slate-100/80">Total penjualan berhasil hari ini.</p>
+            <p class="mt-2 text-white/70">Total penjualan berhasil hari ini.</p>
           </article>
           <article class="rounded-xl bg-white p-6 shadow-sm border border-[#dddddd]">
             <h3 class="text-sm uppercase tracking-[0.2em] text-[#6a6a6a]">Produk Terjual</h3>
@@ -637,9 +505,9 @@
                 <span class="text-[#3f3f3f] text-sm font-medium block mb-2">Metode Pembayaran</span>
                 <div class="flex gap-2">
                   <button type="button" data-paymethod="Tunai" class="paymethod-btn flex-1 rounded-lg border-2 border-primary bg-[#fff1f3] px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-primary transition">💵 Tunai</button>
-                  <button type="button" data-paymethod="QRIS" class="paymethod-btn flex-1 rounded-lg border-2 border-[#dddddd] bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-[#3f3f3f] transition hover:border-sky-300">📱 QRIS</button>
-                  <button type="button" data-paymethod="Transfer" class="paymethod-btn flex-1 rounded-lg border-2 border-[#dddddd] bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-[#3f3f3f] transition hover:border-sky-300">🏦 Transfer</button>
-                  <button type="button" data-paymethod="Split" class="paymethod-btn flex-1 rounded-lg border-2 border-[#dddddd] bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-[#3f3f3f] transition hover:border-sky-300">⚖️ Split</button>
+                  <button type="button" data-paymethod="QRIS" class="paymethod-btn flex-1 rounded-lg border-2 border-[#dddddd] bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-[#3f3f3f] transition hover:border-[#dddddd]">📱 QRIS</button>
+                  <button type="button" data-paymethod="Transfer" class="paymethod-btn flex-1 rounded-lg border-2 border-[#dddddd] bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-[#3f3f3f] transition hover:border-[#dddddd]">🏦 Transfer</button>
+                  <button type="button" data-paymethod="Split" class="paymethod-btn flex-1 rounded-lg border-2 border-[#dddddd] bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-[#3f3f3f] transition hover:border-[#dddddd]">⚖️ Split</button>
                 </div>
               </div>
               <div id="cashInputWrapper">
@@ -865,7 +733,7 @@
                   <option value="80">80mm (Printer thermal besar)</option>
                 </select>
               </label>
-              <div class="border-t border-slate-100 pt-4 mt-4">
+              <div class="border-t border-[#ebebeb] pt-4 mt-4">
                 <p class="font-semibold text-[#3f3f3f] text-sm mb-1">🔲 QRIS Statis</p>
                 <p class="text-xs text-[#6a6a6a] mb-3">Upload gambar QRIS toko Anda. Akan muncul otomatis di layar saat kasir memilih metode bayar QRIS.</p>
                 <label class="block">
@@ -891,14 +759,14 @@
               <p class="text-center font-bold text-sm" id="previewStoreName">NAMA TOKO</p>
               <p class="text-center" id="previewStoreAddress">Alamat toko</p>
               <p class="text-center" id="previewStorePhone">No. Telepon</p>
-              <div class="border-t border-dashed border-slate-400 my-2"></div>
+              <div class="border-t border-dashed border-[#929292] my-2"></div>
               <div class="flex justify-between"><span>Produk A</span><span>Rp10.000</span></div>
               <div class="flex justify-between text-[#6a6a6a]"><span class="ml-2">1 x 10.000</span></div>
-              <div class="border-t border-dashed border-slate-400 my-2"></div>
+              <div class="border-t border-dashed border-[#929292] my-2"></div>
               <div class="flex justify-between font-bold"><span>TOTAL</span><span>Rp10.000</span></div>
               <div class="flex justify-between"><span>Tunai</span><span>Rp20.000</span></div>
               <div class="flex justify-between"><span>Kembali</span><span>Rp10.000</span></div>
-              <div class="border-t border-dashed border-slate-400 my-2"></div>
+              <div class="border-t border-dashed border-[#929292] my-2"></div>
               <p class="text-center" id="previewStoreNote">Terima kasih!</p>
             </div>
           </div>
@@ -1010,7 +878,7 @@
             <h4 class="font-semibold text-[#222222]">Dukungan & Kontak</h4>
             <a href="https://t.me/+veK2jeQuBkQwNzU1" target="_blank" rel="noopener noreferrer"
               class="inline-flex items-center gap-2 rounded-lg bg-[#fff1f3] border border-[#dddddd] px-3 py-2.5 min-h-[44px] text-sm font-medium text-primary hover:bg-[#fff1f3] transition">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-sky-500 shrink-0"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-primary shrink-0"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
               Telegram
             </a>
           </div>
@@ -1294,21 +1162,21 @@
           <p class="text-center font-bold text-sm" id="receiptStoreName">KASIR UMKM</p>
           <p class="text-center text-xs" id="receiptStoreAddress"></p>
           <p class="text-center text-xs" id="receiptStorePhone"></p>
-          <div class="border-t border-dashed border-slate-400 my-2"></div>
+          <div class="border-t border-dashed border-[#929292] my-2"></div>
           <div class="flex justify-between text-xs"><span>No</span><span id="receiptId">-</span></div>
           <div class="flex justify-between text-xs"><span>Tgl</span><span id="receiptDate">-</span></div>
           <div class="flex justify-between text-xs"><span>Kasir</span><span id="receiptCashierName">-</span></div>
-          <div class="border-t border-dashed border-slate-400 my-2"></div>
+          <div class="border-t border-dashed border-[#929292] my-2"></div>
           <div id="receiptItems" class="space-y-1"></div>
-          <div class="border-t border-dashed border-slate-400 my-2"></div>
+          <div class="border-t border-dashed border-[#929292] my-2"></div>
           <div class="flex justify-between text-xs"><span>Subtotal</span><span id="receiptSubtotal">Rp0</span></div>
           <div class="flex justify-between text-xs" id="receiptDiscountRow"><span>Diskon</span><span id="receiptDiscount">Rp0</span></div>
           <div class="flex justify-between text-xs" id="receiptTaxRow"><span>Pajak 11%</span><span id="receiptTax">Rp0</span></div>
-          <div class="border-t border-slate-400 my-1"></div>
+          <div class="border-t border-[#929292] my-1"></div>
           <div class="flex justify-between font-bold text-sm"><span>TOTAL</span><span id="receiptTotal">Rp0</span></div>
           <div class="flex justify-between text-xs mt-1" id="receiptPaymentMethodRow"><span id="receiptPaymentMethodLabel">Tunai</span><span id="receiptCash">Rp0</span></div>
           <div class="flex justify-between text-xs font-semibold"><span>Kembali</span><span id="receiptChange">Rp0</span></div>
-          <div class="border-t border-dashed border-slate-400 my-2"></div>
+          <div class="border-t border-dashed border-[#929292] my-2"></div>
           <p class="text-center text-xs" id="receiptStoreNote">Terima kasih!</p>
         </div>
       </div>
@@ -1486,7 +1354,7 @@
   </div>
 
   <!-- Halaman perpanjangan langganan (lock saat masa aktif habis) -->
-  <div id="subsOverlay" class="hidden fixed inset-0 z-[200] items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-sky-900 overflow-y-auto px-4 py-8">
+  <div id="subsOverlay" class="hidden fixed inset-0 z-[200] items-center justify-center bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0c4a6e] overflow-y-auto px-4 py-8">
     <div class="w-full max-w-md mx-auto">
       <div class="bg-white rounded-xl shadow-sm p-7 text-center">
         <div class="text-5xl mb-3">👑</div>
@@ -1495,7 +1363,7 @@
           Premium membuka fitur tambahan untuk toko yang makin ramai.</p>
 
         <div class="mt-5 rounded-lg bg-[#fff1f3] border border-[#dddddd] p-4">
-          <p id="subsOverlayPrice" class="text-3xl font-bold text-primary">Rp25.000<span class="text-base font-medium text-sky-500">/bulan</span></p>
+          <p id="subsOverlayPrice" class="text-3xl font-bold text-primary">Rp25.000<span class="text-base font-medium text-primary">/bulan</span></p>
           <div id="subsOverlayFeatures" class="text-xs text-primary mt-2 text-left space-y-1">
             <p>✅ QRIS Dinamis — nominal otomatis tertanam di QR</p>
             <p>✅ Export laporan PDF</p>
@@ -1598,7 +1466,7 @@
               <span class="text-[#3f3f3f]">Refund Tunai (System):</span>
               <span id="shiftModalRefunds" class="font-semibold text-[#222222]">Rp0</span>
             </div>
-            <div class="flex justify-between text-base font-semibold border-t border-slate-100 pt-2 text-[#222222]">
+            <div class="flex justify-between text-base font-semibold border-t border-[#ebebeb] pt-2 text-[#222222]">
               <span>Total Uang Kas (System):</span>
               <span id="shiftModalExpected">Rp0</span>
             </div>
@@ -1769,7 +1637,7 @@
         <button id="onboardingFinish" class="w-full rounded-lg bg-emerald-600 px-6 py-3 text-white font-semibold hover:bg-emerald-700 transition">Mulai Sekarang 🚀</button>
       </div>
       <div class="flex justify-center gap-2 mt-6">
-        <div id="ob-dot1" class="w-2 h-2 rounded-full bg-sky-400"></div>
+        <div id="ob-dot1" class="w-2 h-2 rounded-full bg-primary"></div>
         <div id="ob-dot2" class="w-2 h-2 rounded-full bg-[#4a4a4a]"></div>
         <div id="ob-dot3" class="w-2 h-2 rounded-full bg-[#4a4a4a]"></div>
       </div>
@@ -1798,14 +1666,14 @@
           </div>
 
           <!-- Total -->
-          <div class="flex justify-between items-center bg-[#fff1f3] p-3 rounded-lg border border-sky-100 dark:bg-sky-900/30 dark:border-sky-800">
-            <span id="debtTotalDisplay" class="font-bold text-[#222222] dark:text-sky-300">Total Hutang: Rp 0</span>
+          <div class="flex justify-between items-center bg-[#fff1f3] p-3 rounded-lg border border-[#dddddd]">
+            <span id="debtTotalDisplay" class="font-bold text-[#222222]">Total Hutang: Rp 0</span>
             <input type="hidden" id="debtFormAmount" value="0" />
           </div>
 
           <label class="block">
             <span class="text-[#3f3f3f] font-medium text-sm">Nama Pelanggan</span>
-            <input id="debtFormName" required maxlength="80" class="mt-1 w-full rounded-lg border border-[#dddddd] px-4 py-2.5 focus:border-[#222222] focus:border-2 focus:ring-0 focus:outline-none dark:bg-[#1a1a1a] dark:text-white dark:border-[#4a4a4a] bg-white" placeholder="contoh: Bu Siti" />
+            <input id="debtFormName" required maxlength="80" class="mt-1 w-full rounded-lg border border-[#dddddd] px-4 py-2.5 focus:border-[#222222] focus:border-2 focus:ring-0 focus:outline-none bg-white" placeholder="contoh: Bu Siti" />
           </label>
           <label class="block">
             <span class="text-[#3f3f3f] font-medium text-sm">No. WhatsApp <span class="text-[#929292]">(opsional, untuk tagih)</span></span>
@@ -1816,13 +1684,13 @@
               inputmode="numeric" 
               maxlength="20" 
               oninput="this.value = this.value.replace(/[^0-9]/g, '')"
-              class="mt-1 w-full rounded-lg border border-[#dddddd] px-4 py-2.5 focus:border-[#222222] focus:border-2 focus:ring-0 focus:outline-none dark:bg-[#1a1a1a] dark:text-white dark:border-[#4a4a4a] bg-white" 
+              class="mt-1 w-full rounded-lg border border-[#dddddd] px-4 py-2.5 focus:border-[#222222] focus:border-2 focus:ring-0 focus:outline-none bg-white" 
               placeholder="contoh: 08123456789" 
             />
           </label>
           <label class="block">
             <span class="text-[#3f3f3f] font-medium text-sm">Catatan <span class="text-[#929292]">(opsional)</span></span>
-            <input id="debtFormNote" maxlength="150" class="mt-1 w-full rounded-lg border border-[#dddddd] px-4 py-2.5 focus:border-[#222222] focus:border-2 focus:ring-0 focus:outline-none dark:bg-[#1a1a1a] dark:text-white dark:border-[#4a4a4a] bg-white" placeholder="catatan tambahan" />
+            <input id="debtFormNote" maxlength="150" class="mt-1 w-full rounded-lg border border-[#dddddd] px-4 py-2.5 focus:border-[#222222] focus:border-2 focus:ring-0 focus:outline-none bg-white" placeholder="catatan tambahan" />
           </label>
         </div>
         <div class="p-5 border-t border-[#dddddd] shrink-0">
