@@ -105,12 +105,12 @@
   </div>
 
   <!-- Login / Register Page -->
-  <div id="loginPage" class="fixed inset-0 z-[99] hidden items-center justify-center bg-gradient-to-br from-primary via-rose-500 to-orange-400 overflow-y-auto py-8">
+  <div id="loginPage" class="fixed inset-0 z-[99] hidden items-center justify-center bg-surface-soft overflow-y-auto py-8">
     <div class="w-full max-w-md px-6">
       <div class="text-center mb-6">
         <div class="text-6xl mb-3">🛒</div>
-        <h1 class="text-3xl font-bold text-white drop-shadow-md">Kasir UMKM Simpel</h1>
-        <p class="text-white/80 mt-2 font-medium">Point of Sale & Inventory Management</p>
+        <h1 class="text-3xl font-bold text-ink">Kasir UMKM Simpel</h1>
+        <p class="text-muted mt-2 font-medium">Point of Sale & Inventory Management</p>
       </div>
       <div class="bg-white rounded-xl shadow-sm p-8">
         <!-- Tab switch -->
@@ -459,10 +459,10 @@
                 <p class="text-[#6a6a6a]">Klik produk untuk menambah ke keranjang.</p>
               </div>
               <div class="flex flex-wrap gap-3">
-                <input id="searchInput" type="search" placeholder="Cari nama atau kode..." class="flex-1 min-w-[200px] rounded-lg border border-[#dddddd] px-4 py-3 focus:border-[#222222] focus:border-2 focus:ring-0" />
-                <input id="barcodeInput" type="text" placeholder="Masukkan / scan kode" class="flex-1 min-w-[200px] rounded-lg border border-[#dddddd] px-4 py-3 focus:border-[#222222] focus:border-2 focus:ring-0" />
-                <button id="scanButton" type="button" class="rounded-lg bg-[#222222] px-5 py-3 text-white hover:bg-[#1a1a1a] transition">Scan Barcode</button>
-                <select id="categoryFilter" class="rounded-lg border border-[#dddddd] px-4 py-3 bg-white">
+                <input id="searchInput" type="search" placeholder="Cari nama atau kode..." class="flex-1 min-w-[200px] rounded-full border border-hairline px-6 py-3 focus:border-ink focus:border-2 focus:ring-0" />
+                <input id="barcodeInput" type="text" placeholder="Masukkan / scan kode" class="flex-1 min-w-[200px] rounded-full border border-hairline px-6 py-3 focus:border-ink focus:border-2 focus:ring-0" />
+                <button id="scanButton" type="button" class="rounded-full bg-ink px-6 py-3 text-white hover:bg-[#1a1a1a] transition">Scan Barcode</button>
+                <select id="categoryFilter" class="rounded-full border border-hairline px-6 py-3 bg-white">
                   <option value="All">Semua Kategori</option>
                   <option value="Makanan">Makanan</option>
                   <option value="Minuman">Minuman</option>
