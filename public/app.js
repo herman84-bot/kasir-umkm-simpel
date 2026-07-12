@@ -277,7 +277,7 @@ const App = (() => {
     if (desc) desc.textContent = featureName
       ? `${featureName} termasuk paket ${p.label}. Aplikasi dasar tetap gratis selamanya.`
       : 'Fitur dasar tetap gratis selamanya.';
-    if (price) price.innerHTML = `${esc(p.price)}<span class="text-base font-medium text-primary">/bulan</span>`;
+    if (price) price.innerHTML = `${esc(p.price)}<span class="text-base font-medium text-sky-500">/bulan</span>`;
     if (feats) feats.innerHTML = p.features.map(f => `<p>✅ ${esc(f)}</p>`).join('');
     showSubsOverlay(p);
   };
@@ -408,10 +408,39 @@ const App = (() => {
   const SUPABASE_URL = 'https://pfmsblktxlnovtajnxvc.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_rF4Ul9n6WS4R00twmmCbdQ_wJ0KAOv6';
   let db = null;
+  // Mode recovery: user datang dari link reset password. Jangan masuk dashboard
+  // sebelum password baru dibuat — pemegang link tidak boleh dapat akses penuh.
+  let passwordRecoveryMode = false;
 
   const initSupabase = () => {
     if (window.supabase) {
-      db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      // detectSessionInUrl WAJIB tetap true (biar link recovery/PKCE tetap
+      // diproses SDK jadi sesi) TAPI passwordRecoveryMode sudah di-set (lihat
+      // init()) SEBELUM baris ini jalan — jadi walau SDK sempat bikin sesi
+      // penuh dari code=... di query string (PKCE flow), guard di
+      // enterAppAfterAuth() sudah aktif duluan dan menahan dashboard.
+      db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: { detectSessionInUrl: true }
+      });
+      db.auth.onAuthStateChange((event, changedSession) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          // Event ini bisa telat datang (setelah dashboard sempat mulai
+          // render di edge case tertentu) — showNewPasswordForm() dipanggil
+          // FORCE di sini (bukan cuma set flag) supaya dashboard yang
+          // terlanjur tampil langsung disembunyikan lagi.
+          passwordRecoveryMode = true;
+          // Persist berbasis USER ID (bukan flag generik '1'): flag generik
+          // tersimpan di localStorage yang SHARED antar semua tab origin ini,
+          // jadi tab lain (user lain, sesi lain) ikut terkunci ke form
+          // recovery kalau reload — regresi yang ditemukan QA. Dengan uid,
+          // guard di init() hanya aktif kalau sesi AKTIF SEKARANG match
+          // persis dengan uid yang tercatat.
+          if (changedSession?.user?.id) {
+            localStorage.setItem('pw_recovery_uid', changedSession.user.id);
+          }
+          showNewPasswordForm();
+        }
+      });
       return true;
     }
     return false;
@@ -584,10 +613,14 @@ const App = (() => {
     const m = (msg || '').toLowerCase();
     if (m.includes('invalid login')) return 'Email atau password salah.';
     if (m.includes('already registered') || m.includes('already been registered')) return 'Email sudah terdaftar. Silakan masuk.';
-    if (m.includes('password should be at least')) return 'Password minimal 6 karakter.';
+    if (m.includes('password should be at least')) return 'Password minimal 8 karakter.';
+    if (m.includes('same as the old password') || m.includes('different from the old')) return 'Password baru tidak boleh sama dengan password lama.';
     if (m.includes('unable to validate email') || m.includes('invalid email')) return 'Format email tidak valid.';
     if (m.includes('email not confirmed')) return 'Email belum dikonfirmasi.';
-    return msg || 'Terjadi kesalahan.';
+    if (m.includes('failed to fetch') || m.includes('network')) return 'Koneksi bermasalah. Periksa internet lalu coba lagi.';
+    // Jangan tampilkan pesan mentah dari server ke user (bisa memuat detail teknis)
+    if (msg) logError('Auth error tanpa terjemahan', { pesan: String(msg).slice(0, 120) }, null);
+    return 'Terjadi kesalahan. Coba lagi.';
   };
 
   const friendlyError = err => {
@@ -595,7 +628,6 @@ const App = (() => {
     const msg = (err?.message || String(err || '')).toLowerCase();
     if (code === '23505' || msg.includes('duplicate key')) return 'Data sudah ada, tidak bisa duplikat.';
     if (code === '23503' || msg.includes('foreign key')) return 'Data terhubung ke data lain, tidak bisa dihapus dulu.';
-    if (code === 'PGRST205' || msg.includes('could not find the table') || msg.includes('schema cache')) return 'Fitur ini belum siap di server. Hubungi tim kami untuk bantuan.';
     if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('timeout')) return 'Koneksi bermasalah. Pastikan internet aktif dan coba lagi.';
     return 'Terjadi kesalahan. Coba lagi, atau hubungi tim kami jika masalah berlanjut.';
   };
@@ -608,6 +640,25 @@ const App = (() => {
     document.getElementById('appContainer').style.display = 'none';
     document.getElementById('helpChatFab')?.classList.add('hidden');
     document.getElementById('helpChatPanel')?.classList.add('hidden');
+  };
+
+  const showNewPasswordForm = () => {
+    // Urutan penting untuk cegah flicker: siapkan SEMUA visibilitas screen
+    // final (form recovery) DULU, baru overlay loading di-fade di ATASNYA.
+    // Kalau overlay dilepas duluan, ada frame di mana overlay transparan
+    // tapi konten di baliknya masih login form biasa (belum newPasswordForm).
+    showLoginPage();
+    document.getElementById('loginForm2')?.classList.add('hidden');
+    document.getElementById('registerForm')?.classList.add('hidden');
+    document.getElementById('tabLogin')?.parentElement?.classList.add('hidden');
+    document.getElementById('newPasswordForm')?.classList.remove('hidden');
+    hideLoadingOverlay();
+  };
+
+  const hideNewPasswordForm = () => {
+    document.getElementById('newPasswordForm')?.classList.add('hidden');
+    document.getElementById('loginForm2')?.classList.remove('hidden');
+    document.getElementById('tabLogin')?.parentElement?.classList.remove('hidden');
   };
 
   const showApp = () => {
@@ -623,7 +674,7 @@ const App = (() => {
     if (!toast) {
       toast = document.createElement('div');
       toast.id = 'appGlobalToast';
-      toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] rounded-lg px-5 py-3 text-white text-sm font-semibold shadow-sm transition-opacity duration-300 no-print';
+      toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] rounded-2xl px-5 py-3 text-white text-sm font-semibold shadow-2xl transition-opacity duration-300 no-print';
       document.body.appendChild(toast);
     }
     const bgMap = { error: '#e11d48', success: '#059669', info: '#334155' };
@@ -650,8 +701,8 @@ const App = (() => {
     if (roleEl) {
       roleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
       roleEl.className = isAdmin
-        ? 'text-xs px-2 py-0.5 rounded-full bg-primary text-white'
-        : 'text-xs px-2 py-0.5 rounded-full bg-ink/80 text-white/70';
+        ? 'text-xs px-2 py-0.5 rounded-full bg-sky-700 text-sky-100'
+        : 'text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300';
     }
     if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
     const mobileNameEl = document.getElementById('mobileUserName');
@@ -661,8 +712,8 @@ const App = (() => {
     if (mobileRoleEl) {
       mobileRoleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
       mobileRoleEl.className = isAdmin
-        ? 'text-xs px-2 py-0.5 rounded-full bg-primary text-white'
-        : 'text-xs px-2 py-0.5 rounded-full bg-ink/80 text-white/70';
+        ? 'text-xs px-2 py-0.5 rounded-full bg-sky-700 text-sky-100'
+        : 'text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300';
     }
     if (mobileAvatar) mobileAvatar.textContent = name.charAt(0).toUpperCase();
     // Sidebar + bottom nav: menu admin disembunyikan untuk operator kasir
@@ -702,7 +753,9 @@ const App = (() => {
     localStorage.removeItem('qris_image');
     localStorage.removeItem('qris_payload');
     localStorage.removeItem('offline_tx_queue');
+    localStorage.removeItem('debt_queue');
     localStorage.removeItem('pending_subs_order');
+    localStorage.removeItem('pw_recovery_uid');
     Object.keys(localStorage).forEach(k => {
       if (k.startsWith('active_store_') || k.startsWith('shift_start_') || k.startsWith('onboardingDone_')) {
         localStorage.removeItem(k);
@@ -758,8 +811,7 @@ const App = (() => {
     selectedCashierId: '',
     activeUserId: '',
     debts: [],
-    // darkMode removed – UI is always light mode per design
-    // darkMode: false,
+    darkMode: false,
     currentTransaction: null,
     draftPurchase: { supplier: '', invoice: '', items: [] },
     scannerContext: 'kasir',
@@ -982,7 +1034,7 @@ const App = (() => {
       localStorage.removeItem(STORAGE.settings);
       settings = {};
     }
-    // state.darkMode = settings.darkMode || false; // dark mode removed
+    state.darkMode = settings.darkMode || false;
     state.reportRange = settings.reportRange || '7';
     state.historySearch = settings.historySearch || '';
     // cashiers & purchases now loaded from Supabase; these are temp fallbacks
@@ -1078,7 +1130,7 @@ const App = (() => {
   const loadData = async () => {
     const lastUserId = localStorage.getItem('pos_last_user_id');
     if (lastUserId !== state.authUser?.id) {
-      [...Object.values(STORAGE), 'pos_debts', 'qris_image', 'qris_payload', 'offline_tx_queue', 'pending_subs_order']
+      [...Object.values(STORAGE), 'pos_debts', 'qris_image', 'qris_payload', 'offline_tx_queue', 'debt_queue', 'pending_subs_order']
         .forEach(key => localStorage.removeItem(key));
       _isSuperAdmin = false;
     }
@@ -1093,10 +1145,10 @@ const App = (() => {
       return;
     }
 
-    // Kirim transaksi & kasir offline yang tertunda SEBELUM memuat data,
-    // agar stok, riwayat, dan daftar kasir yang dimuat sudah termasuk data tersebut
+    // Kirim transaksi offline yang tertunda SEBELUM memuat data,
+    // agar stok & riwayat yang dimuat sudah termasuk transaksi tersebut
     await flushOfflineQueue();
-    await flushOfflineCashierQueue();
+    await flushDebtQueue();
 
     try {
       setLoadingStatus('Memuat produk...', 40);
@@ -1107,7 +1159,7 @@ const App = (() => {
 
       setLoadingStatus('Memuat kasir...', 55);
       const { data: cashiers } = await db
-        .from('cashiers').select('id, store_id, name, password, role, created_at').eq('store_id', state.storeId).order('id', { ascending: true });
+        .from('cashiers').select('*').eq('store_id', state.storeId).order('id', { ascending: true });
       state.cashiers = cashiers ? cashiers.map(fromDbCashier) : [];
       // Pengaman data lama: minimal harus ada satu admin agar pemilik tidak terkunci
       if (state.cashiers.length && !state.cashiers.some(c => c.role === 'admin')) {
@@ -1135,12 +1187,14 @@ const App = (() => {
 
       // Kasbon (tabel bisa belum ada jika 05_kasbon.sql belum dijalankan)
       const { data: debts, error: dErr } = await db
-        .from('debts').select('*').eq('store_id', state.storeId).order('created_at', { ascending: false });
+        .from('debts').select('*').eq('store_id', state.storeId)
+        .order('created_at', { ascending: false }).limit(500);
       if (dErr) {
-        console.warn('Kasbon belum aktif (jalankan supabase/05_kasbon.sql):', dErr.message);
+        logError('loadData: gagal memuat kasbon', { storeId: state.storeId }, dErr);
         try { state.debts = JSON.parse(localStorage.getItem('pos_debts') || '[]'); } catch { state.debts = []; }
       } else {
-        state.debts = debts || [];
+        // Antrean kasbon offline tetap tampil di atas data server sampai tersinkron
+        state.debts = [...getDebtQueue(), ...(debts || [])];
       }
 
       setLoadingStatus('Siap!', 100);
@@ -1166,7 +1220,7 @@ const App = (() => {
       localStorage.setItem(STORAGE.cashiers, JSON.stringify(state.cashiers.map(({ password: _pw, ...rest }) => rest)));
       localStorage.setItem(STORAGE.purchases, JSON.stringify(state.purchases));
       localStorage.setItem(STORAGE.settings, JSON.stringify({
-        // darkMode removed
+        darkMode: state.darkMode,
         selectedCashierId: state.selectedCashierId,
         activeUserId: state.activeUserId,
         reportRange: state.reportRange,
@@ -1299,13 +1353,13 @@ const App = (() => {
     list.innerHTML = stores.map(s => {
       const isActive = String(s.id) === String(state.storeId);
       const isPrimary = String(s.id) === primaryId;
-      return `<div class="flex items-center justify-between gap-3 rounded-lg border ${isActive ? 'border-primary bg-primary/5' : 'border-hairline bg-white'} px-4 py-3">
+      return `<div class="flex items-center justify-between gap-3 rounded-2xl border ${isActive ? 'border-sky-400 bg-sky-50' : 'border-slate-200 bg-white'} px-4 py-3">
         <div class="min-w-0">
-          <p class="font-semibold truncate">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-primary">(Pusat)</span>' : ''}${isActive ? ' <span class="text-xs text-emerald-600">• aktif</span>' : ''}</p>
+          <p class="font-semibold truncate">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-sky-600">(Pusat)</span>' : ''}${isActive ? ' <span class="text-xs text-emerald-600">• aktif</span>' : ''}</p>
         </div>
         <div class="flex gap-1 shrink-0">
-          ${isActive ? '' : `<button data-branch-switch="${esc(s.id)}" class="rounded-lg bg-primary px-2.5 py-1.5 text-white text-xs hover:bg-primary">Buka</button>`}
-          <button data-branch-rename="${esc(s.id)}" class="rounded-lg bg-hairline px-2.5 py-1.5 text-muted text-xs hover:bg-hairline">Nama</button>
+          ${isActive ? '' : `<button data-branch-switch="${esc(s.id)}" class="rounded-lg bg-sky-600 px-2.5 py-1.5 text-white text-xs hover:bg-sky-700">Buka</button>`}
+          <button data-branch-rename="${esc(s.id)}" class="rounded-lg bg-slate-200 px-2.5 py-1.5 text-slate-700 text-xs hover:bg-slate-300">Nama</button>
           ${(stores.length > 1 && !isPrimary) ? `<button data-branch-delete="${esc(s.id)}" class="rounded-lg bg-rose-100 px-2.5 py-1.5 text-rose-700 text-xs hover:bg-rose-200">Hapus</button>` : ''}
         </div>
       </div>`;
@@ -1336,7 +1390,7 @@ const App = (() => {
     // Ambil transaksi hari ini SEMUA cabang sekaligus (tanpa filter store_id → RLS membatasi ke milik owner)
     const { data: txs, error } = await db.from('transactions')
       .select('store_id,total_amount').gte('created_at', startIso);
-    if (error) { body.innerHTML = `<p class="text-muted text-sm p-4">Gagal memuat rekap: ${esc(error.message)}</p>`; return; }
+    if (error) { body.innerHTML = `<p class="text-slate-500 text-sm p-4">Gagal memuat rekap: ${esc(error.message)}</p>`; return; }
     const byStore = {};
     (txs || []).forEach(t => {
       const k = String(t.store_id);
@@ -1349,23 +1403,23 @@ const App = (() => {
       const d = byStore[String(s.id)] || { total: 0, count: 0 };
       grandTotal += d.total; grandCount += d.count;
       const isActive = String(s.id) === String(state.storeId);
-      return `<tr class="${isActive ? 'bg-primary/5' : ''}">
-        <td class="px-4 py-3 font-medium">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-primary">(Pusat)</span>' : ''}</td>
+      return `<tr class="${isActive ? 'bg-sky-50' : ''}">
+        <td class="px-4 py-3 font-medium">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-sky-600">(Pusat)</span>' : ''}</td>
         <td class="px-4 py-3 text-right">${formatCurrency(d.total)}</td>
         <td class="px-4 py-3 text-right">${d.count}</td>
       </tr>`;
     }).join('');
     body.innerHTML = `
       <table class="w-full text-sm">
-        <thead><tr class="text-left text-muted border-b border-hairline">
+        <thead><tr class="text-left text-slate-500 border-b border-slate-200">
           <th class="px-4 py-2 font-medium">Cabang</th>
           <th class="px-4 py-2 font-medium text-right">Omzet Hari Ini</th>
           <th class="px-4 py-2 font-medium text-right">Transaksi</th>
         </tr></thead>
-        <tbody class="divide-y divide-hairline">${rows}</tbody>
-        <tfoot><tr class="border-t-2 border-hairline font-semibold">
+        <tbody class="divide-y divide-slate-100">${rows}</tbody>
+        <tfoot><tr class="border-t-2 border-slate-300 font-semibold">
           <td class="px-4 py-3">TOTAL Semua Cabang</td>
-          <td class="px-4 py-3 text-right text-primary">${formatCurrency(grandTotal)}</td>
+          <td class="px-4 py-3 text-right text-sky-700">${formatCurrency(grandTotal)}</td>
           <td class="px-4 py-3 text-right">${grandCount}</td>
         </tr></tfoot>
       </table>`;
@@ -1386,10 +1440,9 @@ const App = (() => {
     dom.cashierSelect.value = state.selectedCashierId;
   };
 
-  // Dark mode removed – keep DOM reference set on init, but disable toggle behaviour.
   const applyTheme = () => {
-    document.body.classList.remove('dark');
-    if (dom.themeToggle) dom.themeToggle.style.display = 'none';
+    document.body.classList.toggle('dark', state.darkMode);
+    dom.themeToggle.textContent = state.darkMode ? '☀️ Terang' : '🌙 Tema';
   };
 
   // ── Kelola Kasir ──────────────────────────────────────────────────────────
@@ -1407,15 +1460,15 @@ const App = (() => {
       const isSelf = c.id === activeId;
       const initial = esc(c.name.charAt(0).toUpperCase());
       const roleLabel = isAdmin ? '👑 Admin' : '🧾 Kasir';
-      const roleBg = isAdmin ? 'bg-primary/10 text-primary' : 'bg-surface-soft text-muted';
-      const avatarBg = isAdmin ? 'bg-primary' : 'bg-surface-soft0';
+      const roleBg = isAdmin ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600';
+      const avatarBg = isAdmin ? 'bg-sky-600' : 'bg-slate-500';
       return `
-        <div class="rounded-xl bg-white border border-hairline shadow-sm p-5 flex flex-col gap-4">
+        <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-5 flex flex-col gap-4">
           <div class="flex items-center gap-4">
             <div class="w-14 h-14 rounded-full ${avatarBg} flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">${initial}</div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <p class="font-semibold text-ink truncate">${esc(c.name)}</p>
+                <p class="font-semibold text-slate-900 truncate">${esc(c.name)}</p>
                 ${isSelf ? '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Anda</span>' : ''}
               </div>
               <span class="text-xs px-2 py-0.5 rounded-full ${roleBg} font-medium mt-1 inline-block">${roleLabel}</span>
@@ -1423,11 +1476,11 @@ const App = (() => {
           </div>
           <div class="flex gap-2">
             <button data-edit-cashier="${c.id}"
-              class="flex-1 rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-muted hover:bg-surface-soft transition font-medium">
+              class="flex-1 rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition font-medium">
               ✏️ Edit
             </button>
             <button data-delete-cashier="${c.id}" ${isSelf ? 'disabled title="Tidak bisa hapus akun sendiri"' : ''}
-              class="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600 hover:bg-rose-100 transition font-medium ${isSelf ? 'opacity-40 cursor-not-allowed' : ''}">
+              class="flex-1 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600 hover:bg-rose-100 transition font-medium ${isSelf ? 'opacity-40 cursor-not-allowed' : ''}">
               🗑 Hapus
             </button>
           </div>
@@ -1475,7 +1528,7 @@ const App = (() => {
     dom.deleteAccountError.classList.add('hidden');
     dom.deleteAccountConfirmBtn.disabled = true;
     dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'hover:bg-rose-700', 'text-white', 'cursor-pointer');
-    dom.deleteAccountConfirmBtn.classList.add('bg-hairline', 'text-muted', 'cursor-not-allowed');
+    dom.deleteAccountConfirmBtn.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
     dom.deleteAccountModal.classList.remove('hidden');
     dom.deleteAccountEmailInput.focus();
   };
@@ -1560,10 +1613,7 @@ const App = (() => {
         const idx = state.cashiers.findIndex(c => c.id === id);
         if (idx >= 0) state.cashiers[idx] = { ...state.cashiers[idx], name, role, ...(password ? { password } : {}) };
       } else {
-        const localId = `C${Date.now()}`;
-        state.cashiers.push({ id: localId, name, password, role });
-        // db belum siap (SDK gagal load / offline) — antrekan agar otomatis sinkron ke Supabase saat koneksi pulih
-        queueOfflineCashier({ localId, name, password, role, store_id: state.storeId });
+        state.cashiers.push({ id: `C${Date.now()}`, name, password, role });
       }
     }
 
@@ -1691,7 +1741,7 @@ const App = (() => {
         state.purchases = data.purchases || state.purchases;
         state.cashiers = data.cashiers || state.cashiers;
         if (data.settings) {
-          // state.darkMode = data.settings.darkMode ?? state.darkMode; // dark mode removed
+          state.darkMode = data.settings.darkMode ?? state.darkMode;
           state.selectedCashierId = data.settings.selectedCashierId || state.selectedCashierId;
           state.activeUserId = data.settings.activeUserId || state.activeUserId;
           state.reportRange = data.settings.reportRange || state.reportRange;
@@ -1762,13 +1812,13 @@ const App = (() => {
 
   const renderPurchaseHistory = () => {
     if (!state?.purchases) {
-      dom.purchaseTable.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-muted">Belum ada data pembelian.</td></tr>';
+      dom.purchaseTable.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-500">Belum ada data pembelian.</td></tr>';
       return;
     }
     dom.purchaseTable.innerHTML = state.purchases.slice().reverse().map(order => {
       const time = new Date(order.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short', year: 'numeric' });
       return `
-        <tr class="border-b border-hairline">
+        <tr class="border-b border-slate-200">
           <td class="p-3">${time}</td>
           <td class="p-3">#${esc(order.id)}</td>
           <td class="p-3">${esc(order.supplier)}</td>
@@ -1777,7 +1827,7 @@ const App = (() => {
           <td class="p-3">${esc(order.status)}</td>
         </tr>
       `;
-    }).join('') || '<tr><td colspan="6" class="p-8 text-center text-muted">Belum ada data pembelian.</td></tr>';
+    }).join('') || '<tr><td colspan="6" class="p-8 text-center text-slate-500">Belum ada data pembelian.</td></tr>';
   };
 
   const getActiveUser = () => {
@@ -2016,7 +2066,7 @@ const App = (() => {
     dom.purchaseInvoice.value = state.draftPurchase.invoice;
     dom.purchaseQty.value = 1;
     dom.purchaseCost.value = '';
-    dom.purchaseItemsList.innerHTML = '<p class="text-muted">Belum ada item pembelian.</p>';
+    dom.purchaseItemsList.innerHTML = '<p class="text-slate-500">Belum ada item pembelian.</p>';
     dom.purchaseTotal.textContent = formatCurrency(0);
   };
 
@@ -2043,7 +2093,7 @@ const App = (() => {
 
   const renderPurchaseDraft = () => {
     if (!state.draftPurchase.items.length) {
-      dom.purchaseItemsList.innerHTML = '<p class="text-muted">Belum ada item pembelian.</p>';
+      dom.purchaseItemsList.innerHTML = '<p class="text-slate-500">Belum ada item pembelian.</p>';
       dom.purchaseTotal.textContent = formatCurrency(0);
       return;
     }
@@ -2052,10 +2102,10 @@ const App = (() => {
       const subtotal = item.qty * item.price;
       total += subtotal;
       return `
-        <div class="flex items-center justify-between gap-3 rounded-lg bg-white p-3 border border-hairline mb-3">
+        <div class="flex items-center justify-between gap-3 rounded-2xl bg-white p-3 border border-slate-200 mb-3">
           <div>
             <p class="font-semibold">${esc(item.name)}</p>
-            <p class="text-muted text-sm">Qty ${item.qty} x ${formatCurrency(item.price)}</p>
+            <p class="text-slate-500 text-sm">Qty ${item.qty} x ${formatCurrency(item.price)}</p>
           </div>
           <span class="font-semibold">${formatCurrency(subtotal)}</span>
         </div>
@@ -2169,17 +2219,8 @@ const App = (() => {
         if (db) {
           const numId = parseInt(product.id);
           if (!isNaN(numId)) {
-            const { error: costErr } = await db.from('products').update({ cost: product.cost }).eq('id', numId);
-            if (costErr) logError('savePurchaseOrder: cost gagal update', { productId: numId }, costErr);
-            // Stok masuk lewat RPC beraudit (tercatat di stock_ledgers), bukan update langsung
-            const { error: stockErr } = await db.rpc('increment_stock', {
-              p_product_id: numId,
-              p_qty: item.qty,
-              p_ref_type: 'purchase',
-              p_ref_id: purchaseId,
-              p_cashier: activeCashierName()
-            });
-            if (stockErr) logError('savePurchaseOrder: stok gagal update', { productId: numId }, stockErr);
+            const { error: stockErr } = await db.from('products').update({ stock: product.stock, cost: product.cost }).eq('id', numId);
+            if (stockErr) logError('savePurchaseOrder: stok/cost gagal update', { productId: numId }, stockErr);
           }
         }
       }
@@ -2313,24 +2354,24 @@ const App = (() => {
     dom.productGrid.innerHTML = filtered.map(product => {
       const isCritical = product.stock <= (product.minStock || 5);
       return `
-        <article data-id="${esc(product.id)}" class="group cursor-pointer overflow-hidden rounded-xl border border-hairline bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+        <article data-id="${esc(product.id)}" class="group cursor-pointer overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
           <img src="${esc(product.image)}" alt="${esc(product.name)}" class="h-44 w-full object-cover" />
           <div class="p-5">
             <div class="flex items-center justify-between gap-3">
               <div>
                 <h4 class="text-lg font-semibold">${esc(product.name)}</h4>
-                <p class="text-muted text-sm">${esc(product.category)}</p>
+                <p class="text-slate-500 text-sm">${esc(product.category)}</p>
               </div>
-              <span class="rounded-lg bg-surface-soft px-3 py-1 text-xs text-muted">Stok: ${esc(product.stock)}${isCritical ? ' ⚠️' : ''}</span>
+              <span class="rounded-2xl bg-slate-100 px-3 py-1 text-xs text-slate-700">Stok: ${esc(product.stock)}${isCritical ? ' ⚠️' : ''}</span>
             </div>
             <div class="mt-4 flex items-center justify-between">
-              <span class="text-xl font-semibold text-ink">${formatCurrency(product.price)}</span>
+              <span class="text-xl font-semibold text-slate-900">${formatCurrency(product.price)}</span>
               <span class="rounded-full px-3 py-1 text-xs font-semibold ${isCritical ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}">${isCritical ? 'Kritis' : 'Tersedia'}</span>
             </div>
           </div>
         </article>
       `;
-    }).join('') || '<div class="col-span-full rounded-xl border border-dashed border-hairline bg-surface-soft p-8 text-center text-muted">Tidak ada produk sesuai filter.</div>';
+    }).join('') || '<div class="col-span-full rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">Tidak ada produk sesuai filter.</div>';
 
     dom.productGrid.querySelectorAll('article[data-id]').forEach(card => {
       card.addEventListener('click', () => addToCart(card.dataset.id));
@@ -2345,7 +2386,7 @@ const App = (() => {
   };
 
   const getExpiryStatus = (expiryDate) => {
-    if (!expiryDate) return { label: '-', class: 'text-muted' };
+    if (!expiryDate) return { label: '-', class: 'text-slate-500' };
     const today = new Date();
     today.setHours(0,0,0,0);
     const exp = new Date(expiryDate);
@@ -2394,22 +2435,22 @@ const App = (() => {
     const totals = calculateCart();
 
     dom.cartList.innerHTML = items.length ? items.map(item => `
-      <div class="rounded-xl border border-hairline bg-surface-soft p-4">
+      <div class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h4 class="font-semibold text-ink">${esc(item.name)}</h4>
-            <p class="text-muted text-sm">${formatCurrency(item.price)} x ${esc(item.qty)}</p>
+            <h4 class="font-semibold text-slate-900">${esc(item.name)}</h4>
+            <p class="text-slate-500 text-sm">${formatCurrency(item.price)} x ${esc(item.qty)}</p>
           </div>
           <button data-remove="${esc(item.id)}" class="rounded-full bg-rose-100 px-3 py-2 text-rose-700">Hapus</button>
         </div>
-        <div class="mt-3 flex items-center gap-2 text-sm text-muted">
-          <button data-decrease="${esc(item.id)}" class="rounded-lg border border-hairline bg-white px-3 py-2">−</button>
+        <div class="mt-3 flex items-center gap-2 text-sm text-slate-700">
+          <button data-decrease="${esc(item.id)}" class="rounded-2xl border border-slate-300 bg-white px-3 py-2">−</button>
           <span class="font-semibold">${esc(item.qty)}</span>
-          <button data-increase="${esc(item.id)}" class="rounded-lg border border-hairline bg-white px-3 py-2">+</button>
-          <span class="ml-auto font-semibold text-ink">${formatCurrency(item.price * item.qty)}</span>
+          <button data-increase="${esc(item.id)}" class="rounded-2xl border border-slate-300 bg-white px-3 py-2">+</button>
+          <span class="ml-auto font-semibold text-slate-900">${formatCurrency(item.price * item.qty)}</span>
         </div>
       </div>
-    `).join('') : '<div class="rounded-xl border border-dashed border-hairline bg-surface-soft p-8 text-center text-muted">Keranjang kosong. Tambahkan produk untuk memulai transaksi.</div>';
+    `).join('') : '<div class="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">Keranjang kosong. Tambahkan produk untuk memulai transaksi.</div>';
 
     dom.cartList.querySelectorAll('[data-remove]').forEach(btn => {
       btn.addEventListener('click', () => removeCartItem(btn.dataset.remove));
@@ -2450,22 +2491,22 @@ const App = (() => {
     dom.inventoryTable.innerHTML = state.products.map(product => {
       const isLowStock = product.stock <= (product.minStock || 5);
       const criticalClass = isLowStock ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800';
-      const rowClass = isLowStock ? 'border-b border-rose-200 bg-rose-50/30' : 'border-b border-hairline';
+      const rowClass = isLowStock ? 'border-b border-rose-200 bg-rose-50/30' : 'border-b border-slate-200';
       const expStatus = getExpiryStatus(product.expiry_date);
       return `
         <tr class="${rowClass}">
           <td class="p-3 font-semibold">${esc(product.code)}</td>
           <td class="p-3">${esc(product.name)}${isLowStock ? ' <span class="text-rose-500 text-xs font-bold">⚠ Stok Rendah</span>' : ''}</td>
-          <td class="p-3 text-xs text-muted font-mono">${esc(product.barcode || '-')}</td>
+          <td class="p-3 text-xs text-slate-500 font-mono">${esc(product.barcode || '-')}</td>
           <td class="p-3">${esc(product.category)}</td>
           <td class="p-3">${formatCurrency(product.price)}</td>
           <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${criticalClass}">${product.stock} / min ${product.minStock || 5}</span></td>
           <td class="p-3"><span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold ${expStatus.class}">${expStatus.label}</span></td>
           <td class="p-3 space-x-2 whitespace-nowrap">
-            <button data-adjust="${product.id}" class="rounded-lg bg-amber-600 px-4 py-2 text-white text-sm" title="Sesuaikan Stok">⚙️</button>
-            <button data-ledger="${product.id}" class="rounded-lg bg-primary px-4 py-2 text-white text-sm" title="Kartu Stok">📋</button>
-            <button data-edit="${product.id}" class="rounded-lg bg-ink px-4 py-2 text-white text-sm">Edit</button>
-            <button data-delete="${product.id}" class="rounded-lg bg-rose-600 px-4 py-2 text-white text-sm">Hapus</button>
+            <button data-adjust="${product.id}" class="rounded-2xl bg-amber-600 px-4 py-2 text-white text-sm" title="Sesuaikan Stok">⚙️</button>
+            <button data-ledger="${product.id}" class="rounded-2xl bg-sky-600 px-4 py-2 text-white text-sm" title="Kartu Stok">📋</button>
+            <button data-edit="${product.id}" class="rounded-2xl bg-slate-900 px-4 py-2 text-white text-sm">Edit</button>
+            <button data-delete="${product.id}" class="rounded-2xl bg-rose-600 px-4 py-2 text-white text-sm">Hapus</button>
           </td>
         </tr>
       `;
@@ -2494,7 +2535,7 @@ const App = (() => {
       const diffDays = Math.ceil((new Date() - new Date(tx.date)) / (1000 * 60 * 60 * 24));
       const canReturn = tx.status !== 'void' && diffDays <= 3;
       const isVoided = tx.status === 'void';
-      const rowClass = isVoided ? 'border-b border-hairline opacity-60 bg-rose-50/20' : 'border-b border-hairline';
+      const rowClass = isVoided ? 'border-b border-slate-200 opacity-60 bg-rose-50/20' : 'border-b border-slate-200';
 
       return `
         <tr class="${rowClass}">
@@ -2507,17 +2548,17 @@ const App = (() => {
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.cash) : '-'}</td>
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.change) : '-'}</td>
           <td class="p-3 space-x-1 whitespace-nowrap">
-            <button data-reprint="${esc(tx.id)}" class="rounded-lg border border-hairline bg-white px-3 py-1.5 text-xs text-muted hover:bg-surface-soft transition whitespace-nowrap">🖨 Struk</button>
+            <button data-reprint="${esc(tx.id)}" class="rounded-2xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 transition whitespace-nowrap">🖨 Struk</button>
             ${isVoided ? `
               <span class="inline-block rounded-full bg-rose-100 text-rose-700 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider">VOID</span>
             ` : `
-              ${isToday ? `<button data-void="${esc(tx.id)}" class="rounded-lg bg-rose-50 border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-100 transition whitespace-nowrap">🚫 Void</button>` : ''}
-              ${canReturn ? `<button data-return="${esc(tx.id)}" class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-100 transition whitespace-nowrap">↩️ Retur</button>` : ''}
+              ${isToday ? `<button data-void="${esc(tx.id)}" class="rounded-2xl bg-rose-50 border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-100 transition whitespace-nowrap">🚫 Void</button>` : ''}
+              ${canReturn ? `<button data-return="${esc(tx.id)}" class="rounded-2xl bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-100 transition whitespace-nowrap">↩️ Retur</button>` : ''}
             `}
           </td>
         </tr>
       `;
-    }).join('') || '<tr><td colspan="9" class="p-8 text-center text-muted">Belum ada transaksi.</td></tr>';
+    }).join('') || '<tr><td colspan="9" class="p-8 text-center text-slate-500">Belum ada transaksi.</td></tr>';
 
     // Cetak ulang struk dari riwayat
     dom.historyTable.querySelectorAll('[data-reprint]').forEach(btn => {
@@ -2556,7 +2597,7 @@ const App = (() => {
       screen.classList.toggle('hidden', screen.id !== screenId);
     });
     dom.menuButtons.forEach(button => {
-      button.classList.toggle('bg-ink/80', button.dataset.screen === screenId);
+      button.classList.toggle('bg-slate-700', button.dataset.screen === screenId);
       button.classList.toggle('text-white', button.dataset.screen === screenId);
     });
     // Update bottom nav active state
@@ -2564,8 +2605,8 @@ const App = (() => {
     document.querySelectorAll('.menu-btn, .bottom-nav-btn').forEach(btn => {
       const isActive = btn.dataset.screen === screenId;
       btn.classList.toggle('text-white', isActive);
-      btn.classList.toggle('text-muted', !isActive);
-      btn.classList.toggle('bg-ink', isActive);
+      btn.classList.toggle('text-slate-400', !isActive);
+      btn.classList.toggle('bg-slate-800', isActive);
     });
     _activeScreenId = screenId;
     if (screenId === 'dashboard') { updateDashboard(); renderSalesChart(); renderReportSummary(); renderDashboardPusat(); }
@@ -2573,7 +2614,7 @@ const App = (() => {
     if (screenId === 'inventory') renderInventory();
     if (screenId === 'riwayat') renderHistory();
     if (screenId === 'pembelian') renderPurchaseHistory();
-    if (screenId === 'kasbon') renderKasbon();
+    if (screenId === 'kasbon') { renderKasbon(); refreshDebtsFromServer(); }
     if (screenId === 'kelolaKasir') renderCashierManagement();
     if (screenId === 'pengaturan') renderSettings();
     if (screenId === 'screen-superadmin') superAdminLoadStores();
@@ -2668,27 +2709,9 @@ const App = (() => {
     if (db) {
       const numId = parseInt(existingId);
       if (!isNaN(numId)) {
-        // Update existing — stock dikeluarkan dari update biasa, hanya boleh berubah lewat RPC beraudit
-        const { stock: newStock, ...updatePayload } = dbPayload;
-        const { error } = await db.from('products').update(updatePayload).eq('id', numId);
+        // Update existing
+        const { error } = await db.from('products').update(dbPayload).eq('id', numId);
         if (error) { alert('Gagal simpan produk: ' + friendlyError(error)); return; }
-
-        const currentProduct = state.products.find(item => item.id === existingId);
-        const stockDelta = newStock - (currentProduct ? currentProduct.stock : newStock);
-        if (stockDelta !== 0) {
-          const pin = await requestAdminPin();
-          if (!pin) { alert('Data produk tersimpan, tapi perubahan stok dibatalkan (butuh PIN admin).'); return; }
-          const { error: stockErr } = await db.rpc('secure_adjust_stock', {
-            p_product_id: numId,
-            p_qty_adjusted: stockDelta,
-            p_reason: 'Koreksi via Edit Produk',
-            p_note: 'Perubahan stok dari form edit produk',
-            p_cashier: activeCashierName(),
-            p_ref_type: 'adjustment',
-            p_admin_pin: pin
-          });
-          if (stockErr) { alert('Gagal ubah stok: ' + friendlyError(stockErr)); return; }
-        }
       } else {
         // Insert new
         const { data, error } = await db.from('products')
@@ -2733,7 +2756,7 @@ const App = (() => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
       return crypto.randomUUID();
     }
-    return Date.now() + '-' + crypto.randomUUID();
+    return Date.now() + '-' + Math.random().toString(36).slice(2);
   };
   const queueOfflineTransaction = entry => {
     const q = getOfflineQueue();
@@ -2791,53 +2814,6 @@ const App = (() => {
     }
     localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
     if (synced > 0) console.log(`✅ ${synced} transaksi offline tersinkron ke cloud.`);
-    return synced;
-  };
-
-  // ── Antrean kasir offline: dibuat saat db belum siap, sinkron saat online ─
-  const OFFLINE_CASHIER_QUEUE_KEY = 'offline_cashier_queue';
-  const getOfflineCashierQueue = () => {
-    try { return JSON.parse(localStorage.getItem(OFFLINE_CASHIER_QUEUE_KEY) || '[]'); } catch { return []; }
-  };
-  const queueOfflineCashier = entry => {
-    const q = getOfflineCashierQueue();
-    q.push({ ...entry, client_id: generateClientId() });
-    localStorage.setItem(OFFLINE_CASHIER_QUEUE_KEY, JSON.stringify(q));
-  };
-  const flushOfflineCashierQueue = async () => {
-    if (!db || !navigator.onLine || !state.storeId) return 0;
-    const q = getOfflineCashierQueue();
-    if (!q.length) return 0;
-    const remaining = [];
-    let synced = 0;
-    for (const entry of q) {
-      try {
-        const { data, error } = await db.from('cashiers')
-          .insert({
-            name: entry.name,
-            password: entry.password,
-            role: entry.role,
-            store_id: entry.store_id || state.storeId,
-            client_id: entry.client_id
-          })
-          .select().single();
-        if (error) throw error;
-        const idx = state.cashiers.findIndex(c => c.id === entry.localId);
-        if (idx >= 0) state.cashiers[idx] = fromDbCashier(data);
-        synced++;
-      } catch (e) {
-        // AC6: sudah tersinkron sebelumnya (client_id dobel) → buang tanpa retry
-        if (e && e.code === '23505') continue;
-        remaining.push(entry); // gagal lagi → coba lain kali
-      }
-    }
-    localStorage.setItem(OFFLINE_CASHIER_QUEUE_KEY, JSON.stringify(remaining));
-    if (synced > 0) {
-      syncStorage();
-      renderCashierSelect();
-      renderCashierManagement();
-      console.log(`✅ ${synced} kasir offline tersinkron ke cloud.`);
-    }
     return synced;
   };
 
@@ -3065,7 +3041,7 @@ const App = (() => {
     dom.receiptItems.innerHTML = data.items.map(item => `
       <div>
         <div class="flex justify-between font-medium">${esc(item.name)}<span>${formatCurrency(item.price * item.qty)}</span></div>
-        <div class="text-muted ml-1">${item.qty} x ${formatCurrency(item.price)}</div>
+        <div class="text-slate-500 ml-1">${item.qty} x ${formatCurrency(item.price)}</div>
       </div>
     `).join('');
 
@@ -3567,7 +3543,7 @@ ${txRows}
         })
         .eq('id', state.activeShift.id);
       if (error) {
-        alert('Gagal menutup shift di database: ' + friendlyError(error));
+        alert('Gagal menutup shift di database: ' + error.message);
         return;
       }
     }
@@ -3604,13 +3580,12 @@ ${txRows}
         cancelBtn.removeEventListener('click', onCancel);
       };
 
-      const onSubmit = async (e) => {
+      const onSubmit = (e) => {
         e.preventDefault();
         const pin = input.value;
-        const { data: isValid, error: pinErr } = await db.rpc('verify_admin_pin', { p_pin: pin });
-        if (!pinErr && isValid) {
+        if (state.cashiers.some(c => c.role === 'admin' && c.password === pin)) {
           cleanup();
-          resolve(pin);
+          resolve(true);
         } else {
           alert('PIN Admin salah atau tidak memiliki akses!');
           input.value = '';
@@ -3683,14 +3658,14 @@ ${txRows}
       }
 
       itemsList.innerHTML = tx.items.map(item => `
-        <div class="flex items-center justify-between border-b border-hairline/30 py-3">
+        <div class="flex items-center justify-between border-b border-slate-100 py-3">
           <div class="flex-1">
-            <p class="font-semibold text-ink">${esc(item.name)}</p>
-            <p class="text-xs text-muted">${formatCurrency(item.price)} • Beli: ${item.qty} pcs</p>
+            <p class="font-semibold text-slate-800">${esc(item.name)}</p>
+            <p class="text-xs text-slate-500">${formatCurrency(item.price)} • Beli: ${item.qty} pcs</p>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-xs text-muted">Retur:</span>
-            <input type="number" min="0" max="${item.qty}" value="0" data-product-id="${item.id}" data-price="${item.price}" class="return-qty-input w-20 text-center rounded-xl border border-hairline px-2 py-1.5 focus:border-[#222222] focus:border-2 focus:outline-none focus:ring-0" />
+            <span class="text-xs text-slate-400">Retur:</span>
+            <input type="number" min="0" max="${item.qty}" value="0" data-product-id="${item.id}" data-price="${item.price}" class="return-qty-input w-20 text-center rounded-xl border border-slate-300 px-2 py-1.5 focus:ring-2 focus:ring-sky-400" />
           </div>
         </div>
       `).join('');
@@ -3752,8 +3727,8 @@ ${txRows}
   };
 
   const voidTransaction = async (txId) => {
-    const pin = await requestAdminPin();
-    if (!pin) return;
+    const isAuthorized = await requestAdminPin();
+    if (!isAuthorized) return;
 
     const reason = await requestVoidReason();
     if (!reason) return;
@@ -3815,8 +3790,8 @@ ${txRows}
   };
 
   const processReturn = async (txId) => {
-    const pin = await requestAdminPin();
-    if (!pin) return;
+    const isAuthorized = await requestAdminPin();
+    if (!isAuthorized) return;
 
     const tx = state.transactions.find(t => t.id === txId);
     if (!tx) {
@@ -3914,7 +3889,7 @@ ${txRows}
       [step1, step2, step3].forEach((s, i) => s && s.classList.toggle('hidden', i !== n - 1));
       [dot1, dot2, dot3].forEach((d, i) => {
         if (!d) return;
-        d.className = i === n - 1 ? 'w-2 h-2 rounded-full bg-primary' : 'w-2 h-2 rounded-full bg-white/40';
+        d.className = i === n - 1 ? 'w-2 h-2 rounded-full bg-sky-400' : 'w-2 h-2 rounded-full bg-slate-600';
       });
     };
 
@@ -3928,7 +3903,7 @@ ${txRows}
     state.paymentMethod = method;
     document.querySelectorAll('.paymethod-btn').forEach(btn => {
       const active = btn.dataset.paymethod === method;
-      btn.className = `paymethod-btn flex-1 rounded-lg border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-primary bg-primary/5 text-primary' : 'border-hairline bg-white text-muted hover:border-primary/30'}`;
+      btn.className = `paymethod-btn flex-1 rounded-2xl border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'}`;
     });
     const splitWrapper = document.getElementById('splitInputWrapper');
     if (dom.cashInputWrapper) {
@@ -4026,16 +4001,13 @@ ${txRows}
     }
 
     if (db) {
-      const pin = await requestAdminPin();
-      if (!pin) return;
-      const { error } = await db.rpc('secure_adjust_stock', {
+      const { error } = await db.rpc('adjust_stock', {
         p_product_id: parseInt(pid, 10),
         p_qty_adjusted: adjustedQty,
         p_reason: reason,
         p_note: note,
         p_cashier: activeCashierName(),
-        p_ref_type: 'adjustment',
-        p_admin_pin: pin
+        p_ref_type: 'adjustment'
       });
       if (error) { alert('Gagal sesuaikan stok: ' + friendlyError(error)); return; }
     }
@@ -4070,7 +4042,7 @@ ${txRows}
           const typeName = typeMap[row.reference_type] || row.reference_type;
           const qtyText = row.qty_changed > 0 ? `<span class="text-emerald-600 font-bold">+${row.qty_changed}</span>` : `<span class="text-rose-600 font-bold">${row.qty_changed}</span>`;
           return `
-            <tr class="border-b border-hairline/30 hover:bg-surface-soft">
+            <tr class="border-b border-slate-100 hover:bg-slate-50">
               <td class="p-3">${time}</td>
               <td class="p-3">${esc(row.cashier_name || '-')}</td>
               <td class="p-3">${esc(typeName)}</td>
@@ -4118,10 +4090,10 @@ ${txRows}
       const lossText = loss === 0 ? '-' : (loss < 0 ? `<span class="text-rose-600">${formatCurrency(Math.abs(loss))}</span>` : `<span class="text-emerald-600">+${formatCurrency(loss)}</span>`);
       const diffText = diff === 0 ? '-' : (diff < 0 ? `<span class="text-rose-600">${diff}</span>` : `<span class="text-emerald-600">+${diff}</span>`);
       return `
-        <tr class="border-b border-hairline/30 hover:bg-surface-soft">
+        <tr class="border-b border-slate-100 hover:bg-slate-50">
           <td class="p-3 font-medium">${esc(p.name)}</td>
           <td class="p-3">${p.stock}</td>
-          <td class="p-3"><input type="number" min="0" value="${esc(p.physical)}" data-opname-id="${esc(p.id)}" class="opname-input w-24 rounded border border-hairline px-2 py-1 focus:border-[#222222] focus:border-2 focus:outline-none focus:ring-0" /></td>
+          <td class="p-3"><input type="number" min="0" value="${p.physical}" data-opname-id="${p.id}" class="opname-input w-24 rounded border border-slate-300 px-2 py-1 focus:ring-2 focus:ring-sky-400" /></td>
           <td class="p-3">${p.physical === '' ? '-' : diffText}</td>
           <td class="p-3">${p.physical === '' ? '-' : lossText}</td>
         </tr>
@@ -4145,50 +4117,37 @@ ${txRows}
     const changes = opnameData.filter(p => p.physical !== '' && parseInt(p.physical, 10) !== p.stock);
     if (changes.length === 0) { alert('Tidak ada selisih stok untuk diterapkan.'); return; }
     
-    const pin = await requestAdminPin();
+    const pin = prompt('Masukkan PIN/Password Admin untuk konfirmasi opname:');
     if (!pin) return;
     
     if (db) {
-      const applyBtn = document.getElementById('applyOpnameButton');
-      const originalBtnText = applyBtn.innerHTML;
-      applyBtn.disabled = true;
-      applyBtn.innerHTML = '<i class="ri-loader-4-line animate-spin mr-2"></i> Memproses...';
-      
-      try {
-        for (const p of changes) {
-          const realP = state.products.find(rp => rp.id === p.id);
-          if (!realP) continue;
-          
-          const diff = parseInt(p.physical, 10) - realP.stock;
-          if (diff === 0) continue;
-
-          const { error: adjErr } = await db.rpc('secure_adjust_stock', {
-              p_product_id: parseInt(p.id, 10),
-              p_qty_adjusted: diff,
-              p_reason: 'Koreksi Administratif',
-              p_note: 'Hasil Stok Opname',
-              p_cashier: activeCashierName(),
-              p_ref_type: 'opname',
-              p_admin_pin: pin
-          });
-          if (adjErr) throw adjErr;
-        }
-        await loadData();
-        renderInventory();
-        renderProducts();
-        alert('Hasil stok opname berhasil diterapkan!');
-        
-        applyBtn.classList.add('hidden');
-        document.getElementById('opnameSummary').classList.add('hidden');
-        document.getElementById('opnameTable').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-muted">Stok opname selesai.</td></tr>';
-        opnameData = [];
-      } catch (error) {
-        logError('Gagal menyimpan hasil opname', {}, error);
-        alert('Terjadi kesalahan saat menerapkan hasil opname.');
-      } finally {
-        applyBtn.disabled = false;
-        applyBtn.innerHTML = originalBtnText;
+      const user = state.cashiers.find(c => c.id === state.selectedCashierId);
+      if (user && user.role !== 'admin') {
+         alert('Hanya admin yang bisa konfirmasi stok opname!'); return;
       }
+      
+      for (const p of changes) {
+        const diff = parseInt(p.physical, 10) - p.stock;
+        await db.rpc('adjust_stock', {
+            p_product_id: parseInt(p.id, 10),
+            p_qty_adjusted: diff,
+            p_reason: 'Koreksi Administratif',
+            p_note: 'Hasil Stok Opname',
+            p_cashier: activeCashierName(),
+            p_ref_type: 'opname'
+        });
+        const realP = state.products.find(rp => rp.id === p.id);
+        if (realP) realP.stock = parseInt(p.physical, 10);
+      }
+      syncStorage();
+      renderInventory();
+      renderProducts();
+      alert('Hasil stok opname berhasil diterapkan!');
+      
+      document.getElementById('applyOpnameButton').classList.add('hidden');
+      document.getElementById('opnameSummary').classList.add('hidden');
+      document.getElementById('opnameTable').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500">Stok opname selesai.</td></tr>';
+      opnameData = [];
     } else {
         alert('Tidak bisa stok opname dalam mode offline.');
     }
@@ -4267,7 +4226,11 @@ ${txRows}
       inp.type = inp.type === 'password' ? 'text' : 'password';
     });
 
-    // dark mode toggle disabled – hidden via applyTheme()
+    dom.themeToggle.addEventListener('click', () => {
+      state.darkMode = !state.darkMode;
+      applyTheme();
+      syncStorage();
+    });
 
     dom.reportRangeSelect.addEventListener('change', event => {
       state.reportRange = event.target.value;
@@ -4404,11 +4367,11 @@ ${txRows}
       loginForm2.classList.toggle('hidden', !onLogin);
       registerForm.classList.toggle('hidden', onLogin);
       tabLogin.className = onLogin
-        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition'
-        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-muted transition';
+        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-slate-900 shadow-sm transition'
+        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 transition';
       tabRegister.className = !onLogin
-        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition'
-        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-muted transition';
+        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-slate-900 shadow-sm transition'
+        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 transition';
     };
     tabLogin?.addEventListener('click', () => activateTab('login'));
     tabRegister?.addEventListener('click', () => activateTab('register'));
@@ -4432,6 +4395,11 @@ ${txRows}
       const res = await handleLogin(email, password);
       btn.textContent = 'Masuk'; btn.disabled = false;
       if (res.error) { showAuthError(res.error); return; }
+      // Login manual berhasil = user membuktikan tahu password asli — aman
+      // bebaskan dari flag recovery yang mungkin masih nyangkut (mis. user
+      // pernah mulai proses reset lalu batal, tapi ingat password lama).
+      passwordRecoveryMode = false;
+      localStorage.removeItem('pw_recovery_uid');
       await enterAppAfterAuth();
     });
 
@@ -4457,6 +4425,8 @@ ${txRows}
         activateTab('login');
         return;
       }
+      passwordRecoveryMode = false;
+      localStorage.removeItem('pw_recovery_uid');
       const regStoreName2 = document.getElementById('regStoreName')?.value || 'Toko';
       await enterAppAfterAuth();
       // Show onboarding for new registrations
@@ -4599,7 +4569,7 @@ ${txRows}
       if (!email) { alert('Masukkan email terlebih dahulu.'); return; }
       if (!db) { alert('Koneksi database tidak tersedia.'); return; }
       dom.sendResetBtn.textContent = 'Mengirim...'; dom.sendResetBtn.disabled = true;
-      const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+      const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
       dom.sendResetBtn.textContent = 'Kirim Link Reset'; dom.sendResetBtn.disabled = false;
       const authSuccess2 = document.getElementById('authSuccess');
       const authError2 = document.getElementById('authError');
@@ -4613,6 +4583,62 @@ ${txRows}
         authError2.classList.add('hidden');
         if (dom.forgotPasswordForm) dom.forgotPasswordForm.classList.add('hidden');
       }
+    });
+
+    // ── Buat Password Baru (reset password) ──
+    document.getElementById('newPasswordForm')?.addEventListener('submit', async event => {
+      event.preventDefault();
+      const errBox = document.getElementById('newPassError');
+      errBox?.classList.add('hidden');
+      const showErr = txt => {
+        if (errBox) { errBox.textContent = txt; errBox.classList.remove('hidden'); }
+      };
+      const pass1 = document.getElementById('newPass1').value;
+      const pass2 = document.getElementById('newPass2').value;
+      if (pass1.length < 8) { showErr('Password minimal 8 karakter.'); return; }
+      if (pass1 !== pass2) { showErr('Password dan konfirmasi tidak sama.'); return; }
+      const btn = document.getElementById('newPassSubmitBtn');
+      btn.textContent = 'Menyimpan...'; btn.disabled = true;
+      const { error } = await db.auth.updateUser({ password: pass1 });
+      btn.textContent = 'Simpan Password Baru'; btn.disabled = false;
+      if (error) { showErr(terjemahAuthError(error.message)); return; }
+      // signOut dibungkus try/catch: apa pun hasilnya (sukses/gagal), flag
+      // recovery TETAP dibersihkan di finally — jangan sampai user stuck di
+      // form recovery hanya karena signOut gagal karena network error
+      // padahal password sudah berhasil diganti.
+      try {
+        await db.auth.signOut();
+      } catch (signOutErr) {
+        logError('signOut gagal setelah ganti password recovery', {}, signOutErr);
+      } finally {
+        history.replaceState(null, '', location.pathname);
+        passwordRecoveryMode = false;
+        localStorage.removeItem('pw_recovery_uid');
+      }
+      hideNewPasswordForm();
+      const authSuccess2 = document.getElementById('authSuccess');
+      if (authSuccess2) {
+        authSuccess2.textContent = 'Password berhasil diganti. Silakan masuk dengan password baru.';
+        authSuccess2.classList.remove('hidden');
+      }
+      document.getElementById('authError')?.classList.add('hidden');
+    });
+
+    // Satu-satunya jalan keluar untuk user yang terjebak di form recovery
+    // (lupa isi / berubah pikiran / cuma numpang buka app). Tanpa tombol
+    // ini, flag pw_recovery_uid tidak pernah hilang tanpa devtools —
+    // dead-end UX fatal untuk user UMKM non-teknis.
+    document.getElementById('cancelRecoveryBtn')?.addEventListener('click', async () => {
+      passwordRecoveryMode = false;
+      localStorage.removeItem('pw_recovery_uid');
+      try {
+        await db?.auth.signOut();
+      } catch (signOutErr) {
+        logError('signOut gagal saat batal recovery', {}, signOutErr);
+      }
+      history.replaceState(null, '', location.pathname);
+      hideNewPasswordForm();
+      showLoginPage();
     });
 
     // ── Feature 5: Shift / Tutup Kasir ──
@@ -4709,6 +4735,9 @@ ${txRows}
     document.getElementById('closeDebtModal')?.addEventListener('click', closeDebtModal);
     document.getElementById('debtForm')?.addEventListener('submit', saveDebt);
     document.getElementById('debtSearchInput')?.addEventListener('input', renderKasbon);
+    document.getElementById('closeDebtDeleteModal')?.addEventListener('click', closeDebtDeleteModal);
+    document.getElementById('debtDeleteCancel')?.addEventListener('click', closeDebtDeleteModal);
+    document.getElementById('debtDeleteConfirm')?.addEventListener('click', confirmDeleteDebt);
 
     // ── Struk WhatsApp ──
     document.getElementById('waReceiptBtn')?.addEventListener('click', () => {
@@ -4717,7 +4746,7 @@ ${txRows}
     });
 
     // ── Offline auto-sync ──
-    window.addEventListener('online', () => { flushOfflineQueue(); flushOfflineCashierQueue(); });
+    window.addEventListener('online', () => { flushOfflineQueue(); flushDebtQueue(); });
 
     // ── Multi-Cabang ──
     document.getElementById('storeSwitcher')?.addEventListener('change', e => switchStore(e.target.value));
@@ -4746,11 +4775,11 @@ ${txRows}
       const match = dom.deleteAccountEmailInput.value.trim().toLowerCase() === (state.authUser?.email || '').toLowerCase();
       dom.deleteAccountConfirmBtn.disabled = !match;
       if (match) {
-        dom.deleteAccountConfirmBtn.classList.remove('bg-hairline', 'text-muted', 'cursor-not-allowed');
+        dom.deleteAccountConfirmBtn.classList.remove('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
         dom.deleteAccountConfirmBtn.classList.add('bg-rose-600', 'text-white', 'hover:bg-rose-700', 'cursor-pointer');
       } else {
         dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'text-white', 'hover:bg-rose-700', 'cursor-pointer');
-        dom.deleteAccountConfirmBtn.classList.add('bg-hairline', 'text-muted', 'cursor-not-allowed');
+        dom.deleteAccountConfirmBtn.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
       }
     });
     dom.deleteAccountConfirmBtn?.addEventListener('click', handleDeleteAccount);
@@ -4826,6 +4855,12 @@ ${txRows}
 
   // Dipanggil setelah login/daftar berhasil ATAU saat sesi masih aktif
   const enterAppAfterAuth = async () => {
+    // Mode recovery: pemegang link reset TIDAK boleh masuk dashboard
+    // sebelum membuat password baru (guard di semua jalur SIGNED_IN/bootstrap).
+    if (passwordRecoveryMode) {
+      showNewPasswordForm();
+      return;
+    }
     showHelpChatFab();
     await loadData();
 
@@ -4880,7 +4915,77 @@ ${txRows}
   };
 
   // ── Kasbon / Hutang Pelanggan (Premium: tanpa batas; Gratis: maks 5 aktif) ─
-  const saveDebtsLocal = () => { /* localStorage removed for PII security */ };
+  const saveDebtsLocal = () => localStorage.setItem('pos_debts', JSON.stringify(state.debts || []));
+
+  // ── Antrean kasbon offline: Supabase = source of truth, antrean hanya saat offline ─
+  const DEBT_QUEUE_KEY = 'debt_queue';
+  const getDebtQueue = () => {
+    try { return JSON.parse(localStorage.getItem(DEBT_QUEUE_KEY) || '[]'); } catch { return []; }
+  };
+  const saveDebtQueue = q => localStorage.setItem(DEBT_QUEUE_KEY, JSON.stringify(q));
+  // Error jaringan murni (fetch gagal), bukan error dari server/database
+  const isNetworkError = e => /Failed to fetch|NetworkError|Load failed|fetch failed/i.test(e?.message || '');
+
+  // Guard reentrancy: flush dipanggil dari loadData, event 'online', dan refresh layar
+  // Kasbon — tanpa guard, dua flush bersamaan kirim RPC dobel (kasbon & stok terpotong 2x)
+  let debtQueueFlushing = false;
+  const flushDebtQueue = async () => {
+    if (!db || !navigator.onLine || !state.storeId) return 0;
+    if (debtQueueFlushing) return 0;
+    debtQueueFlushing = true;
+    try {
+      const q = getDebtQueue();
+      if (!q.length) return 0;
+      const remaining = [];
+      let synced = 0;
+      for (const entry of q) {
+        try {
+          const { data, error } = await db.rpc('create_debt_transaction', {
+            p_store_id: entry.store_id,
+            p_customer_name: entry.customer_name,
+            p_phone: entry.phone,
+            p_amount: entry.amount,
+            p_note: entry.note,
+            p_items: entry.items,
+            p_cashier_name: entry.cashier_name
+          });
+          if (error) throw error;
+          // Sudah ditandai lunas sebelum tersinkron → susulkan update status di server
+          if (entry.status === 'lunas') {
+            await db.from('debts').update({ status: 'lunas', paid_at: entry.paid_at || new Date().toISOString() }).eq('id', data.debt_id);
+          }
+          // Ganti id lokal 'D...' dengan id server
+          const local = (state.debts || []).find(d => String(d.id) === String(entry.id));
+          if (local) { local.id = data.debt_id; delete local.pending; }
+          synced++;
+        } catch (e) {
+          logError('flushDebtQueue: sinkron kasbon gagal', { debtId: entry.id }, e);
+          remaining.push(entry); // gagal → coba lagi nanti
+        }
+      }
+      saveDebtQueue(remaining);
+      if (synced > 0) { saveDebtsLocal(); renderKasbon(); }
+      return synced;
+    } finally {
+      debtQueueFlushing = false;
+    }
+  };
+
+  const refreshDebtsFromServer = async () => {
+    if (!db || !navigator.onLine || !state.storeId) return;
+    await flushDebtQueue();
+    const { data: debts, error } = await db
+      .from('debts').select('*').eq('store_id', state.storeId)
+      .order('created_at', { ascending: false }).limit(500);
+    if (error) {
+      logError('refreshDebtsFromServer: gagal memuat kasbon', { storeId: state.storeId }, error);
+      return; // pertahankan cache lokal sebagai fallback
+    }
+    // Antrean pending tetap tampil di atas data server sampai tersinkron
+    state.debts = [...getDebtQueue(), ...(debts || [])];
+    saveDebtsLocal();
+    renderKasbon();
+  };
 
   const renderKasbon = () => {
     const list = document.getElementById('debtList');
@@ -4902,32 +5007,35 @@ ${txRows}
     list.innerHTML = sorted.map(d => {
       const isPaid = d.status === 'lunas';
       const date = new Date(d.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-      const tagBtn = (!isPaid && d.phone) ? `<button data-debt-wa="${esc(d.id)}" class="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs text-white font-semibold hover:bg-green-700 transition">💬 Tagih</button>` : '';
+      const tagBtn = (!isPaid && d.phone) ? `<button data-debt-wa="${esc(d.id)}" class="flex-1 rounded-2xl bg-green-600 px-3 py-2 text-xs text-white font-semibold hover:bg-green-700 transition">💬 Tagih</button>` : '';
       let itemsHtml = '';
       if (d.items && Array.isArray(d.items) && d.items.length > 0) {
-          itemsHtml = `<div class="text-xs text-muted mt-1">${d.items.map(i => `${esc(i.product_name)} (${i.qty}x)`).join(', ')}</div>`;
+          itemsHtml = `<div class="text-xs text-slate-500 mt-1">${d.items.map(i => `${esc(i.product_name)} (${i.qty}x)`).join(', ')}</div>`;
       }
       return `
-        <div class="rounded-xl bg-white border ${isPaid ? 'border-hairline opacity-60' : 'border-amber-200'} shadow-sm p-5 space-y-3">
+        <div class="rounded-3xl bg-white border ${isPaid ? 'border-slate-200 opacity-60' : 'border-amber-200'} shadow-sm p-5 space-y-3">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
-              <p class="font-semibold text-ink truncate">${esc(d.customer_name)}</p>
-              <p class="text-xs text-muted">${date}${d.note ? ' — ' + esc(d.note) : ''}</p>
+              <p class="font-semibold text-slate-900 truncate">${esc(d.customer_name)}</p>
+              <p class="text-xs text-slate-400">${date}${d.note ? ' — ' + esc(d.note) : ''}</p>
               ${itemsHtml}
             </div>
-            <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
+            <div class="flex flex-col items-end gap-1">
+              <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
+              ${d.pending ? '<span class="rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-xs whitespace-nowrap">Belum tersimpan online</span>' : ''}
+            </div>
           </div>
-          <p class="text-2xl font-bold ${isPaid ? 'text-muted line-through' : 'text-rose-600'}">${formatCurrency(d.amount)}</p>
+          <p class="text-2xl font-bold ${isPaid ? 'text-slate-400 line-through' : 'text-rose-600'}">${formatCurrency(d.amount)}</p>
           <div class="flex gap-2">
             ${tagBtn}
-            ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-lg bg-primary px-3 py-2 text-xs text-white font-semibold hover:bg-primary transition">✅ Tandai Lunas</button>` : ''}
-            <button data-debt-delete="${esc(d.id)}" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 hover:bg-rose-100 transition">🗑</button>
+            ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-2xl bg-sky-600 px-3 py-2 text-xs text-white font-semibold hover:bg-sky-700 transition">✅ Tandai Lunas</button>` : ''}
+            <button data-debt-delete="${esc(d.id)}" class="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 hover:bg-rose-100 transition">🗑</button>
           </div>
         </div>`;
-    }).join('') || '<div class="col-span-full rounded-xl border border-dashed border-hairline bg-surface-soft p-8 text-center text-muted">Belum ada catatan kasbon. Klik "+ Catat Kasbon" untuk mulai.</div>';
+    }).join('') || '<div class="col-span-full rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">Belum ada catatan kasbon. Klik "+ Catat Kasbon" untuk mulai.</div>';
 
     list.querySelectorAll('[data-debt-paid]').forEach(btn =>
-      btn.addEventListener('click', () => markDebtPaid(btn.dataset.debtPaid)));
+      btn.addEventListener('click', () => markDebtPaid(btn.dataset.debtPaid, btn)));
     list.querySelectorAll('[data-debt-delete]').forEach(btn =>
       btn.addEventListener('click', () => deleteDebt(btn.dataset.debtDelete)));
     list.querySelectorAll('[data-debt-wa]').forEach(btn =>
@@ -4937,7 +5045,7 @@ ${txRows}
   const addDebtItemRow = () => {
     const container = document.getElementById('debtItemsContainer');
     if (!container) return;
-    const rowId = 'debtRow_' + crypto.randomUUID();
+    const rowId = 'debtRow_' + Date.now() + Math.random().toString(36).substr(2, 5);
     const div = document.createElement('div');
     div.className = 'flex gap-2 mb-2 items-center debt-item-row';
     div.id = rowId;
@@ -4952,16 +5060,16 @@ ${txRows}
     
     div.innerHTML = `
         <div class="w-[45%]">
-            <select class="w-full rounded-xl border border-hairline px-2 py-1.5 text-sm focus:border-[#222222] focus:border-2 focus:outline-none focus:ring-0 debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
+            <select class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-700 debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
                 <option value="" disabled selected>Pilih Produk</option>
                 ${productOptions}
             </select>
         </div>
         <div class="w-[20%]">
-            <input type="number" min="1" value="1" class="w-full rounded-xl border border-hairline px-2 py-1.5 text-sm focus:border-[#222222] focus:border-2 focus:outline-none focus:ring-0 debt-qty-input" oninput="calculateDebtTotal()">
+            <input type="number" min="1" value="1" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-700 debt-qty-input" oninput="calculateDebtTotal()">
         </div>
         <div class="w-[25%]">
-             <input type="text" class="w-full rounded-xl border border-hairline bg-surface-soft px-2 py-1.5 text-sm text-muted" readonly value="0">
+             <input type="text" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-500 dark:bg-slate-800 dark:text-white dark:border-slate-700" readonly value="0">
         </div>
         <div class="w-[10%] flex justify-end">
              <button type="button" class="rounded-xl bg-rose-100 text-rose-600 px-3 py-1.5 hover:bg-rose-200 transition font-bold" onclick="removeDebtItemRow('${rowId}')">✕</button>
@@ -5042,43 +5150,20 @@ ${txRows}
   window.calculateDebtTotal = calculateDebtTotal;
 
   const openDebtModal = async () => {
-    const btn = document.getElementById('addDebtBtn');
-    const originalText = btn ? btn.innerHTML : '';
-    if (btn) {
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Memproses...';
-    }
+    // Gerbang premium: gratis maksimal 5 kasbon aktif
+    const activeCount = (state.debts || []).filter(d => d.status !== 'lunas').length;
+    if (activeCount >= 5 && !await requirePremium('Kasbon lebih dari 5 catatan aktif')) return;
+    const m = document.getElementById('debtModal');
+    document.getElementById('debtForm')?.reset();
+    document.getElementById('debtFormError')?.classList.add('hidden');
+    
+    const container = document.getElementById('debtItemsContainer');
+    if (container) container.innerHTML = '';
+    state.currentDebtItems = [];
+    addDebtItemRow();
 
-    try {
-      // Gerbang premium: gratis maksimal 5 kasbon aktif. Strictly evaluated server-side.
-      let serverActiveCount = (state.debts || []).filter(d => d.status !== 'lunas').length;
-      if (db && state.storeId) {
-        try {
-          const { count, error } = await db.from('debts').select('*', { count: 'exact', head: true })
-            .eq('store_id', state.storeId).neq('status', 'lunas');
-          if (!error && count !== null) serverActiveCount = count;
-        } catch (e) {
-          console.warn('Gagal memvalidasi limit kasbon ke server:', e);
-        }
-      }
-      if (serverActiveCount >= 5 && !await requirePremium('Kasbon lebih dari 5 catatan aktif')) return;
-      const m = document.getElementById('debtModal');
-      document.getElementById('debtForm')?.reset();
-      document.getElementById('debtFormError')?.classList.add('hidden');
-      
-      const container = document.getElementById('debtItemsContainer');
-      if (container) container.innerHTML = '';
-      state.currentDebtItems = [];
-      addDebtItemRow();
-
-      if (m) m.classList.remove('hidden');
-      document.getElementById('debtFormName')?.focus();
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-      }
-    }
+    if (m) m.classList.remove('hidden');
+    document.getElementById('debtFormName')?.focus();
   };
 
   const closeDebtModal = () => {
@@ -5088,20 +5173,12 @@ ${txRows}
 
   const saveDebt = async e => {
     e.preventDefault();
-    const btn = document.querySelector('#debtForm button[type="submit"]');
-    const originalText = btn ? btn.innerHTML : '';
-    if (btn) {
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Memproses...';
-    }
-
-    try {
-      const name = document.getElementById('debtFormName').value.trim();
-      const phone = document.getElementById('debtFormPhone').value.trim();
-      const amount = Number(document.getElementById('debtFormAmount').value);
-      const note = document.getElementById('debtFormNote').value.trim();
-      const errEl = document.getElementById('debtFormError');
-      const items = state.currentDebtItems || [];
+    const name = document.getElementById('debtFormName').value.trim();
+    const phone = document.getElementById('debtFormPhone').value.trim();
+    const amount = Number(document.getElementById('debtFormAmount').value);
+    const note = document.getElementById('debtFormNote').value.trim();
+    const errEl = document.getElementById('debtFormError');
+    const items = state.currentDebtItems || [];
     
     if (!name || !amount || amount <= 0) {
       if (errEl) { errEl.textContent = 'Nama dan total hutang wajib diisi.'; errEl.classList.remove('hidden'); }
@@ -5118,18 +5195,8 @@ ${txRows}
         const product = state.products.find(p => p.id === item.product_id);
         if (product && product.stock < item.qty) {
             if (errEl) { errEl.textContent = `Stok tidak cukup untuk produk ${product.name}. Tersedia: ${product.stock}`; errEl.classList.remove('hidden'); }
-            showAppToast(`Stok tidak cukup untuk produk ${product.name}.`, 'error');
             return;
         }
-    }
-
-    // AC1: Verify existing active debt status before allowing new kasbon
-    const existingDebt = (state.debts || []).find(d => d.status !== 'lunas' && d.customer_name.toLowerCase() === name.toLowerCase());
-    if (existingDebt) {
-        if (errEl) { errEl.textContent = `Pelanggan ${name} masih memiliki kasbon aktif yang belum lunas.`; errEl.classList.remove('hidden'); }
-        showAppToast(`Pelanggan ${name} masih memiliki kasbon aktif yang belum lunas.`, 'error');
-        alert(`Pelanggan ${name} masih memiliki kasbon aktif. Harap lunasi kasbon sebelumnya terlebih dahulu.`);
-        return;
     }
 
     let record = { 
@@ -5148,16 +5215,31 @@ ${txRows}
 
     let transactionId = null;
 
-    if (db && state.storeId) {
-      const currentStore = (state.stores || []).find(s => String(s.id) == String(state.storeId));
-      const storeUuid = currentStore ? currentStore.id : null;
-      
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const currentStore = (state.stores || []).find(s => String(s.id) == String(state.storeId));
+    const storeUuid = currentStore ? currentStore.id : null;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    // Offline: masuk antrean lokal, disinkron otomatis saat online.
+    // storeUuid wajib valid — entry tanpa store_id tak akan pernah bisa tersinkron.
+    const queueDebtOffline = () => {
+      if (!storeUuid || !uuidRegex.test(String(storeUuid))) {
+        alert('Gagal: Data toko tidak valid.');
+        return false;
+      }
+      record.id = 'D' + Date.now();
+      record.pending = true;
+      const q = getDebtQueue();
+      q.push({ ...record, store_id: storeUuid, cashier_name: cashierName });
+      saveDebtQueue(q);
+      return true;
+    };
+
+    if (db && state.storeId && navigator.onLine) {
       if (!storeUuid || !uuidRegex.test(String(storeUuid))) {
           alert('Gagal: Data toko tidak valid.');
           return;
       }
-      
+
       const { data, error } = await db.rpc('create_debt_transaction', {
           p_store_id: storeUuid,
           p_customer_name: name,
@@ -5167,11 +5249,19 @@ ${txRows}
           p_items: items,
           p_cashier_name: cashierName
       });
-      
+
       if (error) {
-        logError('Error creating kasbon', error);
-        alert('Gagal membuat kasbon: ' + friendlyError(error));
-        return;
+        if (isNetworkError(error)) {
+          // Jaringan putus di tengah request → antre lokal
+          if (!queueDebtOffline()) return;
+        } else {
+          // RPC gagal saat online: beri tahu user, JANGAN simpan diam-diam
+          logError('saveDebt: create_debt_transaction gagal', { storeId: storeUuid }, error);
+          const msg = 'Kasbon belum tersimpan. Periksa koneksi internet lalu coba lagi.';
+          if (errEl) { errEl.textContent = msg; errEl.classList.remove('hidden'); }
+          showAppToast(msg, 'error');
+          return;
+        }
       } else {
         let rData = data;
         if (Array.isArray(data)) rData = data[0];
@@ -5183,7 +5273,7 @@ ${txRows}
         transactionId = record.transaction_id;
       }
     } else {
-      record.id = 'D' + Date.now();
+      if (!queueDebtOffline()) return;
     }
     
     // Kurangi stok lokal
@@ -5224,20 +5314,14 @@ ${txRows}
 
     closeDebtModal();
     renderKasbon();
-    if (!transactionId) {
-        alert('Kasbon disimpan lokal (tidak ada koneksi) atau gagal memanggil database.');
+    if (record.pending) {
+        alert('Kasbon disimpan di perangkat ini dan akan tersimpan otomatis saat internet kembali.');
     } else {
         alert('Kasbon berhasil disimpan! Transaksi dan stok produk telah dicatat otomatis.');
     }
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-      }
-    }
   };
 
-  const markDebtPaid = async id => {
+  const markDebtPaid = async (id, btn) => {
     const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
     if (activeOp && activeOp.role !== 'admin') {
       alert('Hanya Admin Toko yang diizinkan untuk menandai kasbon lunas.');
@@ -5245,162 +5329,119 @@ ${txRows}
     }
     const debt = (state.debts || []).find(d => String(d.id) === String(id));
     if (!debt) return;
-
-    const btn = document.querySelector(`[data-debt-paid="${id}"]`);
-    const originalText = btn ? btn.innerHTML : '';
-    if (btn) {
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>...';
-    }
-
-    try {
-      if (db && !isNaN(parseInt(id))) {
-        const cashierId = state.selectedCashierId ? parseInt(state.selectedCashierId) : null;
-        const { error } = await db.rpc('mark_debt_paid', { p_debt_id: parseInt(id), p_cashier_id: cashierId });
-        if (error) {
-            logError('markDebtPaid: gagal update', { debtId: id }, error);
-            showAppToast('Gagal menandai lunas pada database.', 'error');
-            alert('Gagal menandai lunas: ' + friendlyError(error));
-            return;
-        }
-      } else if (db && isNaN(parseInt(id))) {
-        console.error('markDebtPaid: ID kasbon tidak valid (NaN). Nilai id:', id);
-        alert('Gagal menandai lunas: ID kasbon tidak valid. Silakan muat ulang halaman.');
-        return;
+    const paidAt = new Date().toISOString();
+    if (String(id).startsWith('D')) {
+      // Masih di antrean lokal → cukup ubah antrean, status ikut saat sinkron
+      const q = getDebtQueue();
+      const entry = q.find(en => String(en.id) === String(id));
+      if (entry) { entry.status = 'lunas'; entry.paid_at = paidAt; saveDebtQueue(q); }
+    } else if (db) {
+      if (btn) btn.disabled = true; // cegah double-tap selama menunggu server
+      const { error } = await db.from('debts').update({ status: 'lunas', paid_at: paidAt }).eq('id', id);
+      if (error) {
+        if (btn) btn.disabled = false;
+        logError('markDebtPaid: gagal update', { debtId: id }, error);
+        showAppToast('Kasbon belum ditandai lunas. Periksa koneksi internet lalu coba lagi.', 'error');
+        return; // jangan ubah state lokal agar tetap sinkron dengan server
       }
-      
-      debt.status = 'lunas';
-      debt.paid_at = new Date().toISOString();
-      
-      if (debt.transaction_id && state.transactions) {
-          const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
-          if (tx) {
-              tx.paymentMethod = 'Lunas';
-              if (typeof renderHistory === 'function') renderHistory();
-          }
-      }
-      
-      saveDebtsLocal();
-      renderKasbon();
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+      // Transaksi Hutang terkait ikut ditandai Lunas di server
+      if (debt.transaction_id) {
+        await db.from('transactions').update({ payment_method: 'Lunas' }).eq('id', debt.transaction_id);
       }
     }
+    debt.status = 'lunas';
+    debt.paid_at = paidAt;
+    if (debt.transaction_id && state.transactions) {
+      const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
+      if (tx) {
+        tx.paymentMethod = 'Lunas';
+        if (typeof renderHistory === 'function') renderHistory();
+      }
+    }
+    saveDebtsLocal();
+    renderKasbon();
   };
 
-  window.showCustomConfirm = (message, confirmTextToType) => {
-    return new Promise(resolve => {
-        const overlay = document.createElement('div');
-        overlay.className = 'fixed inset-0 bg-ink/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4';
-        overlay.innerHTML = `
-            <div class="bg-white rounded-xl p-6 w-full max-w-sm shadow-sm flex flex-col gap-4">
-                <h3 class="font-bold text-lg text-ink">Konfirmasi Hapus</h3>
-                <p class="text-sm text-muted">${esc(message)}</p>
-                <div class="space-y-1">
-                    <label class="text-sm font-medium text-muted">Ketik <strong>${esc(confirmTextToType)}</strong> untuk konfirmasi:</label>
-                    <input type="text" class="w-full rounded-xl border border-hairline px-3 min-h-[44px] text-sm focus:border-[#222222] focus:border-2 focus:outline-none focus:ring-0" placeholder="${esc(confirmTextToType)}">
-                </div>
-                <div class="flex justify-end gap-2 mt-2">
-                    <button class="rounded-lg bg-surface-soft px-4 min-h-[44px] text-sm font-semibold text-muted hover:bg-hairline transition btn-cancel">Batal</button>
-                    <button class="rounded-lg bg-rose-50 px-4 min-h-[44px] text-sm font-semibold text-rose-600 hover:bg-rose-100 transition opacity-50 cursor-not-allowed btn-confirm" disabled>Hapus</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(overlay);
+  let _debtDeleteId = null;
 
-        const input = overlay.querySelector('input');
-        const btnCancel = overlay.querySelector('.btn-cancel');
-        const btnConfirm = overlay.querySelector('.btn-confirm');
-
-        input.addEventListener('input', () => {
-            if (input.value === confirmTextToType) {
-                btnConfirm.disabled = false;
-                btnConfirm.classList.remove('opacity-50', 'cursor-not-allowed');
-            } else {
-                btnConfirm.disabled = true;
-                btnConfirm.classList.add('opacity-50', 'cursor-not-allowed');
-            }
-        });
-
-        const closeAndResolve = (val) => {
-            document.body.removeChild(overlay);
-            resolve(val);
-        };
-
-        btnCancel.addEventListener('click', () => closeAndResolve(false));
-        btnConfirm.addEventListener('click', () => {
-            if (!btnConfirm.disabled) closeAndResolve(true);
-        });
-    });
+  const closeDebtDeleteModal = () => {
+    _debtDeleteId = null;
+    document.getElementById('debtDeleteModal')?.classList.add('hidden');
   };
 
-  const deleteDebt = async id => {
+  const deleteDebt = id => {
     const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
     if (activeOp && activeOp.role !== 'admin') {
       alert('Hanya Admin Toko yang diizinkan untuk menghapus catatan kasbon.');
       return;
     }
-    const isConfirmed = await window.showCustomConfirm('Hapus catatan kasbon ini? Riwayat transaksi terkait akan dibatalkan (VOID) dan stok akan dikembalikan.', 'HAPUS');
-    if (!isConfirmed) return;
-    
     const debt = (state.debts || []).find(d => String(d.id) === String(id));
     if (!debt) return;
-    
-    const adminName = activeOp ? activeOp.name : 'Supervisor';
-    
-    const btn = document.querySelector(`[data-debt-delete="${id}"]`);
-    const originalText = btn ? btn.innerHTML : '';
-    if (btn) {
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-    }
+    _debtDeleteId = id;
+    const textEl = document.getElementById('debtDeleteText');
+    if (textEl) textEl.textContent = `Catatan kasbon ${debt.customer_name} ${formatCurrency(debt.amount)} akan dihapus permanen. Transaksi terkait dibatalkan dan stok dikembalikan.`;
+    document.getElementById('debtDeleteModal')?.classList.remove('hidden');
+  };
 
-    try {
-      if (db && !isNaN(parseInt(id))) {
-        const cashierId = state.selectedCashierId ? parseInt(state.selectedCashierId) : null;
-        const { error } = await db.rpc('delete_debt_secure', { p_debt_id: parseInt(id), p_cashier_id: cashierId, p_admin_name: adminName });
-        if (error) {
-            logError('deleteDebt: gagal delete', { debtId: id }, error);
-            showAppToast('Gagal menghapus kasbon pada database.', 'error');
-            alert('Gagal menghapus kasbon: ' + friendlyError(error));
-            return;
+  const confirmDeleteDebt = async () => {
+    const id = _debtDeleteId;
+    if (id === null) return;
+    const debt = (state.debts || []).find(d => String(d.id) === String(id));
+    if (!debt) { closeDebtDeleteModal(); return; }
+    const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
+    const adminName = activeOp ? activeOp.name : 'Supervisor';
+    const confirmBtn = document.getElementById('debtDeleteConfirm');
+    if (String(id).startsWith('D')) {
+      // Masih di antrean lokal → hapus dari antrean saja
+      saveDebtQueue(getDebtQueue().filter(en => String(en.id) !== String(id)));
+    } else if (db) {
+      if (confirmBtn) confirmBtn.disabled = true; // cegah double-tap selama menunggu server
+      // Batalkan (VOID) transaksi Hutang terkait + kembalikan stok di server
+      if (debt.transaction_id) {
+        const { error: txErr } = await db.from('transactions').update({
+          status: 'void',
+          void_reason: 'Kasbon Dihapus',
+          void_by: adminName,
+          void_at: new Date().toISOString()
+        }).eq('id', debt.transaction_id);
+        if (!txErr && debt.items) {
+          for (const item of debt.items) {
+            const numId = parseInt(item.product_id);
+            if (isNaN(numId) || item.qty <= 0) continue;
+            await db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
+          }
         }
       }
-    
+      const { error } = await db.from('debts').delete().eq('id', id);
+      if (confirmBtn) confirmBtn.disabled = false;
+      if (error) {
+        logError('deleteDebt: gagal delete', { debtId: id }, error);
+        showAppToast('Kasbon belum terhapus. Periksa koneksi internet lalu coba lagi.', 'error');
+        return; // jangan ubah state lokal agar tetap sinkron dengan server
+      }
+    }
     state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
-    
     if (debt.transaction_id && state.transactions) {
-         const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
-         if (tx) {
-             tx.status = 'void';
-             tx.voidReason = 'Kasbon Dihapus';
-             tx.voidBy = adminName;
-             tx.voidAt = new Date().toISOString();
-             if (typeof renderHistory === 'function') renderHistory();
-             if (typeof updateDashboard === 'function') updateDashboard();
-         }
-    }
-    
-    if (debt.items) {
-        for (const item of debt.items) {
-            const product = state.products.find(p => String(p.id) === String(item.product_id));
-            if (product) {
-                product.stock += item.qty;
-            }
-        }
-        if (typeof renderProducts === 'function') renderProducts();
-    }
-    
-    saveDebtsLocal();
-    renderKasbon();
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+      const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
+      if (tx) {
+        tx.status = 'void';
+        tx.voidReason = 'Kasbon Dihapus';
+        tx.voidBy = adminName;
+        tx.voidAt = new Date().toISOString();
+        if (typeof renderHistory === 'function') renderHistory();
+        if (typeof updateDashboard === 'function') updateDashboard();
       }
     }
+    if (debt.items) {
+      for (const item of debt.items) {
+        const product = state.products.find(p => String(p.id) === String(item.product_id));
+        if (product) product.stock += item.qty;
+      }
+      if (typeof renderProducts === 'function') renderProducts();
+    }
+    saveDebtsLocal();
+    closeDebtDeleteModal();
+    renderKasbon();
   };
 
   const sendDebtReminder = id => {
@@ -5427,7 +5468,7 @@ ${txRows}
       if (!toast) {
         toast = document.createElement('div');
         toast.id = 'hwScanToast';
-        toast.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-[300] rounded-lg px-5 py-3 text-white text-sm font-semibold shadow-sm transition-opacity duration-300 no-print';
+        toast.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-[300] rounded-2xl px-5 py-3 text-white text-sm font-semibold shadow-2xl transition-opacity duration-300 no-print';
         document.body.appendChild(toast);
       }
       toast.textContent = text;
@@ -5548,8 +5589,8 @@ ${txRows}
     const addMsg = (text, who) => {
       const div = document.createElement('div');
       div.className = who === 'user'
-        ? 'ml-auto max-w-[85%] rounded-lg rounded-br-md bg-primary text-white px-4 py-2.5'
-        : 'mr-auto max-w-[85%] rounded-lg rounded-bl-md bg-white border border-hairline text-muted px-4 py-2.5';
+        ? 'ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-sky-600 text-white px-4 py-2.5'
+        : 'mr-auto max-w-[85%] rounded-2xl rounded-bl-md bg-white border border-slate-200 text-slate-700 px-4 py-2.5';
       // Selalu pakai textContent (bukan innerHTML) agar aman dari XSS jawaban LLM/input pengguna
       div.textContent = text;
       messages.appendChild(div);
@@ -5596,7 +5637,7 @@ ${txRows}
     ['Cara cetak struk?', 'Cara pakai QRIS?', 'Soal langganan', 'Tambah kasir'].forEach(label => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'rounded-full border border-primary/30 bg-primary/5 text-primary px-3 py-1 text-xs hover:bg-primary/10 transition';
+      b.className = 'rounded-full border border-sky-300 bg-sky-50 text-sky-700 px-3 py-1 text-xs hover:bg-sky-100 transition';
       b.textContent = label;
       b.addEventListener('click', () => ask(label));
       quick.appendChild(b);
@@ -5715,13 +5756,13 @@ ${txRows}
     const premMs = store.premium_until  ? new Date(store.premium_until).getTime()  : null;
     const triMs  = store.trial_ends_at  ? new Date(store.trial_ends_at).getTime()  : null;
     if (bizMs  && bizMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-xs font-semibold">Bisnis</span>';
-    if (premMs && premMs > now) return '<span class="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">Premium</span>';
+    if (premMs && premMs > now) return '<span class="px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 text-xs font-semibold">Premium</span>';
     if (triMs  && triMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">Trial</span>';
-    return '<span class="px-2 py-0.5 rounded-full bg-surface-soft text-muted text-xs font-semibold">Gratis</span>';
+    return '<span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs font-semibold">Gratis</span>';
   };
 
   const superAdminFmtDate = v => {
-    if (!v) return '<span class="text-white/70">—</span>';
+    if (!v) return '<span class="text-slate-300">—</span>';
     return esc(new Date(v).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }));
   };
 
@@ -5738,14 +5779,14 @@ ${txRows}
       ).join('');
 
     if (!stores.length) {
-      wrapper.innerHTML = '<p class="text-muted text-sm">Belum ada toko terdaftar.</p>';
+      wrapper.innerHTML = '<p class="text-slate-400 text-sm">Belum ada toko terdaftar.</p>';
       return;
     }
 
     wrapper.innerHTML = `
       <table class="w-full text-sm border-collapse">
         <thead>
-          <tr class="border-b border-hairline text-left text-muted text-xs uppercase tracking-wide">
+          <tr class="border-b border-slate-200 text-left text-slate-500 text-xs uppercase tracking-wide">
             <th class="py-2 pr-4 font-medium">Nama Toko</th>
             <th class="py-2 pr-4 font-medium">Owner ID</th>
             <th class="py-2 pr-4 font-medium">Email Pemilik</th>
@@ -5757,10 +5798,10 @@ ${txRows}
         </thead>
         <tbody>
           ${stores.map(s => `
-            <tr class="border-b border-hairline/30 hover:bg-surface-soft transition">
-              <td class="py-2 pr-4 font-medium text-ink">${esc(s.name || '-')}</td>
-              <td class="py-2 pr-4 text-muted font-mono text-xs">${esc(s.owner_id || '-')}</td>
-              <td class="py-2 pr-4 text-muted">${esc(s.owner_email || '-')}</td>
+            <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+              <td class="py-2 pr-4 font-medium text-slate-900">${esc(s.name || '-')}</td>
+              <td class="py-2 pr-4 text-slate-500 font-mono text-xs">${esc(s.owner_id || '-')}</td>
+              <td class="py-2 pr-4 text-slate-500">${esc(s.owner_email || '-')}</td>
               <td class="py-2 pr-4">${superAdminFmtDate(s.trial_ends_at)}</td>
               <td class="py-2 pr-4">${superAdminFmtDate(s.premium_until)}</td>
               <td class="py-2 pr-4">${superAdminFmtDate(s.business_until)}</td>
@@ -5773,7 +5814,7 @@ ${txRows}
   const superAdminLoadStores = async () => {
     const wrapper = document.getElementById('superAdminTableWrapper');
     const sel = document.getElementById('superAdminStoreSelect');
-    if (wrapper) wrapper.innerHTML = '<p class="text-muted text-sm">Memuat data...</p>';
+    if (wrapper) wrapper.innerHTML = '<p class="text-slate-400 text-sm">Memuat data...</p>';
     if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
     try {
       // Strategi 1: panggil RPC list_all_stores_for_admin (lebih andal, tanpa Edge Function)
@@ -5893,7 +5934,7 @@ ${txRows}
       if (!wrapper) return;
       const btn = document.getElementById('superAdminLoadLogsBtn');
       if (btn) { btn.disabled = true; btn.textContent = 'Memuat...'; }
-      wrapper.innerHTML = '<p class="text-muted text-sm">Memuat log error...</p>';
+      wrapper.innerHTML = '<p class="text-slate-500 text-sm">Memuat log error...</p>';
       if (copyWrapper) copyWrapper.classList.add('hidden');
       try {
         const { data, error } = await db.rpc('list_error_logs_for_admin');
@@ -5902,16 +5943,16 @@ ${txRows}
           return;
         }
         if (!data || !data.length) {
-          wrapper.innerHTML = '<p class="text-muted text-sm">Tidak ada log error.</p>';
+          wrapper.innerHTML = '<p class="text-slate-400 text-sm">Tidak ada log error.</p>';
           return;
         }
         wrapper._logsData = data;
-        wrapper.innerHTML = `<p class="text-muted text-sm mb-2">${data.length} entri log terbaru:</p>` +
-          data.map(row => `<div class="rounded-lg border border-hairline bg-surface-soft p-3 mb-2 text-xs font-mono overflow-x-auto">
-            <span class="text-muted">${esc(row.created_at ? new Date(row.created_at).toLocaleString('id-ID') : '')}</span>
+        wrapper.innerHTML = `<p class="text-slate-500 text-sm mb-2">${data.length} entri log terbaru:</p>` +
+          data.map(row => `<div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 mb-2 text-xs font-mono overflow-x-auto">
+            <span class="text-slate-400">${esc(row.created_at ? new Date(row.created_at).toLocaleString('id-ID') : '')}</span>
             <span class="ml-2 text-rose-600 font-semibold">${esc(row.message)}</span>
-            ${row.store_name ? `<span class="ml-2 text-muted">[${esc(row.store_name)}]</span>` : ''}
-            ${row.url ? `<span class="ml-2 text-muted">${esc(row.url)}</span>` : ''}
+            ${row.store_name ? `<span class="ml-2 text-slate-500">[${esc(row.store_name)}]</span>` : ''}
+            ${row.url ? `<span class="ml-2 text-slate-400">${esc(row.url)}</span>` : ''}
           </div>`).join('');
         if (copyWrapper) copyWrapper.classList.remove('hidden');
       } catch (e) {
@@ -5980,6 +6021,43 @@ ${txRows}
 
   const init = async () => {
     setLoadingStatus('Menghubungkan ke database...', 10);
+    // Snapshot hash & query string SEBELUM createClient dipanggil sama sekali.
+    // Root cause bypass: link recovery PKCE dari Supabase membawa
+    // "?code=...&type=recovery" di QUERY STRING, bukan hash. Begitu
+    // createClient() jalan, SDK (detectSessionInUrl) langsung menukar code
+    // itu jadi SESI PENUH sebagai bagian inisialisasi internal — proses ini
+    // terjadi SEBELUM event PASSWORD_RECOVERY sempat di-fire ke listener kita.
+    // Makanya passwordRecoveryMode HARUS sudah true di sini, SEBELUM
+    // initSupabase()/createClient() di bawah dipanggil, supaya begitu SDK
+    // selesai bikin sesi (dari hash ATAU query), guard di enterAppAfterAuth()
+    // sudah aktif dan menahan dashboard.
+    const authHash = location.hash;
+    const authQuery = new URLSearchParams(location.search);
+    // Defensif: kalau ada "code" param tapi tanpa penanda type=recovery
+    // eksplisit, tetap jangan langsung dianggap aman — treat sebagai
+    // recovery juga. Lebih baik false-positive (user login biasa diminta
+    // buat password baru & dituntun keluar dari form itu) daripada
+    // false-negative (pemegang link reset dapat akses penuh ke toko orang).
+    const isRecoveryLink = authHash.includes('type=recovery')
+      || authQuery.get('type') === 'recovery'
+      || authQuery.has('code');
+    if (isRecoveryLink) {
+      passwordRecoveryMode = true;
+    }
+    // Sinyal lebih luas dari isRecoveryLink: apapun bentuknya, kalau URL
+    // membawa serpihan hasil redirect auth Supabase (access_token/type di
+    // hash, atau code di query), SDK sedang/baru saja memproses sesi dari
+    // link itu — event PASSWORD_RECOVERY async BISA masih dalam perjalanan
+    // walau heuristik isRecoveryLink di atas tidak match persis. Dipakai
+    // HANYA untuk beri jendela tunggu kecil sebelum commit ke dashboard,
+    // TIDAK untuk mengubah keputusan guard keamanan itu sendiri.
+    const hasAuthCallbackParams = authHash.includes('access_token')
+      || authHash.includes('type=')
+      || authQuery.has('code');
+    const linkExpired = authHash.includes('error_code=otp_expired') || authHash.includes('error=access_denied');
+    if (linkExpired) {
+      history.replaceState(null, '', location.pathname);
+    }
     initSupabase();
     window.onerror = (msg, src, line, col, err) => {
       logError(String(msg), { src, line, col }, err);
@@ -5998,13 +6076,51 @@ ${txRows}
     setLoadingStatus('Memeriksa sesi...', 20);
     const session = await getAuthSession();
 
-    if (session) {
+    // Baru simpan uid recovery SETELAH sesi benar-benar terbentuk (bukan
+    // sebelum tahu siapa usernya) — link recovery load ini berarti SDK sudah
+    // selesai exchange code jadi sesi di titik ini.
+    if (isRecoveryLink && session?.user?.id) {
+      localStorage.setItem('pw_recovery_uid', session.user.id);
+    }
+    // Guard berbasis USER ID, bukan flag generik: HANYA aktif kalau ADA
+    // flag tercatat DAN ADA sesi aktif SEKARANG yang usernya SAMA PERSIS.
+    // Ini otomatis menutup kasus cross-tab (user lain, uid beda -> tidak
+    // match -> tidak ikut terkunci) dan kasus setelah signOut sukses (sesi
+    // null di semua tab origin ini -> guard tidak pernah terpicu lagi
+    // walau ada sisa flag).
+    const recoveryUid = localStorage.getItem('pw_recovery_uid');
+    if (recoveryUid && session?.user?.id === recoveryUid) {
+      passwordRecoveryMode = true;
+    }
+
+    if (passwordRecoveryMode) {
+      showNewPasswordForm();
+    } else if (session) {
       state.authUser = session.user;
-      await enterAppAfterAuth();
-      hideLoadingOverlay();
+      // Jendela tunggu kecil HANYA kalau URL menunjukkan kita baru datang
+      // dari redirect auth (link recovery/PKCE) — supaya event
+      // PASSWORD_RECOVERY yang sedang diproses SDK (round-trip jaringan)
+      // sempat fire dan set passwordRecoveryMode SEBELUM kita commit ke
+      // dashboard. Login normal (tanpa hash/query auth) tidak kena delay ini.
+      if (hasAuthCallbackParams) {
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+      if (passwordRecoveryMode) {
+        showNewPasswordForm();
+      } else {
+        await enterAppAfterAuth();
+        hideLoadingOverlay();
+      }
     } else {
       hideLoadingOverlay();
       showLoginPage();
+      if (linkExpired) {
+        const authError2 = document.getElementById('authError');
+        if (authError2) {
+          authError2.textContent = 'Link reset sudah kedaluwarsa. Kirim ulang dari menu Lupa Password.';
+          authError2.classList.remove('hidden');
+        }
+      }
     }
   };
 

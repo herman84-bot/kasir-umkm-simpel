@@ -408,10 +408,39 @@ const App = (() => {
   const SUPABASE_URL = 'https://pfmsblktxlnovtajnxvc.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_rF4Ul9n6WS4R00twmmCbdQ_wJ0KAOv6';
   let db = null;
+  // Mode recovery: user datang dari link reset password. Jangan masuk dashboard
+  // sebelum password baru dibuat — pemegang link tidak boleh dapat akses penuh.
+  let passwordRecoveryMode = false;
 
   const initSupabase = () => {
     if (window.supabase) {
-      db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      // detectSessionInUrl WAJIB tetap true (biar link recovery/PKCE tetap
+      // diproses SDK jadi sesi) TAPI passwordRecoveryMode sudah di-set (lihat
+      // init()) SEBELUM baris ini jalan — jadi walau SDK sempat bikin sesi
+      // penuh dari code=... di query string (PKCE flow), guard di
+      // enterAppAfterAuth() sudah aktif duluan dan menahan dashboard.
+      db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: { detectSessionInUrl: true }
+      });
+      db.auth.onAuthStateChange((event, changedSession) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          // Event ini bisa telat datang (setelah dashboard sempat mulai
+          // render di edge case tertentu) — showNewPasswordForm() dipanggil
+          // FORCE di sini (bukan cuma set flag) supaya dashboard yang
+          // terlanjur tampil langsung disembunyikan lagi.
+          passwordRecoveryMode = true;
+          // Persist berbasis USER ID (bukan flag generik '1'): flag generik
+          // tersimpan di localStorage yang SHARED antar semua tab origin ini,
+          // jadi tab lain (user lain, sesi lain) ikut terkunci ke form
+          // recovery kalau reload — regresi yang ditemukan QA. Dengan uid,
+          // guard di init() hanya aktif kalau sesi AKTIF SEKARANG match
+          // persis dengan uid yang tercatat.
+          if (changedSession?.user?.id) {
+            localStorage.setItem('pw_recovery_uid', changedSession.user.id);
+          }
+          showNewPasswordForm();
+        }
+      });
       return true;
     }
     return false;
@@ -584,10 +613,14 @@ const App = (() => {
     const m = (msg || '').toLowerCase();
     if (m.includes('invalid login')) return 'Email atau password salah.';
     if (m.includes('already registered') || m.includes('already been registered')) return 'Email sudah terdaftar. Silakan masuk.';
-    if (m.includes('password should be at least')) return 'Password minimal 6 karakter.';
+    if (m.includes('password should be at least')) return 'Password minimal 8 karakter.';
+    if (m.includes('same as the old password') || m.includes('different from the old')) return 'Password baru tidak boleh sama dengan password lama.';
     if (m.includes('unable to validate email') || m.includes('invalid email')) return 'Format email tidak valid.';
     if (m.includes('email not confirmed')) return 'Email belum dikonfirmasi.';
-    return msg || 'Terjadi kesalahan.';
+    if (m.includes('failed to fetch') || m.includes('network')) return 'Koneksi bermasalah. Periksa internet lalu coba lagi.';
+    // Jangan tampilkan pesan mentah dari server ke user (bisa memuat detail teknis)
+    if (msg) logError('Auth error tanpa terjemahan', { pesan: String(msg).slice(0, 120) }, null);
+    return 'Terjadi kesalahan. Coba lagi.';
   };
 
   const friendlyError = err => {
@@ -595,7 +628,6 @@ const App = (() => {
     const msg = (err?.message || String(err || '')).toLowerCase();
     if (code === '23505' || msg.includes('duplicate key')) return 'Data sudah ada, tidak bisa duplikat.';
     if (code === '23503' || msg.includes('foreign key')) return 'Data terhubung ke data lain, tidak bisa dihapus dulu.';
-    if (code === 'PGRST205' || msg.includes('could not find the table') || msg.includes('schema cache')) return 'Fitur ini belum siap di server. Hubungi tim kami untuk bantuan.';
     if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('timeout')) return 'Koneksi bermasalah. Pastikan internet aktif dan coba lagi.';
     return 'Terjadi kesalahan. Coba lagi, atau hubungi tim kami jika masalah berlanjut.';
   };
@@ -608,6 +640,25 @@ const App = (() => {
     document.getElementById('appContainer').style.display = 'none';
     document.getElementById('helpChatFab')?.classList.add('hidden');
     document.getElementById('helpChatPanel')?.classList.add('hidden');
+  };
+
+  const showNewPasswordForm = () => {
+    // Urutan penting untuk cegah flicker: siapkan SEMUA visibilitas screen
+    // final (form recovery) DULU, baru overlay loading di-fade di ATASNYA.
+    // Kalau overlay dilepas duluan, ada frame di mana overlay transparan
+    // tapi konten di baliknya masih login form biasa (belum newPasswordForm).
+    showLoginPage();
+    document.getElementById('loginForm2')?.classList.add('hidden');
+    document.getElementById('registerForm')?.classList.add('hidden');
+    document.getElementById('tabLogin')?.parentElement?.classList.add('hidden');
+    document.getElementById('newPasswordForm')?.classList.remove('hidden');
+    hideLoadingOverlay();
+  };
+
+  const hideNewPasswordForm = () => {
+    document.getElementById('newPasswordForm')?.classList.add('hidden');
+    document.getElementById('loginForm2')?.classList.remove('hidden');
+    document.getElementById('tabLogin')?.parentElement?.classList.remove('hidden');
   };
 
   const showApp = () => {
@@ -702,7 +753,9 @@ const App = (() => {
     localStorage.removeItem('qris_image');
     localStorage.removeItem('qris_payload');
     localStorage.removeItem('offline_tx_queue');
+    localStorage.removeItem('debt_queue');
     localStorage.removeItem('pending_subs_order');
+    localStorage.removeItem('pw_recovery_uid');
     Object.keys(localStorage).forEach(k => {
       if (k.startsWith('active_store_') || k.startsWith('shift_start_') || k.startsWith('onboardingDone_')) {
         localStorage.removeItem(k);
@@ -1077,7 +1130,7 @@ const App = (() => {
   const loadData = async () => {
     const lastUserId = localStorage.getItem('pos_last_user_id');
     if (lastUserId !== state.authUser?.id) {
-      [...Object.values(STORAGE), 'pos_debts', 'qris_image', 'qris_payload', 'offline_tx_queue', 'pending_subs_order']
+      [...Object.values(STORAGE), 'pos_debts', 'qris_image', 'qris_payload', 'offline_tx_queue', 'debt_queue', 'pending_subs_order']
         .forEach(key => localStorage.removeItem(key));
       _isSuperAdmin = false;
     }
@@ -1092,10 +1145,10 @@ const App = (() => {
       return;
     }
 
-    // Kirim transaksi & kasir offline yang tertunda SEBELUM memuat data,
-    // agar stok, riwayat, dan daftar kasir yang dimuat sudah termasuk data tersebut
+    // Kirim transaksi offline yang tertunda SEBELUM memuat data,
+    // agar stok & riwayat yang dimuat sudah termasuk transaksi tersebut
     await flushOfflineQueue();
-    await flushOfflineCashierQueue();
+    await flushDebtQueue();
 
     try {
       setLoadingStatus('Memuat produk...', 40);
@@ -1134,12 +1187,14 @@ const App = (() => {
 
       // Kasbon (tabel bisa belum ada jika 05_kasbon.sql belum dijalankan)
       const { data: debts, error: dErr } = await db
-        .from('debts').select('*').eq('store_id', state.storeId).order('created_at', { ascending: false });
+        .from('debts').select('*').eq('store_id', state.storeId)
+        .order('created_at', { ascending: false }).limit(500);
       if (dErr) {
-        console.warn('Kasbon belum aktif (jalankan supabase/05_kasbon.sql):', dErr.message);
+        logError('loadData: gagal memuat kasbon', { storeId: state.storeId }, dErr);
         try { state.debts = JSON.parse(localStorage.getItem('pos_debts') || '[]'); } catch { state.debts = []; }
       } else {
-        state.debts = debts || [];
+        // Antrean kasbon offline tetap tampil di atas data server sampai tersinkron
+        state.debts = [...getDebtQueue(), ...(debts || [])];
       }
 
       setLoadingStatus('Siap!', 100);
@@ -1558,10 +1613,7 @@ const App = (() => {
         const idx = state.cashiers.findIndex(c => c.id === id);
         if (idx >= 0) state.cashiers[idx] = { ...state.cashiers[idx], name, role, ...(password ? { password } : {}) };
       } else {
-        const localId = `C${Date.now()}`;
-        state.cashiers.push({ id: localId, name, password, role });
-        // db belum siap (SDK gagal load / offline) — antrekan agar otomatis sinkron ke Supabase saat koneksi pulih
-        queueOfflineCashier({ localId, name, password, role, store_id: state.storeId });
+        state.cashiers.push({ id: `C${Date.now()}`, name, password, role });
       }
     }
 
@@ -2562,7 +2614,7 @@ const App = (() => {
     if (screenId === 'inventory') renderInventory();
     if (screenId === 'riwayat') renderHistory();
     if (screenId === 'pembelian') renderPurchaseHistory();
-    if (screenId === 'kasbon') renderKasbon();
+    if (screenId === 'kasbon') { renderKasbon(); refreshDebtsFromServer(); }
     if (screenId === 'kelolaKasir') renderCashierManagement();
     if (screenId === 'pengaturan') renderSettings();
     if (screenId === 'screen-superadmin') superAdminLoadStores();
@@ -2704,7 +2756,7 @@ const App = (() => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
       return crypto.randomUUID();
     }
-    return Date.now() + '-' + crypto.randomUUID();
+    return Date.now() + '-' + Math.random().toString(36).slice(2);
   };
   const queueOfflineTransaction = entry => {
     const q = getOfflineQueue();
@@ -2762,53 +2814,6 @@ const App = (() => {
     }
     localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
     if (synced > 0) console.log(`✅ ${synced} transaksi offline tersinkron ke cloud.`);
-    return synced;
-  };
-
-  // ── Antrean kasir offline: dibuat saat db belum siap, sinkron saat online ─
-  const OFFLINE_CASHIER_QUEUE_KEY = 'offline_cashier_queue';
-  const getOfflineCashierQueue = () => {
-    try { return JSON.parse(localStorage.getItem(OFFLINE_CASHIER_QUEUE_KEY) || '[]'); } catch { return []; }
-  };
-  const queueOfflineCashier = entry => {
-    const q = getOfflineCashierQueue();
-    q.push({ ...entry, client_id: generateClientId() });
-    localStorage.setItem(OFFLINE_CASHIER_QUEUE_KEY, JSON.stringify(q));
-  };
-  const flushOfflineCashierQueue = async () => {
-    if (!db || !navigator.onLine || !state.storeId) return 0;
-    const q = getOfflineCashierQueue();
-    if (!q.length) return 0;
-    const remaining = [];
-    let synced = 0;
-    for (const entry of q) {
-      try {
-        const { data, error } = await db.from('cashiers')
-          .insert({
-            name: entry.name,
-            password: entry.password,
-            role: entry.role,
-            store_id: entry.store_id || state.storeId,
-            client_id: entry.client_id
-          })
-          .select().single();
-        if (error) throw error;
-        const idx = state.cashiers.findIndex(c => c.id === entry.localId);
-        if (idx >= 0) state.cashiers[idx] = fromDbCashier(data);
-        synced++;
-      } catch (e) {
-        // AC6: sudah tersinkron sebelumnya (client_id dobel) → buang tanpa retry
-        if (e && e.code === '23505') continue;
-        remaining.push(entry); // gagal lagi → coba lain kali
-      }
-    }
-    localStorage.setItem(OFFLINE_CASHIER_QUEUE_KEY, JSON.stringify(remaining));
-    if (synced > 0) {
-      syncStorage();
-      renderCashierSelect();
-      renderCashierManagement();
-      console.log(`✅ ${synced} kasir offline tersinkron ke cloud.`);
-    }
     return synced;
   };
 
@@ -3538,7 +3543,7 @@ ${txRows}
         })
         .eq('id', state.activeShift.id);
       if (error) {
-        alert('Gagal menutup shift di database: ' + friendlyError(error));
+        alert('Gagal menutup shift di database: ' + error.message);
         return;
       }
     }
@@ -4390,6 +4395,11 @@ ${txRows}
       const res = await handleLogin(email, password);
       btn.textContent = 'Masuk'; btn.disabled = false;
       if (res.error) { showAuthError(res.error); return; }
+      // Login manual berhasil = user membuktikan tahu password asli — aman
+      // bebaskan dari flag recovery yang mungkin masih nyangkut (mis. user
+      // pernah mulai proses reset lalu batal, tapi ingat password lama).
+      passwordRecoveryMode = false;
+      localStorage.removeItem('pw_recovery_uid');
       await enterAppAfterAuth();
     });
 
@@ -4415,6 +4425,8 @@ ${txRows}
         activateTab('login');
         return;
       }
+      passwordRecoveryMode = false;
+      localStorage.removeItem('pw_recovery_uid');
       const regStoreName2 = document.getElementById('regStoreName')?.value || 'Toko';
       await enterAppAfterAuth();
       // Show onboarding for new registrations
@@ -4557,7 +4569,7 @@ ${txRows}
       if (!email) { alert('Masukkan email terlebih dahulu.'); return; }
       if (!db) { alert('Koneksi database tidak tersedia.'); return; }
       dom.sendResetBtn.textContent = 'Mengirim...'; dom.sendResetBtn.disabled = true;
-      const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+      const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
       dom.sendResetBtn.textContent = 'Kirim Link Reset'; dom.sendResetBtn.disabled = false;
       const authSuccess2 = document.getElementById('authSuccess');
       const authError2 = document.getElementById('authError');
@@ -4571,6 +4583,62 @@ ${txRows}
         authError2.classList.add('hidden');
         if (dom.forgotPasswordForm) dom.forgotPasswordForm.classList.add('hidden');
       }
+    });
+
+    // ── Buat Password Baru (reset password) ──
+    document.getElementById('newPasswordForm')?.addEventListener('submit', async event => {
+      event.preventDefault();
+      const errBox = document.getElementById('newPassError');
+      errBox?.classList.add('hidden');
+      const showErr = txt => {
+        if (errBox) { errBox.textContent = txt; errBox.classList.remove('hidden'); }
+      };
+      const pass1 = document.getElementById('newPass1').value;
+      const pass2 = document.getElementById('newPass2').value;
+      if (pass1.length < 8) { showErr('Password minimal 8 karakter.'); return; }
+      if (pass1 !== pass2) { showErr('Password dan konfirmasi tidak sama.'); return; }
+      const btn = document.getElementById('newPassSubmitBtn');
+      btn.textContent = 'Menyimpan...'; btn.disabled = true;
+      const { error } = await db.auth.updateUser({ password: pass1 });
+      btn.textContent = 'Simpan Password Baru'; btn.disabled = false;
+      if (error) { showErr(terjemahAuthError(error.message)); return; }
+      // signOut dibungkus try/catch: apa pun hasilnya (sukses/gagal), flag
+      // recovery TETAP dibersihkan di finally — jangan sampai user stuck di
+      // form recovery hanya karena signOut gagal karena network error
+      // padahal password sudah berhasil diganti.
+      try {
+        await db.auth.signOut();
+      } catch (signOutErr) {
+        logError('signOut gagal setelah ganti password recovery', {}, signOutErr);
+      } finally {
+        history.replaceState(null, '', location.pathname);
+        passwordRecoveryMode = false;
+        localStorage.removeItem('pw_recovery_uid');
+      }
+      hideNewPasswordForm();
+      const authSuccess2 = document.getElementById('authSuccess');
+      if (authSuccess2) {
+        authSuccess2.textContent = 'Password berhasil diganti. Silakan masuk dengan password baru.';
+        authSuccess2.classList.remove('hidden');
+      }
+      document.getElementById('authError')?.classList.add('hidden');
+    });
+
+    // Satu-satunya jalan keluar untuk user yang terjebak di form recovery
+    // (lupa isi / berubah pikiran / cuma numpang buka app). Tanpa tombol
+    // ini, flag pw_recovery_uid tidak pernah hilang tanpa devtools —
+    // dead-end UX fatal untuk user UMKM non-teknis.
+    document.getElementById('cancelRecoveryBtn')?.addEventListener('click', async () => {
+      passwordRecoveryMode = false;
+      localStorage.removeItem('pw_recovery_uid');
+      try {
+        await db?.auth.signOut();
+      } catch (signOutErr) {
+        logError('signOut gagal saat batal recovery', {}, signOutErr);
+      }
+      history.replaceState(null, '', location.pathname);
+      hideNewPasswordForm();
+      showLoginPage();
     });
 
     // ── Feature 5: Shift / Tutup Kasir ──
@@ -4667,6 +4735,9 @@ ${txRows}
     document.getElementById('closeDebtModal')?.addEventListener('click', closeDebtModal);
     document.getElementById('debtForm')?.addEventListener('submit', saveDebt);
     document.getElementById('debtSearchInput')?.addEventListener('input', renderKasbon);
+    document.getElementById('closeDebtDeleteModal')?.addEventListener('click', closeDebtDeleteModal);
+    document.getElementById('debtDeleteCancel')?.addEventListener('click', closeDebtDeleteModal);
+    document.getElementById('debtDeleteConfirm')?.addEventListener('click', confirmDeleteDebt);
 
     // ── Struk WhatsApp ──
     document.getElementById('waReceiptBtn')?.addEventListener('click', () => {
@@ -4675,7 +4746,7 @@ ${txRows}
     });
 
     // ── Offline auto-sync ──
-    window.addEventListener('online', () => { flushOfflineQueue(); flushOfflineCashierQueue(); });
+    window.addEventListener('online', () => { flushOfflineQueue(); flushDebtQueue(); });
 
     // ── Multi-Cabang ──
     document.getElementById('storeSwitcher')?.addEventListener('change', e => switchStore(e.target.value));
@@ -4784,6 +4855,12 @@ ${txRows}
 
   // Dipanggil setelah login/daftar berhasil ATAU saat sesi masih aktif
   const enterAppAfterAuth = async () => {
+    // Mode recovery: pemegang link reset TIDAK boleh masuk dashboard
+    // sebelum membuat password baru (guard di semua jalur SIGNED_IN/bootstrap).
+    if (passwordRecoveryMode) {
+      showNewPasswordForm();
+      return;
+    }
     showHelpChatFab();
     await loadData();
 
@@ -4838,7 +4915,77 @@ ${txRows}
   };
 
   // ── Kasbon / Hutang Pelanggan (Premium: tanpa batas; Gratis: maks 5 aktif) ─
-  const saveDebtsLocal = () => { /* localStorage removed for PII security */ };
+  const saveDebtsLocal = () => localStorage.setItem('pos_debts', JSON.stringify(state.debts || []));
+
+  // ── Antrean kasbon offline: Supabase = source of truth, antrean hanya saat offline ─
+  const DEBT_QUEUE_KEY = 'debt_queue';
+  const getDebtQueue = () => {
+    try { return JSON.parse(localStorage.getItem(DEBT_QUEUE_KEY) || '[]'); } catch { return []; }
+  };
+  const saveDebtQueue = q => localStorage.setItem(DEBT_QUEUE_KEY, JSON.stringify(q));
+  // Error jaringan murni (fetch gagal), bukan error dari server/database
+  const isNetworkError = e => /Failed to fetch|NetworkError|Load failed|fetch failed/i.test(e?.message || '');
+
+  // Guard reentrancy: flush dipanggil dari loadData, event 'online', dan refresh layar
+  // Kasbon — tanpa guard, dua flush bersamaan kirim RPC dobel (kasbon & stok terpotong 2x)
+  let debtQueueFlushing = false;
+  const flushDebtQueue = async () => {
+    if (!db || !navigator.onLine || !state.storeId) return 0;
+    if (debtQueueFlushing) return 0;
+    debtQueueFlushing = true;
+    try {
+      const q = getDebtQueue();
+      if (!q.length) return 0;
+      const remaining = [];
+      let synced = 0;
+      for (const entry of q) {
+        try {
+          const { data, error } = await db.rpc('create_debt_transaction', {
+            p_store_id: entry.store_id,
+            p_customer_name: entry.customer_name,
+            p_phone: entry.phone,
+            p_amount: entry.amount,
+            p_note: entry.note,
+            p_items: entry.items,
+            p_cashier_name: entry.cashier_name
+          });
+          if (error) throw error;
+          // Sudah ditandai lunas sebelum tersinkron → susulkan update status di server
+          if (entry.status === 'lunas') {
+            await db.from('debts').update({ status: 'lunas', paid_at: entry.paid_at || new Date().toISOString() }).eq('id', data.debt_id);
+          }
+          // Ganti id lokal 'D...' dengan id server
+          const local = (state.debts || []).find(d => String(d.id) === String(entry.id));
+          if (local) { local.id = data.debt_id; delete local.pending; }
+          synced++;
+        } catch (e) {
+          logError('flushDebtQueue: sinkron kasbon gagal', { debtId: entry.id }, e);
+          remaining.push(entry); // gagal → coba lagi nanti
+        }
+      }
+      saveDebtQueue(remaining);
+      if (synced > 0) { saveDebtsLocal(); renderKasbon(); }
+      return synced;
+    } finally {
+      debtQueueFlushing = false;
+    }
+  };
+
+  const refreshDebtsFromServer = async () => {
+    if (!db || !navigator.onLine || !state.storeId) return;
+    await flushDebtQueue();
+    const { data: debts, error } = await db
+      .from('debts').select('*').eq('store_id', state.storeId)
+      .order('created_at', { ascending: false }).limit(500);
+    if (error) {
+      logError('refreshDebtsFromServer: gagal memuat kasbon', { storeId: state.storeId }, error);
+      return; // pertahankan cache lokal sebagai fallback
+    }
+    // Antrean pending tetap tampil di atas data server sampai tersinkron
+    state.debts = [...getDebtQueue(), ...(debts || [])];
+    saveDebtsLocal();
+    renderKasbon();
+  };
 
   const renderKasbon = () => {
     const list = document.getElementById('debtList');
@@ -4851,13 +4998,7 @@ ${txRows}
     const elTotal = document.getElementById('debtTotalAmount');
     const elCount = document.getElementById('debtActiveCount');
     if (elTotal) elTotal.textContent = formatCurrency(totalAmount);
-    if (elCount) {
-        if (typeof isPremiumActive === 'function' && isPremiumActive()) {
-            elCount.textContent = active.length;
-        } else {
-            elCount.textContent = `${active.length} / 5`;
-        }
-    }
+    if (elCount) elCount.textContent = active.length;
 
     const filtered = debts.filter(d => !search || (d.customer_name || '').toLowerCase().includes(search));
     // Belum lunas dulu, lalu yang lunas (maks 20 terakhir agar tidak penuh)
@@ -4866,7 +5007,7 @@ ${txRows}
     list.innerHTML = sorted.map(d => {
       const isPaid = d.status === 'lunas';
       const date = new Date(d.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-      const tagBtn = (!isPaid && d.phone) ? `<button data-debt-wa="${esc(d.id)}" class="flex-1 rounded-2xl border border-green-600 bg-white px-3 min-h-[44px] text-sm text-green-600 font-semibold hover:bg-green-50 transition">💬 Tagih</button>` : '';
+      const tagBtn = (!isPaid && d.phone) ? `<button data-debt-wa="${esc(d.id)}" class="flex-1 rounded-2xl bg-green-600 px-3 py-2 text-xs text-white font-semibold hover:bg-green-700 transition">💬 Tagih</button>` : '';
       let itemsHtml = '';
       if (d.items && Array.isArray(d.items) && d.items.length > 0) {
           itemsHtml = `<div class="text-xs text-slate-500 mt-1">${d.items.map(i => `${esc(i.product_name)} (${i.qty}x)`).join(', ')}</div>`;
@@ -4879,21 +5020,24 @@ ${txRows}
               <p class="text-xs text-slate-400">${date}${d.note ? ' — ' + esc(d.note) : ''}</p>
               ${itemsHtml}
             </div>
-            <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
+            <div class="flex flex-col items-end gap-1">
+              <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
+              ${d.pending ? '<span class="rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-xs whitespace-nowrap">Belum tersimpan online</span>' : ''}
+            </div>
           </div>
           <p class="text-2xl font-bold ${isPaid ? 'text-slate-400 line-through' : 'text-rose-600'}">${formatCurrency(d.amount)}</p>
           <div class="flex gap-2">
             ${tagBtn}
-            ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-2xl bg-sky-600 px-3 min-h-[44px] text-sm text-white font-semibold hover:bg-sky-700 transition">✅ Tandai Lunas</button>` : ''}
-            <button data-debt-delete="${esc(d.id)}" class="rounded-2xl border border-rose-200 bg-rose-50 px-3 min-h-[44px] text-sm text-rose-600 hover:bg-rose-100 transition">🗑</button>
+            ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-2xl bg-sky-600 px-3 py-2 text-xs text-white font-semibold hover:bg-sky-700 transition">✅ Tandai Lunas</button>` : ''}
+            <button data-debt-delete="${esc(d.id)}" class="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 hover:bg-rose-100 transition">🗑</button>
           </div>
         </div>`;
     }).join('') || '<div class="col-span-full rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">Belum ada catatan kasbon. Klik "+ Catat Kasbon" untuk mulai.</div>';
 
     list.querySelectorAll('[data-debt-paid]').forEach(btn =>
-      btn.addEventListener('click', (e) => markDebtPaid(btn.dataset.debtPaid, e.currentTarget)));
+      btn.addEventListener('click', () => markDebtPaid(btn.dataset.debtPaid, btn)));
     list.querySelectorAll('[data-debt-delete]').forEach(btn =>
-      btn.addEventListener('click', (e) => deleteDebt(btn.dataset.debtDelete, e.currentTarget)));
+      btn.addEventListener('click', () => deleteDebt(btn.dataset.debtDelete)));
     list.querySelectorAll('[data-debt-wa]').forEach(btn =>
       btn.addEventListener('click', () => sendDebtReminder(btn.dataset.debtWa)));
   };
@@ -4901,7 +5045,7 @@ ${txRows}
   const addDebtItemRow = () => {
     const container = document.getElementById('debtItemsContainer');
     if (!container) return;
-    const rowId = 'debtRow_' + crypto.randomUUID();
+    const rowId = 'debtRow_' + Date.now() + Math.random().toString(36).substr(2, 5);
     const div = document.createElement('div');
     div.className = 'flex gap-2 mb-2 items-center debt-item-row';
     div.id = rowId;
@@ -4915,20 +5059,20 @@ ${txRows}
       : '<option value="">(Kosong)</option>';
     
     div.innerHTML = `
-        <div class="flex-[4] min-w-0">
-            <select class="w-full rounded-xl border border-slate-300 px-2 min-h-[44px] text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-700 debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
+        <div class="w-[45%]">
+            <select class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-700 debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
                 <option value="" disabled selected>Pilih Produk</option>
                 ${productOptions}
             </select>
         </div>
-        <div class="flex-[2] min-w-0">
-            <input type="number" min="1" value="1" class="w-full rounded-xl border border-slate-300 px-2 min-h-[44px] text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-700 debt-qty-input" oninput="calculateDebtTotal()">
+        <div class="w-[20%]">
+            <input type="number" min="1" value="1" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-700 debt-qty-input" oninput="calculateDebtTotal()">
         </div>
-        <div class="flex-[3] min-w-0">
-             <input type="text" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-2 min-h-[44px] text-sm text-slate-500 dark:bg-slate-800 dark:text-white dark:border-slate-700" readonly value="0">
+        <div class="w-[25%]">
+             <input type="text" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-500 dark:bg-slate-800 dark:text-white dark:border-slate-700" readonly value="0">
         </div>
-        <div class="flex-none flex justify-end">
-             <button type="button" class="rounded-xl bg-rose-100 text-rose-600 px-3 min-h-[44px] hover:bg-rose-200 transition font-bold" onclick="removeDebtItemRow('${rowId}')">✕</button>
+        <div class="w-[10%] flex justify-end">
+             <button type="button" class="rounded-xl bg-rose-100 text-rose-600 px-3 py-1.5 hover:bg-rose-200 transition font-bold" onclick="removeDebtItemRow('${rowId}')">✕</button>
         </div>
     `;
     container.appendChild(div);
@@ -5071,48 +5215,53 @@ ${txRows}
 
     let transactionId = null;
 
-    if (db && state.storeId) {
-      const currentStore = (state.stores || []).find(s => String(s.id) == String(state.storeId));
-      const storeUuid = currentStore ? currentStore.id : null;
-      
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const currentStore = (state.stores || []).find(s => String(s.id) == String(state.storeId));
+    const storeUuid = currentStore ? currentStore.id : null;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    // Offline: masuk antrean lokal, disinkron otomatis saat online.
+    // storeUuid wajib valid — entry tanpa store_id tak akan pernah bisa tersinkron.
+    const queueDebtOffline = () => {
       if (!storeUuid || !uuidRegex.test(String(storeUuid))) {
-          alert('Gagal: Data toko tidak valid. Silakan muat ulang halaman atau login kembali.');
+        alert('Gagal: Data toko tidak valid.');
+        return false;
+      }
+      record.id = 'D' + Date.now();
+      record.pending = true;
+      const q = getDebtQueue();
+      q.push({ ...record, store_id: storeUuid, cashier_name: cashierName });
+      saveDebtQueue(q);
+      return true;
+    };
+
+    if (db && state.storeId && navigator.onLine) {
+      if (!storeUuid || !uuidRegex.test(String(storeUuid))) {
+          alert('Gagal: Data toko tidak valid.');
           return;
       }
-      
-      const submitBtn = e.target.querySelector('button[type="submit"]');
-      let originalSubmitText = '';
-      if (submitBtn) {
-          originalSubmitText = submitBtn.innerHTML;
-          submitBtn.disabled = true;
-          submitBtn.innerHTML = 'Memproses...';
-      }
 
-      let data, error;
-      try {
-          const res = await db.rpc('create_debt_transaction', {
-              p_store_id: storeUuid,
-              p_customer_name: name,
-              p_phone: phone,
-              p_amount: amount,
-              p_note: note,
-              p_items: items,
-              p_cashier_name: cashierName
-          });
-          data = res.data;
-          error = res.error;
-      } finally {
-          if (submitBtn) {
-              submitBtn.disabled = false;
-              submitBtn.innerHTML = originalSubmitText;
-          }
-      }
-      
+      const { data, error } = await db.rpc('create_debt_transaction', {
+          p_store_id: storeUuid,
+          p_customer_name: name,
+          p_phone: phone,
+          p_amount: amount,
+          p_note: note,
+          p_items: items,
+          p_cashier_name: cashierName
+      });
+
       if (error) {
-        logError('Error creating kasbon', error);
-        alert('Gagal membuat kasbon: ' + (error.message || 'Terjadi kesalahan pada server.'));
-        return;
+        if (isNetworkError(error)) {
+          // Jaringan putus di tengah request → antre lokal
+          if (!queueDebtOffline()) return;
+        } else {
+          // RPC gagal saat online: beri tahu user, JANGAN simpan diam-diam
+          logError('saveDebt: create_debt_transaction gagal', { storeId: storeUuid }, error);
+          const msg = 'Kasbon belum tersimpan. Periksa koneksi internet lalu coba lagi.';
+          if (errEl) { errEl.textContent = msg; errEl.classList.remove('hidden'); }
+          showAppToast(msg, 'error');
+          return;
+        }
       } else {
         let rData = data;
         if (Array.isArray(data)) rData = data[0];
@@ -5124,7 +5273,7 @@ ${txRows}
         transactionId = record.transaction_id;
       }
     } else {
-      record.id = 'D' + Date.now();
+      if (!queueDebtOffline()) return;
     }
     
     // Kurangi stok lokal
@@ -5165,8 +5314,8 @@ ${txRows}
 
     closeDebtModal();
     renderKasbon();
-    if (!transactionId) {
-        alert('Kasbon disimpan lokal (tidak ada koneksi) atau gagal memanggil database.');
+    if (record.pending) {
+        alert('Kasbon disimpan di perangkat ini dan akan tersimpan otomatis saat internet kembali.');
     } else {
         alert('Kasbon berhasil disimpan! Transaksi dan stok produk telah dicatat otomatis.');
     }
@@ -5175,164 +5324,124 @@ ${txRows}
   const markDebtPaid = async (id, btn) => {
     const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
     if (activeOp && activeOp.role !== 'admin') {
-      alert('Hanya Admin Toko yang diizinkan untuk menandai kasbon lunas. Silakan hubungi Admin Toko.');
+      alert('Hanya Admin Toko yang diizinkan untuk menandai kasbon lunas.');
       return;
     }
     const debt = (state.debts || []).find(d => String(d.id) === String(id));
     if (!debt) return;
-    
-    let originalBtnText = '';
-    if (btn) {
-        originalBtnText = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = 'Memproses...';
-    }
-
-    try {
-    if (db && !isNaN(parseInt(id))) {
-      const { error } = await db.rpc('mark_debt_paid', { p_debt_id: parseInt(id) });
+    const paidAt = new Date().toISOString();
+    if (String(id).startsWith('D')) {
+      // Masih di antrean lokal → cukup ubah antrean, status ikut saat sinkron
+      const q = getDebtQueue();
+      const entry = q.find(en => String(en.id) === String(id));
+      if (entry) { entry.status = 'lunas'; entry.paid_at = paidAt; saveDebtQueue(q); }
+    } else if (db) {
+      if (btn) btn.disabled = true; // cegah double-tap selama menunggu server
+      const { error } = await db.from('debts').update({ status: 'lunas', paid_at: paidAt }).eq('id', id);
       if (error) {
+        if (btn) btn.disabled = false;
         logError('markDebtPaid: gagal update', { debtId: id }, error);
-        alert('Gagal memproses: ' + friendlyError(error));
-        return;
+        showAppToast('Kasbon belum ditandai lunas. Periksa koneksi internet lalu coba lagi.', 'error');
+        return; // jangan ubah state lokal agar tetap sinkron dengan server
       }
-    } else if (db && isNaN(parseInt(id))) {
-      console.error('markDebtPaid: ID kasbon tidak valid (NaN). Nilai id:', id);
-      alert('Gagal menandai lunas: ID kasbon tidak valid. Silakan muat ulang halaman.');
-      return;
+      // Transaksi Hutang terkait ikut ditandai Lunas di server
+      if (debt.transaction_id) {
+        await db.from('transactions').update({ payment_method: 'Lunas' }).eq('id', debt.transaction_id);
+      }
     }
-    
     debt.status = 'lunas';
-    debt.paid_at = new Date().toISOString();
-    
+    debt.paid_at = paidAt;
     if (debt.transaction_id && state.transactions) {
-        const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
-        if (tx) {
-            tx.paymentMethod = 'Lunas';
-            if (typeof renderHistory === 'function') renderHistory();
-        }
+      const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
+      if (tx) {
+        tx.paymentMethod = 'Lunas';
+        if (typeof renderHistory === 'function') renderHistory();
+      }
     }
-    
     saveDebtsLocal();
     renderKasbon();
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = originalBtnText;
-        }
-    }
   };
 
-  window.showCustomConfirm = (message, confirmTextToType) => {
-    return new Promise(resolve => {
-        const overlay = document.createElement('div');
-        overlay.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4';
-        overlay.innerHTML = `
-            <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl flex flex-col gap-4">
-                <h3 class="font-bold text-lg text-slate-900">Konfirmasi Hapus</h3>
-                <p class="text-sm text-slate-600">${message}</p>
-                <div class="space-y-1">
-                    <label class="text-xs font-medium text-slate-700">Ketik <strong>${confirmTextToType}</strong> untuk konfirmasi:</label>
-                    <input type="text" class="w-full rounded-xl border border-slate-300 px-3 min-h-[44px] text-sm focus:ring-2 focus:ring-rose-400 focus:outline-none" placeholder="${confirmTextToType}">
-                </div>
-                <div class="flex gap-2 mt-2">
-                    <button class="flex-1 rounded-2xl bg-slate-100 px-3 min-h-[44px] text-sm font-semibold text-slate-700 hover:bg-slate-200 transition btn-cancel">Batal</button>
-                    <button class="flex-1 rounded-2xl bg-rose-600 px-3 min-h-[44px] text-sm font-semibold text-white hover:bg-rose-700 transition opacity-50 cursor-not-allowed btn-confirm" disabled>Hapus</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(overlay);
+  let _debtDeleteId = null;
 
-        const input = overlay.querySelector('input');
-        const btnCancel = overlay.querySelector('.btn-cancel');
-        const btnConfirm = overlay.querySelector('.btn-confirm');
-
-        input.addEventListener('input', () => {
-            if (input.value === confirmTextToType) {
-                btnConfirm.disabled = false;
-                btnConfirm.classList.remove('opacity-50', 'cursor-not-allowed');
-            } else {
-                btnConfirm.disabled = true;
-                btnConfirm.classList.add('opacity-50', 'cursor-not-allowed');
-            }
-        });
-
-        const closeAndResolve = (val) => {
-            document.body.removeChild(overlay);
-            resolve(val);
-        };
-
-        btnCancel.addEventListener('click', () => closeAndResolve(false));
-        btnConfirm.addEventListener('click', () => {
-            if (!btnConfirm.disabled) closeAndResolve(true);
-        });
-    });
+  const closeDebtDeleteModal = () => {
+    _debtDeleteId = null;
+    document.getElementById('debtDeleteModal')?.classList.add('hidden');
   };
 
-  const deleteDebt = async (id, btn) => {
+  const deleteDebt = id => {
     const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
     if (activeOp && activeOp.role !== 'admin') {
-      alert('Hanya Admin Toko yang diizinkan untuk menghapus catatan kasbon. Silakan hubungi Admin Toko untuk menghapusnya.');
+      alert('Hanya Admin Toko yang diizinkan untuk menghapus catatan kasbon.');
       return;
     }
-    const isConfirmed = await window.showCustomConfirm('Hapus catatan kasbon ini? Riwayat transaksi terkait akan dibatalkan (VOID) dan stok akan dikembalikan.', 'HAPUS');
-    if (!isConfirmed) return;
-    
     const debt = (state.debts || []).find(d => String(d.id) === String(id));
     if (!debt) return;
-    
-    let originalBtnText = '';
-    if (btn) {
-        originalBtnText = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = 'Memproses...';
-    }
+    _debtDeleteId = id;
+    const textEl = document.getElementById('debtDeleteText');
+    if (textEl) textEl.textContent = `Catatan kasbon ${debt.customer_name} ${formatCurrency(debt.amount)} akan dihapus permanen. Transaksi terkait dibatalkan dan stok dikembalikan.`;
+    document.getElementById('debtDeleteModal')?.classList.remove('hidden');
+  };
 
-    try {
-    
+  const confirmDeleteDebt = async () => {
+    const id = _debtDeleteId;
+    if (id === null) return;
+    const debt = (state.debts || []).find(d => String(d.id) === String(id));
+    if (!debt) { closeDebtDeleteModal(); return; }
+    const activeOp = state.cashiers?.find(c => c.id === state.selectedCashierId);
     const adminName = activeOp ? activeOp.name : 'Supervisor';
-    
-    if (db && !isNaN(parseInt(id))) {
-      const { error } = await db.rpc('delete_debt_secure', { p_debt_id: parseInt(id), p_admin_name: adminName });
+    const confirmBtn = document.getElementById('debtDeleteConfirm');
+    if (String(id).startsWith('D')) {
+      // Masih di antrean lokal → hapus dari antrean saja
+      saveDebtQueue(getDebtQueue().filter(en => String(en.id) !== String(id)));
+    } else if (db) {
+      if (confirmBtn) confirmBtn.disabled = true; // cegah double-tap selama menunggu server
+      // Batalkan (VOID) transaksi Hutang terkait + kembalikan stok di server
+      if (debt.transaction_id) {
+        const { error: txErr } = await db.from('transactions').update({
+          status: 'void',
+          void_reason: 'Kasbon Dihapus',
+          void_by: adminName,
+          void_at: new Date().toISOString()
+        }).eq('id', debt.transaction_id);
+        if (!txErr && debt.items) {
+          for (const item of debt.items) {
+            const numId = parseInt(item.product_id);
+            if (isNaN(numId) || item.qty <= 0) continue;
+            await db.rpc('increment_stock', { p_product_id: numId, p_qty: item.qty });
+          }
+        }
+      }
+      const { error } = await db.from('debts').delete().eq('id', id);
+      if (confirmBtn) confirmBtn.disabled = false;
       if (error) {
         logError('deleteDebt: gagal delete', { debtId: id }, error);
-        alert('Gagal memproses: ' + friendlyError(error));
-        return;
+        showAppToast('Kasbon belum terhapus. Periksa koneksi internet lalu coba lagi.', 'error');
+        return; // jangan ubah state lokal agar tetap sinkron dengan server
       }
     }
-    
     state.debts = (state.debts || []).filter(d => String(d.id) !== String(id));
-    
     if (debt.transaction_id && state.transactions) {
-         const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
-         if (tx) {
-             tx.status = 'void';
-             tx.voidReason = 'Kasbon Dihapus';
-             tx.voidBy = adminName;
-             tx.voidAt = new Date().toISOString();
-             if (typeof renderHistory === 'function') renderHistory();
-             if (typeof updateDashboard === 'function') updateDashboard();
-         }
+      const tx = state.transactions.find(t => String(t.id) === String(debt.transaction_id));
+      if (tx) {
+        tx.status = 'void';
+        tx.voidReason = 'Kasbon Dihapus';
+        tx.voidBy = adminName;
+        tx.voidAt = new Date().toISOString();
+        if (typeof renderHistory === 'function') renderHistory();
+        if (typeof updateDashboard === 'function') updateDashboard();
+      }
     }
-    
     if (debt.items) {
-        for (const item of debt.items) {
-            const product = state.products.find(p => String(p.id) === String(item.product_id));
-            if (product) {
-                product.stock += item.qty;
-            }
-        }
-        if (typeof renderProducts === 'function') renderProducts();
+      for (const item of debt.items) {
+        const product = state.products.find(p => String(p.id) === String(item.product_id));
+        if (product) product.stock += item.qty;
+      }
+      if (typeof renderProducts === 'function') renderProducts();
     }
-    
     saveDebtsLocal();
+    closeDebtDeleteModal();
     renderKasbon();
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = originalBtnText;
-        }
-    }
   };
 
   const sendDebtReminder = id => {
@@ -5912,6 +6021,43 @@ ${txRows}
 
   const init = async () => {
     setLoadingStatus('Menghubungkan ke database...', 10);
+    // Snapshot hash & query string SEBELUM createClient dipanggil sama sekali.
+    // Root cause bypass: link recovery PKCE dari Supabase membawa
+    // "?code=...&type=recovery" di QUERY STRING, bukan hash. Begitu
+    // createClient() jalan, SDK (detectSessionInUrl) langsung menukar code
+    // itu jadi SESI PENUH sebagai bagian inisialisasi internal — proses ini
+    // terjadi SEBELUM event PASSWORD_RECOVERY sempat di-fire ke listener kita.
+    // Makanya passwordRecoveryMode HARUS sudah true di sini, SEBELUM
+    // initSupabase()/createClient() di bawah dipanggil, supaya begitu SDK
+    // selesai bikin sesi (dari hash ATAU query), guard di enterAppAfterAuth()
+    // sudah aktif dan menahan dashboard.
+    const authHash = location.hash;
+    const authQuery = new URLSearchParams(location.search);
+    // Defensif: kalau ada "code" param tapi tanpa penanda type=recovery
+    // eksplisit, tetap jangan langsung dianggap aman — treat sebagai
+    // recovery juga. Lebih baik false-positive (user login biasa diminta
+    // buat password baru & dituntun keluar dari form itu) daripada
+    // false-negative (pemegang link reset dapat akses penuh ke toko orang).
+    const isRecoveryLink = authHash.includes('type=recovery')
+      || authQuery.get('type') === 'recovery'
+      || authQuery.has('code');
+    if (isRecoveryLink) {
+      passwordRecoveryMode = true;
+    }
+    // Sinyal lebih luas dari isRecoveryLink: apapun bentuknya, kalau URL
+    // membawa serpihan hasil redirect auth Supabase (access_token/type di
+    // hash, atau code di query), SDK sedang/baru saja memproses sesi dari
+    // link itu — event PASSWORD_RECOVERY async BISA masih dalam perjalanan
+    // walau heuristik isRecoveryLink di atas tidak match persis. Dipakai
+    // HANYA untuk beri jendela tunggu kecil sebelum commit ke dashboard,
+    // TIDAK untuk mengubah keputusan guard keamanan itu sendiri.
+    const hasAuthCallbackParams = authHash.includes('access_token')
+      || authHash.includes('type=')
+      || authQuery.has('code');
+    const linkExpired = authHash.includes('error_code=otp_expired') || authHash.includes('error=access_denied');
+    if (linkExpired) {
+      history.replaceState(null, '', location.pathname);
+    }
     initSupabase();
     window.onerror = (msg, src, line, col, err) => {
       logError(String(msg), { src, line, col }, err);
@@ -5930,13 +6076,51 @@ ${txRows}
     setLoadingStatus('Memeriksa sesi...', 20);
     const session = await getAuthSession();
 
-    if (session) {
+    // Baru simpan uid recovery SETELAH sesi benar-benar terbentuk (bukan
+    // sebelum tahu siapa usernya) — link recovery load ini berarti SDK sudah
+    // selesai exchange code jadi sesi di titik ini.
+    if (isRecoveryLink && session?.user?.id) {
+      localStorage.setItem('pw_recovery_uid', session.user.id);
+    }
+    // Guard berbasis USER ID, bukan flag generik: HANYA aktif kalau ADA
+    // flag tercatat DAN ADA sesi aktif SEKARANG yang usernya SAMA PERSIS.
+    // Ini otomatis menutup kasus cross-tab (user lain, uid beda -> tidak
+    // match -> tidak ikut terkunci) dan kasus setelah signOut sukses (sesi
+    // null di semua tab origin ini -> guard tidak pernah terpicu lagi
+    // walau ada sisa flag).
+    const recoveryUid = localStorage.getItem('pw_recovery_uid');
+    if (recoveryUid && session?.user?.id === recoveryUid) {
+      passwordRecoveryMode = true;
+    }
+
+    if (passwordRecoveryMode) {
+      showNewPasswordForm();
+    } else if (session) {
       state.authUser = session.user;
-      await enterAppAfterAuth();
-      hideLoadingOverlay();
+      // Jendela tunggu kecil HANYA kalau URL menunjukkan kita baru datang
+      // dari redirect auth (link recovery/PKCE) — supaya event
+      // PASSWORD_RECOVERY yang sedang diproses SDK (round-trip jaringan)
+      // sempat fire dan set passwordRecoveryMode SEBELUM kita commit ke
+      // dashboard. Login normal (tanpa hash/query auth) tidak kena delay ini.
+      if (hasAuthCallbackParams) {
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+      if (passwordRecoveryMode) {
+        showNewPasswordForm();
+      } else {
+        await enterAppAfterAuth();
+        hideLoadingOverlay();
+      }
     } else {
       hideLoadingOverlay();
       showLoginPage();
+      if (linkExpired) {
+        const authError2 = document.getElementById('authError');
+        if (authError2) {
+          authError2.textContent = 'Link reset sudah kedaluwarsa. Kirim ulang dari menu Lupa Password.';
+          authError2.classList.remove('hidden');
+        }
+      }
     }
   };
 

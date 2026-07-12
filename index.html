@@ -289,6 +289,41 @@
           </div>
         </form>
 
+        <!-- FORM PASSWORD BARU (dari link reset password) -->
+        <form id="newPasswordForm" class="space-y-4 hidden">
+          <h2 class="text-lg font-semibold text-slate-900">Buat Password Baru</h2>
+          <p class="text-sm text-slate-600">Masukkan password baru untuk akun Anda.</p>
+          <div id="newPassError" class="hidden rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+          <label class="block">
+            <span class="text-slate-700 text-sm font-medium">Password Baru (min. 8 karakter)</span>
+            <div class="relative mt-2">
+              <input id="newPass1" type="password" required minlength="8" autocomplete="new-password"
+                class="w-full rounded-2xl border border-slate-300 px-4 py-3 pr-12 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+                placeholder="Buat password baru" />
+              <button type="button" data-toggle="newPass1"
+                class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">👁</button>
+            </div>
+          </label>
+          <label class="block">
+            <span class="text-slate-700 text-sm font-medium">Ulangi Password Baru</span>
+            <div class="relative mt-2">
+              <input id="newPass2" type="password" required minlength="8" autocomplete="new-password"
+                class="w-full rounded-2xl border border-slate-300 px-4 py-3 pr-12 focus:ring-2 focus:ring-sky-400 focus:outline-none"
+                placeholder="Ketik ulang password baru" />
+              <button type="button" data-toggle="newPass2"
+                class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm">👁</button>
+            </div>
+          </label>
+          <button type="submit" id="newPassSubmitBtn"
+            class="w-full rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition min-h-[44px] mt-2">
+            Simpan Password Baru
+          </button>
+          <button type="button" id="cancelRecoveryBtn"
+            class="w-full rounded-2xl border border-slate-300 px-5 py-3 text-slate-600 font-semibold hover:bg-slate-50 transition min-h-[44px]">
+            Batal, kembali ke halaman masuk
+          </button>
+        </form>
+
         <!-- FORM DAFTAR -->
         <form id="registerForm" class="space-y-4 hidden">
           <label class="block">
@@ -1794,6 +1829,25 @@
           <button type="submit" class="w-full rounded-2xl bg-sky-600 px-5 py-3 text-white font-semibold hover:bg-sky-700 transition">💾 Simpan Kasbon</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal Konfirmasi Hapus Kasbon -->
+  <div id="debtDeleteModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+      <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+        <div class="flex items-center justify-between border-b border-slate-200 p-5">
+          <h3 class="text-lg font-bold text-slate-800">Hapus Catatan Kasbon</h3>
+          <button id="closeDebtDeleteModal" type="button" class="rounded-full bg-slate-100 p-3 hover:bg-slate-200 text-xl leading-none">×</button>
+        </div>
+        <div class="p-6 space-y-4">
+          <p id="debtDeleteText" class="text-sm text-slate-600"></p>
+          <div class="flex gap-3 pt-2">
+            <button id="debtDeleteCancel" type="button" class="flex-1 rounded-2xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-slate-800 transition">Batal</button>
+            <button id="debtDeleteConfirm" type="button" class="flex-1 rounded-2xl border border-rose-300 bg-white px-5 py-3 text-rose-600 font-semibold hover:bg-rose-50 transition disabled:opacity-50">Hapus</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
