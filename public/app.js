@@ -1416,7 +1416,7 @@ const App = (() => {
           <th class="px-4 py-2 font-medium text-right">Omzet Hari Ini</th>
           <th class="px-4 py-2 font-medium text-right">Transaksi</th>
         </tr></thead>
-        <tbody class="divide-y divide-slate-100">${rows}</tbody>
+        <tbody class="divide-y border-hairline">${rows}</tbody>
         <tfoot><tr class="border-t-2 border-[#dddddd] font-semibold">
           <td class="px-4 py-3">TOTAL Semua Cabang</td>
           <td class="px-4 py-3 text-right text-primary">${formatCurrency(grandTotal)}</td>
