@@ -277,7 +277,7 @@ const App = (() => {
     if (desc) desc.textContent = featureName
       ? `${featureName} termasuk paket ${p.label}. Aplikasi dasar tetap gratis selamanya.`
       : 'Fitur dasar tetap gratis selamanya.';
-    if (price) price.innerHTML = `${esc(p.price)}<span class="text-base font-medium text-sky-500">/bulan</span>`;
+    if (price) price.innerHTML = `${esc(p.price)}<span class="text-base font-medium text-primary">/bulan</span>`;
     if (feats) feats.innerHTML = p.features.map(f => `<p>✅ ${esc(f)}</p>`).join('');
     showSubsOverlay(p);
   };
@@ -623,7 +623,7 @@ const App = (() => {
     if (!toast) {
       toast = document.createElement('div');
       toast.id = 'appGlobalToast';
-      toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] rounded-2xl px-5 py-3 text-white text-sm font-semibold shadow-2xl transition-opacity duration-300 no-print';
+      toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] rounded-lg px-5 py-3 text-white text-sm font-semibold shadow-sm transition-opacity duration-300 no-print';
       document.body.appendChild(toast);
     }
     const bgMap = { error: '#e11d48', success: '#059669', info: '#334155' };
@@ -650,8 +650,8 @@ const App = (() => {
     if (roleEl) {
       roleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
       roleEl.className = isAdmin
-        ? 'text-xs px-2 py-0.5 rounded-full bg-sky-700 text-sky-100'
-        : 'text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300';
+        ? 'text-xs px-2 py-0.5 rounded-full bg-primary text-white'
+        : 'text-xs px-2 py-0.5 rounded-full bg-ink/80 text-white/70';
     }
     if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
     const mobileNameEl = document.getElementById('mobileUserName');
@@ -661,8 +661,8 @@ const App = (() => {
     if (mobileRoleEl) {
       mobileRoleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
       mobileRoleEl.className = isAdmin
-        ? 'text-xs px-2 py-0.5 rounded-full bg-sky-700 text-sky-100'
-        : 'text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300';
+        ? 'text-xs px-2 py-0.5 rounded-full bg-primary text-white'
+        : 'text-xs px-2 py-0.5 rounded-full bg-ink/80 text-white/70';
     }
     if (mobileAvatar) mobileAvatar.textContent = name.charAt(0).toUpperCase();
     // Sidebar + bottom nav: menu admin disembunyikan untuk operator kasir
@@ -758,7 +758,8 @@ const App = (() => {
     selectedCashierId: '',
     activeUserId: '',
     debts: [],
-    darkMode: false,
+    // darkMode removed – UI is always light mode per design
+    // darkMode: false,
     currentTransaction: null,
     draftPurchase: { supplier: '', invoice: '', items: [] },
     scannerContext: 'kasir',
@@ -981,7 +982,7 @@ const App = (() => {
       localStorage.removeItem(STORAGE.settings);
       settings = {};
     }
-    state.darkMode = settings.darkMode || false;
+    // state.darkMode = settings.darkMode || false; // dark mode removed
     state.reportRange = settings.reportRange || '7';
     state.historySearch = settings.historySearch || '';
     // cashiers & purchases now loaded from Supabase; these are temp fallbacks
@@ -1106,7 +1107,7 @@ const App = (() => {
 
       setLoadingStatus('Memuat kasir...', 55);
       const { data: cashiers } = await db
-        .from('cashiers').select('*').eq('store_id', state.storeId).order('id', { ascending: true });
+        .from('cashiers').select('id, store_id, name, password, role, created_at').eq('store_id', state.storeId).order('id', { ascending: true });
       state.cashiers = cashiers ? cashiers.map(fromDbCashier) : [];
       // Pengaman data lama: minimal harus ada satu admin agar pemilik tidak terkunci
       if (state.cashiers.length && !state.cashiers.some(c => c.role === 'admin')) {
@@ -1165,7 +1166,7 @@ const App = (() => {
       localStorage.setItem(STORAGE.cashiers, JSON.stringify(state.cashiers.map(({ password: _pw, ...rest }) => rest)));
       localStorage.setItem(STORAGE.purchases, JSON.stringify(state.purchases));
       localStorage.setItem(STORAGE.settings, JSON.stringify({
-        darkMode: state.darkMode,
+        // darkMode removed
         selectedCashierId: state.selectedCashierId,
         activeUserId: state.activeUserId,
         reportRange: state.reportRange,
@@ -1298,13 +1299,13 @@ const App = (() => {
     list.innerHTML = stores.map(s => {
       const isActive = String(s.id) === String(state.storeId);
       const isPrimary = String(s.id) === primaryId;
-      return `<div class="flex items-center justify-between gap-3 rounded-2xl border ${isActive ? 'border-sky-400 bg-sky-50' : 'border-slate-200 bg-white'} px-4 py-3">
+      return `<div class="flex items-center justify-between gap-3 rounded-lg border ${isActive ? 'border-primary bg-primary/5' : 'border-hairline bg-white'} px-4 py-3">
         <div class="min-w-0">
-          <p class="font-semibold truncate">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-sky-600">(Pusat)</span>' : ''}${isActive ? ' <span class="text-xs text-emerald-600">• aktif</span>' : ''}</p>
+          <p class="font-semibold truncate">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-primary">(Pusat)</span>' : ''}${isActive ? ' <span class="text-xs text-emerald-600">• aktif</span>' : ''}</p>
         </div>
         <div class="flex gap-1 shrink-0">
-          ${isActive ? '' : `<button data-branch-switch="${esc(s.id)}" class="rounded-lg bg-sky-600 px-2.5 py-1.5 text-white text-xs hover:bg-sky-700">Buka</button>`}
-          <button data-branch-rename="${esc(s.id)}" class="rounded-lg bg-slate-200 px-2.5 py-1.5 text-slate-700 text-xs hover:bg-slate-300">Nama</button>
+          ${isActive ? '' : `<button data-branch-switch="${esc(s.id)}" class="rounded-lg bg-primary px-2.5 py-1.5 text-white text-xs hover:bg-primary">Buka</button>`}
+          <button data-branch-rename="${esc(s.id)}" class="rounded-lg bg-hairline px-2.5 py-1.5 text-muted text-xs hover:bg-hairline">Nama</button>
           ${(stores.length > 1 && !isPrimary) ? `<button data-branch-delete="${esc(s.id)}" class="rounded-lg bg-rose-100 px-2.5 py-1.5 text-rose-700 text-xs hover:bg-rose-200">Hapus</button>` : ''}
         </div>
       </div>`;
@@ -1335,7 +1336,7 @@ const App = (() => {
     // Ambil transaksi hari ini SEMUA cabang sekaligus (tanpa filter store_id → RLS membatasi ke milik owner)
     const { data: txs, error } = await db.from('transactions')
       .select('store_id,total_amount').gte('created_at', startIso);
-    if (error) { body.innerHTML = `<p class="text-slate-500 text-sm p-4">Gagal memuat rekap: ${esc(error.message)}</p>`; return; }
+    if (error) { body.innerHTML = `<p class="text-muted text-sm p-4">Gagal memuat rekap: ${esc(error.message)}</p>`; return; }
     const byStore = {};
     (txs || []).forEach(t => {
       const k = String(t.store_id);
@@ -1348,23 +1349,23 @@ const App = (() => {
       const d = byStore[String(s.id)] || { total: 0, count: 0 };
       grandTotal += d.total; grandCount += d.count;
       const isActive = String(s.id) === String(state.storeId);
-      return `<tr class="${isActive ? 'bg-sky-50' : ''}">
-        <td class="px-4 py-3 font-medium">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-sky-600">(Pusat)</span>' : ''}</td>
+      return `<tr class="${isActive ? 'bg-primary/5' : ''}">
+        <td class="px-4 py-3 font-medium">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-primary">(Pusat)</span>' : ''}</td>
         <td class="px-4 py-3 text-right">${formatCurrency(d.total)}</td>
         <td class="px-4 py-3 text-right">${d.count}</td>
       </tr>`;
     }).join('');
     body.innerHTML = `
       <table class="w-full text-sm">
-        <thead><tr class="text-left text-slate-500 border-b border-slate-200">
+        <thead><tr class="text-left text-muted border-b border-hairline">
           <th class="px-4 py-2 font-medium">Cabang</th>
           <th class="px-4 py-2 font-medium text-right">Omzet Hari Ini</th>
           <th class="px-4 py-2 font-medium text-right">Transaksi</th>
         </tr></thead>
-        <tbody class="divide-y divide-slate-100">${rows}</tbody>
-        <tfoot><tr class="border-t-2 border-slate-300 font-semibold">
+        <tbody class="divide-y divide-hairline">${rows}</tbody>
+        <tfoot><tr class="border-t-2 border-hairline font-semibold">
           <td class="px-4 py-3">TOTAL Semua Cabang</td>
-          <td class="px-4 py-3 text-right text-sky-700">${formatCurrency(grandTotal)}</td>
+          <td class="px-4 py-3 text-right text-primary">${formatCurrency(grandTotal)}</td>
           <td class="px-4 py-3 text-right">${grandCount}</td>
         </tr></tfoot>
       </table>`;
@@ -1385,9 +1386,10 @@ const App = (() => {
     dom.cashierSelect.value = state.selectedCashierId;
   };
 
+  // Dark mode removed – keep DOM reference set on init, but disable toggle behaviour.
   const applyTheme = () => {
-    document.body.classList.toggle('dark', state.darkMode);
-    dom.themeToggle.textContent = state.darkMode ? '☀️ Terang' : '🌙 Tema';
+    document.body.classList.remove('dark');
+    if (dom.themeToggle) dom.themeToggle.style.display = 'none';
   };
 
   // ── Kelola Kasir ──────────────────────────────────────────────────────────
@@ -1405,15 +1407,15 @@ const App = (() => {
       const isSelf = c.id === activeId;
       const initial = esc(c.name.charAt(0).toUpperCase());
       const roleLabel = isAdmin ? '👑 Admin' : '🧾 Kasir';
-      const roleBg = isAdmin ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600';
-      const avatarBg = isAdmin ? 'bg-sky-600' : 'bg-slate-500';
+      const roleBg = isAdmin ? 'bg-primary/10 text-primary' : 'bg-surface-soft text-muted';
+      const avatarBg = isAdmin ? 'bg-primary' : 'bg-surface-soft0';
       return `
-        <div class="rounded-3xl bg-white border border-slate-200 shadow-sm p-5 flex flex-col gap-4">
+        <div class="rounded-xl bg-white border border-hairline shadow-sm p-5 flex flex-col gap-4">
           <div class="flex items-center gap-4">
             <div class="w-14 h-14 rounded-full ${avatarBg} flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">${initial}</div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <p class="font-semibold text-slate-900 truncate">${esc(c.name)}</p>
+                <p class="font-semibold text-ink truncate">${esc(c.name)}</p>
                 ${isSelf ? '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Anda</span>' : ''}
               </div>
               <span class="text-xs px-2 py-0.5 rounded-full ${roleBg} font-medium mt-1 inline-block">${roleLabel}</span>
@@ -1421,11 +1423,11 @@ const App = (() => {
           </div>
           <div class="flex gap-2">
             <button data-edit-cashier="${c.id}"
-              class="flex-1 rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition font-medium">
+              class="flex-1 rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-muted hover:bg-surface-soft transition font-medium">
               ✏️ Edit
             </button>
             <button data-delete-cashier="${c.id}" ${isSelf ? 'disabled title="Tidak bisa hapus akun sendiri"' : ''}
-              class="flex-1 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600 hover:bg-rose-100 transition font-medium ${isSelf ? 'opacity-40 cursor-not-allowed' : ''}">
+              class="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600 hover:bg-rose-100 transition font-medium ${isSelf ? 'opacity-40 cursor-not-allowed' : ''}">
               🗑 Hapus
             </button>
           </div>
@@ -1473,7 +1475,7 @@ const App = (() => {
     dom.deleteAccountError.classList.add('hidden');
     dom.deleteAccountConfirmBtn.disabled = true;
     dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'hover:bg-rose-700', 'text-white', 'cursor-pointer');
-    dom.deleteAccountConfirmBtn.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
+    dom.deleteAccountConfirmBtn.classList.add('bg-hairline', 'text-muted', 'cursor-not-allowed');
     dom.deleteAccountModal.classList.remove('hidden');
     dom.deleteAccountEmailInput.focus();
   };
@@ -1689,7 +1691,7 @@ const App = (() => {
         state.purchases = data.purchases || state.purchases;
         state.cashiers = data.cashiers || state.cashiers;
         if (data.settings) {
-          state.darkMode = data.settings.darkMode ?? state.darkMode;
+          // state.darkMode = data.settings.darkMode ?? state.darkMode; // dark mode removed
           state.selectedCashierId = data.settings.selectedCashierId || state.selectedCashierId;
           state.activeUserId = data.settings.activeUserId || state.activeUserId;
           state.reportRange = data.settings.reportRange || state.reportRange;
@@ -1760,13 +1762,13 @@ const App = (() => {
 
   const renderPurchaseHistory = () => {
     if (!state?.purchases) {
-      dom.purchaseTable.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-500">Belum ada data pembelian.</td></tr>';
+      dom.purchaseTable.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-muted">Belum ada data pembelian.</td></tr>';
       return;
     }
     dom.purchaseTable.innerHTML = state.purchases.slice().reverse().map(order => {
       const time = new Date(order.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short', year: 'numeric' });
       return `
-        <tr class="border-b border-slate-200">
+        <tr class="border-b border-hairline">
           <td class="p-3">${time}</td>
           <td class="p-3">#${esc(order.id)}</td>
           <td class="p-3">${esc(order.supplier)}</td>
@@ -1775,7 +1777,7 @@ const App = (() => {
           <td class="p-3">${esc(order.status)}</td>
         </tr>
       `;
-    }).join('') || '<tr><td colspan="6" class="p-8 text-center text-slate-500">Belum ada data pembelian.</td></tr>';
+    }).join('') || '<tr><td colspan="6" class="p-8 text-center text-muted">Belum ada data pembelian.</td></tr>';
   };
 
   const getActiveUser = () => {
@@ -2014,7 +2016,7 @@ const App = (() => {
     dom.purchaseInvoice.value = state.draftPurchase.invoice;
     dom.purchaseQty.value = 1;
     dom.purchaseCost.value = '';
-    dom.purchaseItemsList.innerHTML = '<p class="text-slate-500">Belum ada item pembelian.</p>';
+    dom.purchaseItemsList.innerHTML = '<p class="text-muted">Belum ada item pembelian.</p>';
     dom.purchaseTotal.textContent = formatCurrency(0);
   };
 
@@ -2041,7 +2043,7 @@ const App = (() => {
 
   const renderPurchaseDraft = () => {
     if (!state.draftPurchase.items.length) {
-      dom.purchaseItemsList.innerHTML = '<p class="text-slate-500">Belum ada item pembelian.</p>';
+      dom.purchaseItemsList.innerHTML = '<p class="text-muted">Belum ada item pembelian.</p>';
       dom.purchaseTotal.textContent = formatCurrency(0);
       return;
     }
@@ -2050,10 +2052,10 @@ const App = (() => {
       const subtotal = item.qty * item.price;
       total += subtotal;
       return `
-        <div class="flex items-center justify-between gap-3 rounded-2xl bg-white p-3 border border-slate-200 mb-3">
+        <div class="flex items-center justify-between gap-3 rounded-lg bg-white p-3 border border-hairline mb-3">
           <div>
             <p class="font-semibold">${esc(item.name)}</p>
-            <p class="text-slate-500 text-sm">Qty ${item.qty} x ${formatCurrency(item.price)}</p>
+            <p class="text-muted text-sm">Qty ${item.qty} x ${formatCurrency(item.price)}</p>
           </div>
           <span class="font-semibold">${formatCurrency(subtotal)}</span>
         </div>
@@ -2167,8 +2169,17 @@ const App = (() => {
         if (db) {
           const numId = parseInt(product.id);
           if (!isNaN(numId)) {
-            const { error: stockErr } = await db.from('products').update({ stock: product.stock, cost: product.cost }).eq('id', numId);
-            if (stockErr) logError('savePurchaseOrder: stok/cost gagal update', { productId: numId }, stockErr);
+            const { error: costErr } = await db.from('products').update({ cost: product.cost }).eq('id', numId);
+            if (costErr) logError('savePurchaseOrder: cost gagal update', { productId: numId }, costErr);
+            // Stok masuk lewat RPC beraudit (tercatat di stock_ledgers), bukan update langsung
+            const { error: stockErr } = await db.rpc('increment_stock', {
+              p_product_id: numId,
+              p_qty: item.qty,
+              p_ref_type: 'purchase',
+              p_ref_id: purchaseId,
+              p_cashier: activeCashierName()
+            });
+            if (stockErr) logError('savePurchaseOrder: stok gagal update', { productId: numId }, stockErr);
           }
         }
       }
@@ -2302,24 +2313,24 @@ const App = (() => {
     dom.productGrid.innerHTML = filtered.map(product => {
       const isCritical = product.stock <= (product.minStock || 5);
       return `
-        <article data-id="${esc(product.id)}" class="group cursor-pointer overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+        <article data-id="${esc(product.id)}" class="group cursor-pointer overflow-hidden rounded-xl border border-hairline bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
           <img src="${esc(product.image)}" alt="${esc(product.name)}" class="h-44 w-full object-cover" />
           <div class="p-5">
             <div class="flex items-center justify-between gap-3">
               <div>
                 <h4 class="text-lg font-semibold">${esc(product.name)}</h4>
-                <p class="text-slate-500 text-sm">${esc(product.category)}</p>
+                <p class="text-muted text-sm">${esc(product.category)}</p>
               </div>
-              <span class="rounded-2xl bg-slate-100 px-3 py-1 text-xs text-slate-700">Stok: ${esc(product.stock)}${isCritical ? ' ⚠️' : ''}</span>
+              <span class="rounded-lg bg-surface-soft px-3 py-1 text-xs text-muted">Stok: ${esc(product.stock)}${isCritical ? ' ⚠️' : ''}</span>
             </div>
             <div class="mt-4 flex items-center justify-between">
-              <span class="text-xl font-semibold text-slate-900">${formatCurrency(product.price)}</span>
+              <span class="text-xl font-semibold text-ink">${formatCurrency(product.price)}</span>
               <span class="rounded-full px-3 py-1 text-xs font-semibold ${isCritical ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}">${isCritical ? 'Kritis' : 'Tersedia'}</span>
             </div>
           </div>
         </article>
       `;
-    }).join('') || '<div class="col-span-full rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">Tidak ada produk sesuai filter.</div>';
+    }).join('') || '<div class="col-span-full rounded-xl border border-dashed border-hairline bg-surface-soft p-8 text-center text-muted">Tidak ada produk sesuai filter.</div>';
 
     dom.productGrid.querySelectorAll('article[data-id]').forEach(card => {
       card.addEventListener('click', () => addToCart(card.dataset.id));
@@ -2334,7 +2345,7 @@ const App = (() => {
   };
 
   const getExpiryStatus = (expiryDate) => {
-    if (!expiryDate) return { label: '-', class: 'text-slate-500' };
+    if (!expiryDate) return { label: '-', class: 'text-muted' };
     const today = new Date();
     today.setHours(0,0,0,0);
     const exp = new Date(expiryDate);
@@ -2383,22 +2394,22 @@ const App = (() => {
     const totals = calculateCart();
 
     dom.cartList.innerHTML = items.length ? items.map(item => `
-      <div class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+      <div class="rounded-xl border border-hairline bg-surface-soft p-4">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h4 class="font-semibold text-slate-900">${esc(item.name)}</h4>
-            <p class="text-slate-500 text-sm">${formatCurrency(item.price)} x ${esc(item.qty)}</p>
+            <h4 class="font-semibold text-ink">${esc(item.name)}</h4>
+            <p class="text-muted text-sm">${formatCurrency(item.price)} x ${esc(item.qty)}</p>
           </div>
           <button data-remove="${esc(item.id)}" class="rounded-full bg-rose-100 px-3 py-2 text-rose-700">Hapus</button>
         </div>
-        <div class="mt-3 flex items-center gap-2 text-sm text-slate-700">
-          <button data-decrease="${esc(item.id)}" class="rounded-2xl border border-slate-300 bg-white px-3 py-2">−</button>
+        <div class="mt-3 flex items-center gap-2 text-sm text-muted">
+          <button data-decrease="${esc(item.id)}" class="rounded-lg border border-hairline bg-white px-3 py-2">−</button>
           <span class="font-semibold">${esc(item.qty)}</span>
-          <button data-increase="${esc(item.id)}" class="rounded-2xl border border-slate-300 bg-white px-3 py-2">+</button>
-          <span class="ml-auto font-semibold text-slate-900">${formatCurrency(item.price * item.qty)}</span>
+          <button data-increase="${esc(item.id)}" class="rounded-lg border border-hairline bg-white px-3 py-2">+</button>
+          <span class="ml-auto font-semibold text-ink">${formatCurrency(item.price * item.qty)}</span>
         </div>
       </div>
-    `).join('') : '<div class="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">Keranjang kosong. Tambahkan produk untuk memulai transaksi.</div>';
+    `).join('') : '<div class="rounded-xl border border-dashed border-hairline bg-surface-soft p-8 text-center text-muted">Keranjang kosong. Tambahkan produk untuk memulai transaksi.</div>';
 
     dom.cartList.querySelectorAll('[data-remove]').forEach(btn => {
       btn.addEventListener('click', () => removeCartItem(btn.dataset.remove));
@@ -2439,22 +2450,22 @@ const App = (() => {
     dom.inventoryTable.innerHTML = state.products.map(product => {
       const isLowStock = product.stock <= (product.minStock || 5);
       const criticalClass = isLowStock ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800';
-      const rowClass = isLowStock ? 'border-b border-rose-200 bg-rose-50/30' : 'border-b border-slate-200';
+      const rowClass = isLowStock ? 'border-b border-rose-200 bg-rose-50/30' : 'border-b border-hairline';
       const expStatus = getExpiryStatus(product.expiry_date);
       return `
         <tr class="${rowClass}">
           <td class="p-3 font-semibold">${esc(product.code)}</td>
           <td class="p-3">${esc(product.name)}${isLowStock ? ' <span class="text-rose-500 text-xs font-bold">⚠ Stok Rendah</span>' : ''}</td>
-          <td class="p-3 text-xs text-slate-500 font-mono">${esc(product.barcode || '-')}</td>
+          <td class="p-3 text-xs text-muted font-mono">${esc(product.barcode || '-')}</td>
           <td class="p-3">${esc(product.category)}</td>
           <td class="p-3">${formatCurrency(product.price)}</td>
           <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${criticalClass}">${product.stock} / min ${product.minStock || 5}</span></td>
           <td class="p-3"><span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold ${expStatus.class}">${expStatus.label}</span></td>
           <td class="p-3 space-x-2 whitespace-nowrap">
-            <button data-adjust="${product.id}" class="rounded-2xl bg-amber-600 px-4 py-2 text-white text-sm" title="Sesuaikan Stok">⚙️</button>
-            <button data-ledger="${product.id}" class="rounded-2xl bg-sky-600 px-4 py-2 text-white text-sm" title="Kartu Stok">📋</button>
-            <button data-edit="${product.id}" class="rounded-2xl bg-slate-900 px-4 py-2 text-white text-sm">Edit</button>
-            <button data-delete="${product.id}" class="rounded-2xl bg-rose-600 px-4 py-2 text-white text-sm">Hapus</button>
+            <button data-adjust="${product.id}" class="rounded-lg bg-amber-600 px-4 py-2 text-white text-sm" title="Sesuaikan Stok">⚙️</button>
+            <button data-ledger="${product.id}" class="rounded-lg bg-primary px-4 py-2 text-white text-sm" title="Kartu Stok">📋</button>
+            <button data-edit="${product.id}" class="rounded-lg bg-ink px-4 py-2 text-white text-sm">Edit</button>
+            <button data-delete="${product.id}" class="rounded-lg bg-rose-600 px-4 py-2 text-white text-sm">Hapus</button>
           </td>
         </tr>
       `;
@@ -2483,7 +2494,7 @@ const App = (() => {
       const diffDays = Math.ceil((new Date() - new Date(tx.date)) / (1000 * 60 * 60 * 24));
       const canReturn = tx.status !== 'void' && diffDays <= 3;
       const isVoided = tx.status === 'void';
-      const rowClass = isVoided ? 'border-b border-slate-200 opacity-60 bg-rose-50/20' : 'border-b border-slate-200';
+      const rowClass = isVoided ? 'border-b border-hairline opacity-60 bg-rose-50/20' : 'border-b border-hairline';
 
       return `
         <tr class="${rowClass}">
@@ -2496,17 +2507,17 @@ const App = (() => {
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.cash) : '-'}</td>
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.change) : '-'}</td>
           <td class="p-3 space-x-1 whitespace-nowrap">
-            <button data-reprint="${esc(tx.id)}" class="rounded-2xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 transition whitespace-nowrap">🖨 Struk</button>
+            <button data-reprint="${esc(tx.id)}" class="rounded-lg border border-hairline bg-white px-3 py-1.5 text-xs text-muted hover:bg-surface-soft transition whitespace-nowrap">🖨 Struk</button>
             ${isVoided ? `
               <span class="inline-block rounded-full bg-rose-100 text-rose-700 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider">VOID</span>
             ` : `
-              ${isToday ? `<button data-void="${esc(tx.id)}" class="rounded-2xl bg-rose-50 border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-100 transition whitespace-nowrap">🚫 Void</button>` : ''}
-              ${canReturn ? `<button data-return="${esc(tx.id)}" class="rounded-2xl bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-100 transition whitespace-nowrap">↩️ Retur</button>` : ''}
+              ${isToday ? `<button data-void="${esc(tx.id)}" class="rounded-lg bg-rose-50 border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-100 transition whitespace-nowrap">🚫 Void</button>` : ''}
+              ${canReturn ? `<button data-return="${esc(tx.id)}" class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-100 transition whitespace-nowrap">↩️ Retur</button>` : ''}
             `}
           </td>
         </tr>
       `;
-    }).join('') || '<tr><td colspan="9" class="p-8 text-center text-slate-500">Belum ada transaksi.</td></tr>';
+    }).join('') || '<tr><td colspan="9" class="p-8 text-center text-muted">Belum ada transaksi.</td></tr>';
 
     // Cetak ulang struk dari riwayat
     dom.historyTable.querySelectorAll('[data-reprint]').forEach(btn => {
@@ -2545,7 +2556,7 @@ const App = (() => {
       screen.classList.toggle('hidden', screen.id !== screenId);
     });
     dom.menuButtons.forEach(button => {
-      button.classList.toggle('bg-slate-700', button.dataset.screen === screenId);
+      button.classList.toggle('bg-ink/80', button.dataset.screen === screenId);
       button.classList.toggle('text-white', button.dataset.screen === screenId);
     });
     // Update bottom nav active state
@@ -2553,8 +2564,8 @@ const App = (() => {
     document.querySelectorAll('.menu-btn, .bottom-nav-btn').forEach(btn => {
       const isActive = btn.dataset.screen === screenId;
       btn.classList.toggle('text-white', isActive);
-      btn.classList.toggle('text-slate-400', !isActive);
-      btn.classList.toggle('bg-slate-800', isActive);
+      btn.classList.toggle('text-muted', !isActive);
+      btn.classList.toggle('bg-ink', isActive);
     });
     _activeScreenId = screenId;
     if (screenId === 'dashboard') { updateDashboard(); renderSalesChart(); renderReportSummary(); renderDashboardPusat(); }
@@ -2657,9 +2668,27 @@ const App = (() => {
     if (db) {
       const numId = parseInt(existingId);
       if (!isNaN(numId)) {
-        // Update existing
-        const { error } = await db.from('products').update(dbPayload).eq('id', numId);
+        // Update existing — stock dikeluarkan dari update biasa, hanya boleh berubah lewat RPC beraudit
+        const { stock: newStock, ...updatePayload } = dbPayload;
+        const { error } = await db.from('products').update(updatePayload).eq('id', numId);
         if (error) { alert('Gagal simpan produk: ' + friendlyError(error)); return; }
+
+        const currentProduct = state.products.find(item => item.id === existingId);
+        const stockDelta = newStock - (currentProduct ? currentProduct.stock : newStock);
+        if (stockDelta !== 0) {
+          const pin = await requestAdminPin();
+          if (!pin) { alert('Data produk tersimpan, tapi perubahan stok dibatalkan (butuh PIN admin).'); return; }
+          const { error: stockErr } = await db.rpc('secure_adjust_stock', {
+            p_product_id: numId,
+            p_qty_adjusted: stockDelta,
+            p_reason: 'Koreksi via Edit Produk',
+            p_note: 'Perubahan stok dari form edit produk',
+            p_cashier: activeCashierName(),
+            p_ref_type: 'adjustment',
+            p_admin_pin: pin
+          });
+          if (stockErr) { alert('Gagal ubah stok: ' + friendlyError(stockErr)); return; }
+        }
       } else {
         // Insert new
         const { data, error } = await db.from('products')
@@ -3036,7 +3065,7 @@ const App = (() => {
     dom.receiptItems.innerHTML = data.items.map(item => `
       <div>
         <div class="flex justify-between font-medium">${esc(item.name)}<span>${formatCurrency(item.price * item.qty)}</span></div>
-        <div class="text-slate-500 ml-1">${item.qty} x ${formatCurrency(item.price)}</div>
+        <div class="text-muted ml-1">${item.qty} x ${formatCurrency(item.price)}</div>
       </div>
     `).join('');
 
@@ -3575,12 +3604,13 @@ ${txRows}
         cancelBtn.removeEventListener('click', onCancel);
       };
 
-      const onSubmit = (e) => {
+      const onSubmit = async (e) => {
         e.preventDefault();
         const pin = input.value;
-        if (state.cashiers.some(c => c.role === 'admin' && c.password === pin)) {
+        const { data: isValid, error: pinErr } = await db.rpc('verify_admin_pin', { p_pin: pin });
+        if (!pinErr && isValid) {
           cleanup();
-          resolve(true);
+          resolve(pin);
         } else {
           alert('PIN Admin salah atau tidak memiliki akses!');
           input.value = '';
@@ -3653,14 +3683,14 @@ ${txRows}
       }
 
       itemsList.innerHTML = tx.items.map(item => `
-        <div class="flex items-center justify-between border-b border-slate-100 py-3">
+        <div class="flex items-center justify-between border-b border-hairline/30 py-3">
           <div class="flex-1">
-            <p class="font-semibold text-slate-800">${esc(item.name)}</p>
-            <p class="text-xs text-slate-500">${formatCurrency(item.price)} • Beli: ${item.qty} pcs</p>
+            <p class="font-semibold text-ink">${esc(item.name)}</p>
+            <p class="text-xs text-muted">${formatCurrency(item.price)} • Beli: ${item.qty} pcs</p>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-xs text-slate-400">Retur:</span>
-            <input type="number" min="0" max="${item.qty}" value="0" data-product-id="${item.id}" data-price="${item.price}" class="return-qty-input w-20 text-center rounded-xl border border-slate-300 px-2 py-1.5 focus:ring-2 focus:ring-sky-400" />
+            <span class="text-xs text-muted">Retur:</span>
+            <input type="number" min="0" max="${item.qty}" value="0" data-product-id="${item.id}" data-price="${item.price}" class="return-qty-input w-20 text-center rounded-xl border border-hairline px-2 py-1.5 focus:border-[#222222] focus:border-2 focus:outline-none focus:ring-0" />
           </div>
         </div>
       `).join('');
@@ -3722,8 +3752,8 @@ ${txRows}
   };
 
   const voidTransaction = async (txId) => {
-    const isAuthorized = await requestAdminPin();
-    if (!isAuthorized) return;
+    const pin = await requestAdminPin();
+    if (!pin) return;
 
     const reason = await requestVoidReason();
     if (!reason) return;
@@ -3785,8 +3815,8 @@ ${txRows}
   };
 
   const processReturn = async (txId) => {
-    const isAuthorized = await requestAdminPin();
-    if (!isAuthorized) return;
+    const pin = await requestAdminPin();
+    if (!pin) return;
 
     const tx = state.transactions.find(t => t.id === txId);
     if (!tx) {
@@ -3884,7 +3914,7 @@ ${txRows}
       [step1, step2, step3].forEach((s, i) => s && s.classList.toggle('hidden', i !== n - 1));
       [dot1, dot2, dot3].forEach((d, i) => {
         if (!d) return;
-        d.className = i === n - 1 ? 'w-2 h-2 rounded-full bg-sky-400' : 'w-2 h-2 rounded-full bg-slate-600';
+        d.className = i === n - 1 ? 'w-2 h-2 rounded-full bg-primary' : 'w-2 h-2 rounded-full bg-white/40';
       });
     };
 
@@ -3898,7 +3928,7 @@ ${txRows}
     state.paymentMethod = method;
     document.querySelectorAll('.paymethod-btn').forEach(btn => {
       const active = btn.dataset.paymethod === method;
-      btn.className = `paymethod-btn flex-1 rounded-2xl border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'}`;
+      btn.className = `paymethod-btn flex-1 rounded-lg border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-primary bg-primary/5 text-primary' : 'border-hairline bg-white text-muted hover:border-primary/30'}`;
     });
     const splitWrapper = document.getElementById('splitInputWrapper');
     if (dom.cashInputWrapper) {
@@ -3996,13 +4026,16 @@ ${txRows}
     }
 
     if (db) {
-      const { error } = await db.rpc('adjust_stock', {
+      const pin = await requestAdminPin();
+      if (!pin) return;
+      const { error } = await db.rpc('secure_adjust_stock', {
         p_product_id: parseInt(pid, 10),
         p_qty_adjusted: adjustedQty,
         p_reason: reason,
         p_note: note,
         p_cashier: activeCashierName(),
-        p_ref_type: 'adjustment'
+        p_ref_type: 'adjustment',
+        p_admin_pin: pin
       });
       if (error) { alert('Gagal sesuaikan stok: ' + friendlyError(error)); return; }
     }
@@ -4037,7 +4070,7 @@ ${txRows}
           const typeName = typeMap[row.reference_type] || row.reference_type;
           const qtyText = row.qty_changed > 0 ? `<span class="text-emerald-600 font-bold">+${row.qty_changed}</span>` : `<span class="text-rose-600 font-bold">${row.qty_changed}</span>`;
           return `
-            <tr class="border-b border-slate-100 hover:bg-slate-50">
+            <tr class="border-b border-hairline/30 hover:bg-surface-soft">
               <td class="p-3">${time}</td>
               <td class="p-3">${esc(row.cashier_name || '-')}</td>
               <td class="p-3">${esc(typeName)}</td>
@@ -4085,10 +4118,10 @@ ${txRows}
       const lossText = loss === 0 ? '-' : (loss < 0 ? `<span class="text-rose-600">${formatCurrency(Math.abs(loss))}</span>` : `<span class="text-emerald-600">+${formatCurrency(loss)}</span>`);
       const diffText = diff === 0 ? '-' : (diff < 0 ? `<span class="text-rose-600">${diff}</span>` : `<span class="text-emerald-600">+${diff}</span>`);
       return `
-        <tr class="border-b border-slate-100 hover:bg-slate-50">
+        <tr class="border-b border-hairline/30 hover:bg-surface-soft">
           <td class="p-3 font-medium">${esc(p.name)}</td>
           <td class="p-3">${p.stock}</td>
-          <td class="p-3"><input type="number" min="0" value="${p.physical}" data-opname-id="${p.id}" class="opname-input w-24 rounded border border-slate-300 px-2 py-1 focus:ring-2 focus:ring-sky-400" /></td>
+          <td class="p-3"><input type="number" min="0" value="${esc(p.physical)}" data-opname-id="${esc(p.id)}" class="opname-input w-24 rounded border border-hairline px-2 py-1 focus:border-[#222222] focus:border-2 focus:outline-none focus:ring-0" /></td>
           <td class="p-3">${p.physical === '' ? '-' : diffText}</td>
           <td class="p-3">${p.physical === '' ? '-' : lossText}</td>
         </tr>
@@ -4112,37 +4145,50 @@ ${txRows}
     const changes = opnameData.filter(p => p.physical !== '' && parseInt(p.physical, 10) !== p.stock);
     if (changes.length === 0) { alert('Tidak ada selisih stok untuk diterapkan.'); return; }
     
-    const pin = prompt('Masukkan PIN/Password Admin untuk konfirmasi opname:');
+    const pin = await requestAdminPin();
     if (!pin) return;
     
     if (db) {
-      const user = state.cashiers.find(c => c.id === state.selectedCashierId);
-      if (user && user.role !== 'admin') {
-         alert('Hanya admin yang bisa konfirmasi stok opname!'); return;
-      }
+      const applyBtn = document.getElementById('applyOpnameButton');
+      const originalBtnText = applyBtn.innerHTML;
+      applyBtn.disabled = true;
+      applyBtn.innerHTML = '<i class="ri-loader-4-line animate-spin mr-2"></i> Memproses...';
       
-      for (const p of changes) {
-        const diff = parseInt(p.physical, 10) - p.stock;
-        await db.rpc('adjust_stock', {
-            p_product_id: parseInt(p.id, 10),
-            p_qty_adjusted: diff,
-            p_reason: 'Koreksi Administratif',
-            p_note: 'Hasil Stok Opname',
-            p_cashier: activeCashierName(),
-            p_ref_type: 'opname'
-        });
-        const realP = state.products.find(rp => rp.id === p.id);
-        if (realP) realP.stock = parseInt(p.physical, 10);
+      try {
+        for (const p of changes) {
+          const realP = state.products.find(rp => rp.id === p.id);
+          if (!realP) continue;
+          
+          const diff = parseInt(p.physical, 10) - realP.stock;
+          if (diff === 0) continue;
+
+          const { error: adjErr } = await db.rpc('secure_adjust_stock', {
+              p_product_id: parseInt(p.id, 10),
+              p_qty_adjusted: diff,
+              p_reason: 'Koreksi Administratif',
+              p_note: 'Hasil Stok Opname',
+              p_cashier: activeCashierName(),
+              p_ref_type: 'opname',
+              p_admin_pin: pin
+          });
+          if (adjErr) throw adjErr;
+        }
+        await loadData();
+        renderInventory();
+        renderProducts();
+        alert('Hasil stok opname berhasil diterapkan!');
+        
+        applyBtn.classList.add('hidden');
+        document.getElementById('opnameSummary').classList.add('hidden');
+        document.getElementById('opnameTable').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-muted">Stok opname selesai.</td></tr>';
+        opnameData = [];
+      } catch (error) {
+        logError('Gagal menyimpan hasil opname', {}, error);
+        alert('Terjadi kesalahan saat menerapkan hasil opname.');
+      } finally {
+        applyBtn.disabled = false;
+        applyBtn.innerHTML = originalBtnText;
       }
-      syncStorage();
-      renderInventory();
-      renderProducts();
-      alert('Hasil stok opname berhasil diterapkan!');
-      
-      document.getElementById('applyOpnameButton').classList.add('hidden');
-      document.getElementById('opnameSummary').classList.add('hidden');
-      document.getElementById('opnameTable').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500">Stok opname selesai.</td></tr>';
-      opnameData = [];
     } else {
         alert('Tidak bisa stok opname dalam mode offline.');
     }
@@ -4221,11 +4267,7 @@ ${txRows}
       inp.type = inp.type === 'password' ? 'text' : 'password';
     });
 
-    dom.themeToggle.addEventListener('click', () => {
-      state.darkMode = !state.darkMode;
-      applyTheme();
-      syncStorage();
-    });
+    // dark mode toggle disabled – hidden via applyTheme()
 
     dom.reportRangeSelect.addEventListener('change', event => {
       state.reportRange = event.target.value;
@@ -4362,11 +4404,11 @@ ${txRows}
       loginForm2.classList.toggle('hidden', !onLogin);
       registerForm.classList.toggle('hidden', onLogin);
       tabLogin.className = onLogin
-        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-slate-900 shadow-sm transition'
-        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 transition';
+        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition'
+        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-muted transition';
       tabRegister.className = !onLogin
-        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-slate-900 shadow-sm transition'
-        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 transition';
+        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition'
+        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-muted transition';
     };
     tabLogin?.addEventListener('click', () => activateTab('login'));
     tabRegister?.addEventListener('click', () => activateTab('register'));
@@ -4704,11 +4746,11 @@ ${txRows}
       const match = dom.deleteAccountEmailInput.value.trim().toLowerCase() === (state.authUser?.email || '').toLowerCase();
       dom.deleteAccountConfirmBtn.disabled = !match;
       if (match) {
-        dom.deleteAccountConfirmBtn.classList.remove('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
+        dom.deleteAccountConfirmBtn.classList.remove('bg-hairline', 'text-muted', 'cursor-not-allowed');
         dom.deleteAccountConfirmBtn.classList.add('bg-rose-600', 'text-white', 'hover:bg-rose-700', 'cursor-pointer');
       } else {
         dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'text-white', 'hover:bg-rose-700', 'cursor-pointer');
-        dom.deleteAccountConfirmBtn.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
+        dom.deleteAccountConfirmBtn.classList.add('bg-hairline', 'text-muted', 'cursor-not-allowed');
       }
     });
     dom.deleteAccountConfirmBtn?.addEventListener('click', handleDeleteAccount);
@@ -4860,29 +4902,29 @@ ${txRows}
     list.innerHTML = sorted.map(d => {
       const isPaid = d.status === 'lunas';
       const date = new Date(d.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-      const tagBtn = (!isPaid && d.phone) ? `<button data-debt-wa="${esc(d.id)}" class="flex-1 rounded-2xl bg-green-600 px-3 py-2 text-xs text-white font-semibold hover:bg-green-700 transition">💬 Tagih</button>` : '';
+      const tagBtn = (!isPaid && d.phone) ? `<button data-debt-wa="${esc(d.id)}" class="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs text-white font-semibold hover:bg-green-700 transition">💬 Tagih</button>` : '';
       let itemsHtml = '';
       if (d.items && Array.isArray(d.items) && d.items.length > 0) {
-          itemsHtml = `<div class="text-xs text-slate-500 mt-1">${d.items.map(i => `${esc(i.product_name)} (${i.qty}x)`).join(', ')}</div>`;
+          itemsHtml = `<div class="text-xs text-muted mt-1">${d.items.map(i => `${esc(i.product_name)} (${i.qty}x)`).join(', ')}</div>`;
       }
       return `
-        <div class="rounded-3xl bg-white border ${isPaid ? 'border-slate-200 opacity-60' : 'border-amber-200'} shadow-sm p-5 space-y-3">
+        <div class="rounded-xl bg-white border ${isPaid ? 'border-hairline opacity-60' : 'border-amber-200'} shadow-sm p-5 space-y-3">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
-              <p class="font-semibold text-slate-900 truncate">${esc(d.customer_name)}</p>
-              <p class="text-xs text-slate-400">${date}${d.note ? ' — ' + esc(d.note) : ''}</p>
+              <p class="font-semibold text-ink truncate">${esc(d.customer_name)}</p>
+              <p class="text-xs text-muted">${date}${d.note ? ' — ' + esc(d.note) : ''}</p>
               ${itemsHtml}
             </div>
             <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
           </div>
-          <p class="text-2xl font-bold ${isPaid ? 'text-slate-400 line-through' : 'text-rose-600'}">${formatCurrency(d.amount)}</p>
+          <p class="text-2xl font-bold ${isPaid ? 'text-muted line-through' : 'text-rose-600'}">${formatCurrency(d.amount)}</p>
           <div class="flex gap-2">
             ${tagBtn}
-            ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-2xl bg-sky-600 px-3 py-2 text-xs text-white font-semibold hover:bg-sky-700 transition">✅ Tandai Lunas</button>` : ''}
-            <button data-debt-delete="${esc(d.id)}" class="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 hover:bg-rose-100 transition">🗑</button>
+            ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-lg bg-primary px-3 py-2 text-xs text-white font-semibold hover:bg-primary transition">✅ Tandai Lunas</button>` : ''}
+            <button data-debt-delete="${esc(d.id)}" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 hover:bg-rose-100 transition">🗑</button>
           </div>
         </div>`;
-    }).join('') || '<div class="col-span-full rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">Belum ada catatan kasbon. Klik "+ Catat Kasbon" untuk mulai.</div>';
+    }).join('') || '<div class="col-span-full rounded-xl border border-dashed border-hairline bg-surface-soft p-8 text-center text-muted">Belum ada catatan kasbon. Klik "+ Catat Kasbon" untuk mulai.</div>';
 
     list.querySelectorAll('[data-debt-paid]').forEach(btn =>
       btn.addEventListener('click', () => markDebtPaid(btn.dataset.debtPaid)));
@@ -4910,16 +4952,16 @@ ${txRows}
     
     div.innerHTML = `
         <div class="w-[45%]">
-            <select class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-700 debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
+            <select class="w-full rounded-xl border border-hairline px-2 py-1.5 text-sm focus:border-[#222222] focus:border-2 focus:outline-none focus:ring-0 debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
                 <option value="" disabled selected>Pilih Produk</option>
                 ${productOptions}
             </select>
         </div>
         <div class="w-[20%]">
-            <input type="number" min="1" value="1" class="w-full rounded-xl border border-slate-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-sky-400 focus:outline-none dark:bg-slate-800 dark:text-white dark:border-slate-700 debt-qty-input" oninput="calculateDebtTotal()">
+            <input type="number" min="1" value="1" class="w-full rounded-xl border border-hairline px-2 py-1.5 text-sm focus:border-[#222222] focus:border-2 focus:outline-none focus:ring-0 debt-qty-input" oninput="calculateDebtTotal()">
         </div>
         <div class="w-[25%]">
-             <input type="text" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-500 dark:bg-slate-800 dark:text-white dark:border-slate-700" readonly value="0">
+             <input type="text" class="w-full rounded-xl border border-hairline bg-surface-soft px-2 py-1.5 text-sm text-muted" readonly value="0">
         </div>
         <div class="w-[10%] flex justify-end">
              <button type="button" class="rounded-xl bg-rose-100 text-rose-600 px-3 py-1.5 hover:bg-rose-200 transition font-bold" onclick="removeDebtItemRow('${rowId}')">✕</button>
@@ -5251,18 +5293,18 @@ ${txRows}
   window.showCustomConfirm = (message, confirmTextToType) => {
     return new Promise(resolve => {
         const overlay = document.createElement('div');
-        overlay.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4';
+        overlay.className = 'fixed inset-0 bg-ink/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4';
         overlay.innerHTML = `
-            <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl flex flex-col gap-4">
-                <h3 class="font-bold text-lg text-slate-900">Konfirmasi Hapus</h3>
-                <p class="text-sm text-slate-600">${esc(message)}</p>
+            <div class="bg-white rounded-xl p-6 w-full max-w-sm shadow-sm flex flex-col gap-4">
+                <h3 class="font-bold text-lg text-ink">Konfirmasi Hapus</h3>
+                <p class="text-sm text-muted">${esc(message)}</p>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-700">Ketik <strong>${esc(confirmTextToType)}</strong> untuk konfirmasi:</label>
-                    <input type="text" class="w-full rounded-xl border border-slate-300 px-3 min-h-[44px] text-sm focus:ring-2 focus:ring-rose-400 focus:outline-none" placeholder="${esc(confirmTextToType)}">
+                    <label class="text-sm font-medium text-muted">Ketik <strong>${esc(confirmTextToType)}</strong> untuk konfirmasi:</label>
+                    <input type="text" class="w-full rounded-xl border border-hairline px-3 min-h-[44px] text-sm focus:border-[#222222] focus:border-2 focus:outline-none focus:ring-0" placeholder="${esc(confirmTextToType)}">
                 </div>
                 <div class="flex justify-end gap-2 mt-2">
-                    <button class="rounded-2xl bg-slate-100 px-4 min-h-[44px] text-sm font-semibold text-slate-700 hover:bg-slate-200 transition btn-cancel">Batal</button>
-                    <button class="rounded-2xl bg-rose-50 px-4 min-h-[44px] text-sm font-semibold text-rose-600 hover:bg-rose-100 transition opacity-50 cursor-not-allowed btn-confirm" disabled>Hapus</button>
+                    <button class="rounded-lg bg-surface-soft px-4 min-h-[44px] text-sm font-semibold text-muted hover:bg-hairline transition btn-cancel">Batal</button>
+                    <button class="rounded-lg bg-rose-50 px-4 min-h-[44px] text-sm font-semibold text-rose-600 hover:bg-rose-100 transition opacity-50 cursor-not-allowed btn-confirm" disabled>Hapus</button>
                 </div>
             </div>
         `;
@@ -5385,7 +5427,7 @@ ${txRows}
       if (!toast) {
         toast = document.createElement('div');
         toast.id = 'hwScanToast';
-        toast.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-[300] rounded-2xl px-5 py-3 text-white text-sm font-semibold shadow-2xl transition-opacity duration-300 no-print';
+        toast.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-[300] rounded-lg px-5 py-3 text-white text-sm font-semibold shadow-sm transition-opacity duration-300 no-print';
         document.body.appendChild(toast);
       }
       toast.textContent = text;
@@ -5506,8 +5548,8 @@ ${txRows}
     const addMsg = (text, who) => {
       const div = document.createElement('div');
       div.className = who === 'user'
-        ? 'ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-sky-600 text-white px-4 py-2.5'
-        : 'mr-auto max-w-[85%] rounded-2xl rounded-bl-md bg-white border border-slate-200 text-slate-700 px-4 py-2.5';
+        ? 'ml-auto max-w-[85%] rounded-lg rounded-br-md bg-primary text-white px-4 py-2.5'
+        : 'mr-auto max-w-[85%] rounded-lg rounded-bl-md bg-white border border-hairline text-muted px-4 py-2.5';
       // Selalu pakai textContent (bukan innerHTML) agar aman dari XSS jawaban LLM/input pengguna
       div.textContent = text;
       messages.appendChild(div);
@@ -5554,7 +5596,7 @@ ${txRows}
     ['Cara cetak struk?', 'Cara pakai QRIS?', 'Soal langganan', 'Tambah kasir'].forEach(label => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'rounded-full border border-sky-300 bg-sky-50 text-sky-700 px-3 py-1 text-xs hover:bg-sky-100 transition';
+      b.className = 'rounded-full border border-primary/30 bg-primary/5 text-primary px-3 py-1 text-xs hover:bg-primary/10 transition';
       b.textContent = label;
       b.addEventListener('click', () => ask(label));
       quick.appendChild(b);
@@ -5673,13 +5715,13 @@ ${txRows}
     const premMs = store.premium_until  ? new Date(store.premium_until).getTime()  : null;
     const triMs  = store.trial_ends_at  ? new Date(store.trial_ends_at).getTime()  : null;
     if (bizMs  && bizMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-xs font-semibold">Bisnis</span>';
-    if (premMs && premMs > now) return '<span class="px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 text-xs font-semibold">Premium</span>';
+    if (premMs && premMs > now) return '<span class="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">Premium</span>';
     if (triMs  && triMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">Trial</span>';
-    return '<span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs font-semibold">Gratis</span>';
+    return '<span class="px-2 py-0.5 rounded-full bg-surface-soft text-muted text-xs font-semibold">Gratis</span>';
   };
 
   const superAdminFmtDate = v => {
-    if (!v) return '<span class="text-slate-300">—</span>';
+    if (!v) return '<span class="text-white/70">—</span>';
     return esc(new Date(v).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }));
   };
 
@@ -5696,14 +5738,14 @@ ${txRows}
       ).join('');
 
     if (!stores.length) {
-      wrapper.innerHTML = '<p class="text-slate-400 text-sm">Belum ada toko terdaftar.</p>';
+      wrapper.innerHTML = '<p class="text-muted text-sm">Belum ada toko terdaftar.</p>';
       return;
     }
 
     wrapper.innerHTML = `
       <table class="w-full text-sm border-collapse">
         <thead>
-          <tr class="border-b border-slate-200 text-left text-slate-500 text-xs uppercase tracking-wide">
+          <tr class="border-b border-hairline text-left text-muted text-xs uppercase tracking-wide">
             <th class="py-2 pr-4 font-medium">Nama Toko</th>
             <th class="py-2 pr-4 font-medium">Owner ID</th>
             <th class="py-2 pr-4 font-medium">Email Pemilik</th>
@@ -5715,10 +5757,10 @@ ${txRows}
         </thead>
         <tbody>
           ${stores.map(s => `
-            <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
-              <td class="py-2 pr-4 font-medium text-slate-900">${esc(s.name || '-')}</td>
-              <td class="py-2 pr-4 text-slate-500 font-mono text-xs">${esc(s.owner_id || '-')}</td>
-              <td class="py-2 pr-4 text-slate-500">${esc(s.owner_email || '-')}</td>
+            <tr class="border-b border-hairline/30 hover:bg-surface-soft transition">
+              <td class="py-2 pr-4 font-medium text-ink">${esc(s.name || '-')}</td>
+              <td class="py-2 pr-4 text-muted font-mono text-xs">${esc(s.owner_id || '-')}</td>
+              <td class="py-2 pr-4 text-muted">${esc(s.owner_email || '-')}</td>
               <td class="py-2 pr-4">${superAdminFmtDate(s.trial_ends_at)}</td>
               <td class="py-2 pr-4">${superAdminFmtDate(s.premium_until)}</td>
               <td class="py-2 pr-4">${superAdminFmtDate(s.business_until)}</td>
@@ -5731,7 +5773,7 @@ ${txRows}
   const superAdminLoadStores = async () => {
     const wrapper = document.getElementById('superAdminTableWrapper');
     const sel = document.getElementById('superAdminStoreSelect');
-    if (wrapper) wrapper.innerHTML = '<p class="text-slate-400 text-sm">Memuat data...</p>';
+    if (wrapper) wrapper.innerHTML = '<p class="text-muted text-sm">Memuat data...</p>';
     if (sel) sel.innerHTML = '<option value="">— Pilih toko —</option>';
     try {
       // Strategi 1: panggil RPC list_all_stores_for_admin (lebih andal, tanpa Edge Function)
@@ -5851,7 +5893,7 @@ ${txRows}
       if (!wrapper) return;
       const btn = document.getElementById('superAdminLoadLogsBtn');
       if (btn) { btn.disabled = true; btn.textContent = 'Memuat...'; }
-      wrapper.innerHTML = '<p class="text-slate-500 text-sm">Memuat log error...</p>';
+      wrapper.innerHTML = '<p class="text-muted text-sm">Memuat log error...</p>';
       if (copyWrapper) copyWrapper.classList.add('hidden');
       try {
         const { data, error } = await db.rpc('list_error_logs_for_admin');
@@ -5860,16 +5902,16 @@ ${txRows}
           return;
         }
         if (!data || !data.length) {
-          wrapper.innerHTML = '<p class="text-slate-400 text-sm">Tidak ada log error.</p>';
+          wrapper.innerHTML = '<p class="text-muted text-sm">Tidak ada log error.</p>';
           return;
         }
         wrapper._logsData = data;
-        wrapper.innerHTML = `<p class="text-slate-500 text-sm mb-2">${data.length} entri log terbaru:</p>` +
-          data.map(row => `<div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 mb-2 text-xs font-mono overflow-x-auto">
-            <span class="text-slate-400">${esc(row.created_at ? new Date(row.created_at).toLocaleString('id-ID') : '')}</span>
+        wrapper.innerHTML = `<p class="text-muted text-sm mb-2">${data.length} entri log terbaru:</p>` +
+          data.map(row => `<div class="rounded-lg border border-hairline bg-surface-soft p-3 mb-2 text-xs font-mono overflow-x-auto">
+            <span class="text-muted">${esc(row.created_at ? new Date(row.created_at).toLocaleString('id-ID') : '')}</span>
             <span class="ml-2 text-rose-600 font-semibold">${esc(row.message)}</span>
-            ${row.store_name ? `<span class="ml-2 text-slate-500">[${esc(row.store_name)}]</span>` : ''}
-            ${row.url ? `<span class="ml-2 text-slate-400">${esc(row.url)}</span>` : ''}
+            ${row.store_name ? `<span class="ml-2 text-muted">[${esc(row.store_name)}]</span>` : ''}
+            ${row.url ? `<span class="ml-2 text-muted">${esc(row.url)}</span>` : ''}
           </div>`).join('');
         if (copyWrapper) copyWrapper.classList.remove('hidden');
       } catch (e) {
