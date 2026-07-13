@@ -596,7 +596,7 @@ const App = (() => {
 
     // Buat record toko
     const { data: store, error: sErr } = await db.from('stores')
-      .insert({ owner_id: data.user.id, name: storeName.trim() })
+      .insert({ owner_id: data.user.id, name: storeName.trim(), is_main: true })
       .select().single();
     if (sErr) return { error: 'Gagal membuat toko: ' + sErr.message };
 
@@ -1298,8 +1298,16 @@ const App = (() => {
     pin = pin.trim();
     if (!pin) { alert('PIN wajib diisi! Penambahan cabang dibatalkan.'); return; }
     if (!db || !state.authUser) { alert('Fitur cabang membutuhkan koneksi & login.'); return; }
+    // Cabang baru mewarisi status langganan toko utama (penambat langganan),
+    // bukan mengandalkan DEFAULT NULL kolom DB — cegah cabang baru dianggap trial baru.
+    const primary = primaryStore();
     const { data: store, error } = await db.from('stores')
-      .insert({ owner_id: state.authUser.id, name }).select().single();
+      .insert({
+        owner_id: state.authUser.id, name,
+        trial_ends_at: primary?.trial_ends_at ?? null,
+        premium_until: primary?.premium_until ?? null,
+        business_until: primary?.business_until ?? null,
+      }).select().single();
     if (error || !store) { alert('Gagal membuat cabang: ' + friendlyError(error)); return; }
     // Buat admin default untuk cabang baru agar langsung bisa dipakai
     const { error: branchCashierErr } = await db.from('cashiers').insert({
@@ -4943,7 +4951,7 @@ ${txRows}
       }
       
       const { data: store, error } = await db.from('stores')
-        .insert({ owner_id: state.authUser.id, name: storeName }).select().single();
+        .insert({ owner_id: state.authUser.id, name: storeName, is_main: true }).select().single();
       if (!error && store) {
         state.store = store;
         state.storeId = store.id;
