@@ -1354,7 +1354,7 @@ const App = (() => {
           <p class="font-semibold truncate">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-primary">(Pusat)</span>' : ''}${isActive ? ' <span class="text-xs text-emerald-400">• aktif</span>' : ''}</p>
         </div>
         <div class="flex gap-1 shrink-0">
-          ${isActive ? '' : `<button data-branch-switch="${esc(s.id)}" class="rounded-lg bg-primary px-2.5 py-1.5 text-white text-xs hover:bg-primary-active">Buka</button>`}
+          ${isActive ? '' : `<button data-branch-switch="${esc(s.id)}" class="rounded-lg bg-primary px-2.5 py-1.5 text-black text-xs hover:bg-primary-active">Buka</button>`}
           <button data-branch-rename="${esc(s.id)}" class="rounded-lg bg-hairline-soft px-2.5 py-1.5 text-secondary text-xs hover:bg-hairline">Nama</button>
           ${(stores.length > 1 && !isPrimary) ? `<button data-branch-delete="${esc(s.id)}" class="rounded-lg bg-rose-950/40 px-2.5 py-1.5 text-rose-300 text-xs hover:bg-rose-900/40">Hapus</button>` : ''}
         </div>
@@ -2494,7 +2494,7 @@ const App = (() => {
           <td class="p-3"><span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold ${expStatus.class}">${expStatus.label}</span></td>
           <td class="p-3 space-x-2 whitespace-nowrap">
             <button data-adjust="${product.id}" class="rounded-lg bg-amber-600 px-4 py-2 text-white text-sm" title="Sesuaikan Stok">⚙️</button>
-            <button data-ledger="${product.id}" class="rounded-lg bg-primary px-4 py-2 text-white text-sm" title="Kartu Stok">📋</button>
+            <button data-ledger="${product.id}" class="rounded-lg bg-primary px-4 py-2 text-black text-sm" title="Kartu Stok">📋</button>
             <button data-edit="${product.id}" class="rounded-lg bg-ink px-4 py-2 text-white text-sm">Edit</button>
             <button data-delete="${product.id}" class="rounded-lg border border-rose-800 px-4 py-2 text-rose-400 text-sm hover:bg-rose-950/40 transition">Hapus</button>
           </td>
@@ -5006,7 +5006,7 @@ ${txRows}
           <p class="text-2xl font-bold ${isPaid ? 'text-muted-soft line-through' : 'text-rose-400'}">${formatCurrency(d.amount)}</p>
           <div class="flex gap-2">
             ${tagBtn}
-            ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-lg bg-primary px-3 py-2 text-xs text-white font-semibold hover:bg-primary-active transition">✅ Tandai Lunas</button>` : ''}
+            ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-lg bg-primary px-3 py-2 text-xs text-black font-semibold hover:bg-primary-active transition">✅ Tandai Lunas</button>` : ''}
             <button data-debt-delete="${esc(d.id)}" class="rounded-lg border border-rose-800 bg-rose-950/40 px-3 py-2 text-xs text-rose-400 hover:bg-rose-900/40 transition">🗑</button>
           </div>
         </div>`;
@@ -5567,7 +5567,7 @@ ${txRows}
     const addMsg = (text, who) => {
       const div = document.createElement('div');
       div.className = who === 'user'
-        ? 'ml-auto max-w-[85%] rounded-lg rounded-br-md bg-primary text-white px-4 py-2.5'
+        ? 'ml-auto max-w-[85%] rounded-lg rounded-br-md bg-primary text-black px-4 py-2.5'
         : 'mr-auto max-w-[85%] rounded-lg rounded-bl-md bg-card border border-hairline text-secondary px-4 py-2.5';
       // Selalu pakai textContent (bukan innerHTML) agar aman dari XSS jawaban LLM/input pengguna
       div.textContent = text;
