@@ -1002,6 +1002,13 @@ const App = (() => {
     cancelDeleteAccountModal: document.getElementById('cancelDeleteAccountModal'),
     deleteAccountEmailInput: document.getElementById('deleteAccountEmailInput'),
     deleteAccountConfirmBtn: document.getElementById('deleteAccountConfirmBtn'),
+    deleteBranchModal: document.getElementById('deleteBranchModal'),
+    closeDeleteBranchModal: document.getElementById('closeDeleteBranchModal'),
+    cancelDeleteBranchModal: document.getElementById('cancelDeleteBranchModal'),
+    deleteBranchNameTarget: document.getElementById('deleteBranchNameTarget'),
+    deleteBranchNameInput: document.getElementById('deleteBranchNameInput'),
+    deleteBranchError: document.getElementById('deleteBranchError'),
+    deleteBranchConfirmBtn: document.getElementById('deleteBranchConfirmBtn'),
     deleteAccountError: document.getElementById('deleteAccountError')
   };
 
@@ -1319,7 +1326,28 @@ const App = (() => {
   };
 
   // Hapus cabang (beserta seluruh datanya). Cabang terakhir tidak boleh dihapus.
-  const deleteBranch = async id => {
+  let _deleteBranchId = null;
+
+  const openDeleteBranchModal = id => {
+    const s = (state.stores || []).find(x => String(x.id) === String(id));
+    if (!s) return;
+    _deleteBranchId = id;
+    dom.deleteBranchNameTarget.textContent = '"' + (s.name || '') + '"';
+    dom.deleteBranchNameInput.value = '';
+    dom.deleteBranchError.classList.add('hidden');
+    dom.deleteBranchConfirmBtn.disabled = true;
+    dom.deleteBranchConfirmBtn.classList.remove('border', 'border-rose-700', 'hover:bg-rose-950/40', 'text-rose-400', 'cursor-pointer');
+    dom.deleteBranchConfirmBtn.classList.add('bg-hairline-soft', 'text-muted-soft', 'cursor-not-allowed');
+    dom.deleteBranchModal.classList.remove('hidden');
+    dom.deleteBranchNameInput.focus();
+  };
+
+  const closeDeleteBranchModal = () => {
+    _deleteBranchId = null;
+    dom.deleteBranchModal.classList.add('hidden');
+  };
+
+  const deleteBranch = id => {
     if ((state.stores || []).length <= 1) { alert('Tidak bisa menghapus cabang terakhir.'); return; }
     const s = (state.stores || []).find(x => String(x.id) === String(id));
     if (!s) return;
@@ -1328,14 +1356,38 @@ const App = (() => {
       alert('Toko Utama (Pusat) tidak bisa dihapus karena menjadi acuan langganan. Hapus/ganti cabang lain terlebih dahulu.');
       return;
     }
-    if (!confirm('Hapus cabang "' + (s.name || '') + '" beserta SEMUA produk, transaksi, dan datanya? Tindakan ini tidak bisa dibatalkan.')) return;
+    openDeleteBranchModal(id);
+  };
+
+  const handleDeleteBranchConfirm = async () => {
+    const id = _deleteBranchId;
+    if (id === null) return;
+    const s = (state.stores || []).find(x => String(x.id) === String(id));
+    if (!s) { closeDeleteBranchModal(); return; }
+    const typed = dom.deleteBranchNameInput.value.trim();
+    if (typed !== (s.name || '')) {
+      dom.deleteBranchError.textContent = 'Nama cabang tidak cocok. Ketik ulang nama cabang dengan tepat.';
+      dom.deleteBranchError.classList.remove('hidden');
+      return;
+    }
+    dom.deleteBranchError.classList.add('hidden');
+    dom.deleteBranchConfirmBtn.textContent = 'Menghapus...';
+    dom.deleteBranchConfirmBtn.disabled = true;
     const { error } = await db.from('stores').delete().eq('id', id);
-    if (error) { alert('Gagal menghapus: ' + friendlyError(error)); return; }
+    if (error) {
+      dom.deleteBranchError.textContent = 'Gagal menghapus: ' + friendlyError(error);
+      dom.deleteBranchError.classList.remove('hidden');
+      dom.deleteBranchConfirmBtn.textContent = 'Hapus Cabang Ini';
+      dom.deleteBranchConfirmBtn.disabled = false;
+      return;
+    }
     state.stores = state.stores.filter(x => String(x.id) !== String(id));
     if (String(id) === String(state.storeId)) {
       localStorage.setItem(activeStoreKey(), String(state.stores[0].id));
       await switchStore(state.stores[0].id);
     }
+    dom.deleteBranchConfirmBtn.textContent = 'Hapus Cabang Ini';
+    closeDeleteBranchModal();
     renderBranchList();
     renderStoreSwitcher();
   };
@@ -1622,7 +1674,7 @@ const App = (() => {
   const deleteCashier = async id => {
     const c = state.cashiers.find(x => x.id === id);
     if (!c) return;
-    if (!confirm(`Hapus kasir "${c.name}"? Aksi ini tidak bisa dibatalkan.`)) return;
+    if (!confirm(`Hapus kasir "${c.name}"? Akun login kasir ini akan hilang permanen dan tidak bisa dipakai lagi. Riwayat transaksi yang sudah dibuat tetap tersimpan. Tindakan ini tidak bisa dibatalkan.`)) return;
     const numId = parseInt(id);
     if (db && !isNaN(numId)) {
       const { error } = await db.from('cashiers').delete().eq('id', numId);
@@ -2493,10 +2545,10 @@ const App = (() => {
           <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${criticalClass}">${product.stock} / min ${product.minStock || 5}</span></td>
           <td class="p-3"><span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold ${expStatus.class}">${expStatus.label}</span></td>
           <td class="p-3 space-x-2 whitespace-nowrap">
-            <button data-adjust="${product.id}" class="rounded-lg bg-amber-600 px-4 py-2 text-white text-sm" title="Sesuaikan Stok">⚙️</button>
-            <button data-ledger="${product.id}" class="rounded-lg bg-primary px-4 py-2 text-black text-sm" title="Kartu Stok">📋</button>
-            <button data-edit="${product.id}" class="rounded-lg bg-ink px-4 py-2 text-white text-sm">Edit</button>
-            <button data-delete="${product.id}" class="rounded-lg border border-rose-800 px-4 py-2 text-rose-400 text-sm hover:bg-rose-950/40 transition">Hapus</button>
+            <button data-adjust="${product.id}" class="rounded-lg bg-amber-600 px-4 py-2 text-white text-sm min-h-[44px] min-w-[44px]" title="Sesuaikan Stok">⚙️</button>
+            <button data-ledger="${product.id}" class="rounded-lg bg-primary px-4 py-2 text-black text-sm min-h-[44px] min-w-[44px]" title="Kartu Stok">📋</button>
+            <button data-edit="${product.id}" class="rounded-lg bg-ink px-4 py-2 text-white text-sm min-h-[44px]">Edit</button>
+            <button data-delete="${product.id}" class="rounded-lg border border-rose-800 px-4 py-2 text-rose-400 text-sm hover:bg-rose-950/40 transition min-h-[44px]">Hapus</button>
           </td>
         </tr>
       `;
@@ -2538,12 +2590,12 @@ const App = (() => {
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.cash) : '-'}</td>
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.change) : '-'}</td>
           <td class="p-3 space-x-1 whitespace-nowrap">
-            <button data-reprint="${esc(tx.id)}" class="rounded-lg border border-hairline bg-card px-3 py-1.5 text-xs text-secondary hover:bg-surface-soft transition whitespace-nowrap">🖨 Struk</button>
+            <button data-reprint="${esc(tx.id)}" class="rounded-lg border border-hairline bg-card px-3 py-1.5 text-xs text-secondary hover:bg-surface-soft transition whitespace-nowrap min-h-[44px]">🖨 Struk</button>
             ${isVoided ? `
               <span class="inline-block rounded-full bg-rose-950/40 text-rose-300 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider">VOID</span>
             ` : `
-              ${isToday ? `<button data-void="${esc(tx.id)}" class="rounded-lg bg-rose-950/40 border border-rose-800 px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-900/40 transition whitespace-nowrap">🚫 Void</button>` : ''}
-              ${canReturn ? `<button data-return="${esc(tx.id)}" class="rounded-lg bg-amber-950/40 border border-amber-800 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-900/40 transition whitespace-nowrap">↩️ Retur</button>` : ''}
+              ${isToday ? `<button data-void="${esc(tx.id)}" class="rounded-lg bg-rose-950/40 border border-rose-800 px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-900/40 transition whitespace-nowrap min-h-[44px]">🚫 Void</button>` : ''}
+              ${canReturn ? `<button data-return="${esc(tx.id)}" class="rounded-lg bg-amber-950/40 border border-amber-800 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-900/40 transition whitespace-nowrap min-h-[44px]">↩️ Retur</button>` : ''}
             `}
           </td>
         </tr>
@@ -2653,7 +2705,9 @@ const App = (() => {
   };
 
   const deleteProduct = async productId => {
-    if (!confirm('Hapus produk ini dari inventory?')) return;
+    const product = state.products.find(item => item.id === productId);
+    const productName = product ? `"${product.name}"` : 'ini';
+    if (!confirm(`Hapus produk ${productName} dari inventory? Data stok dan riwayat kartu stok produk ini akan hilang permanen. Tindakan ini tidak bisa dibatalkan.`)) return;
     const numId = parseInt(productId);
     if (db && !isNaN(numId)) {
       const { error } = await db.from('products').delete().eq('id', numId);
@@ -3391,7 +3445,7 @@ ${discountHtml}${taxHtml}
         if (discrepancy === 0) {
           elDiscrepancy.className = "text-green-600 font-bold text-sm";
         } else if (discrepancy > 0) {
-          elDiscrepancy.className = "text-blue-600 font-bold text-sm";
+          elDiscrepancy.className = "text-sky-300 font-bold text-sm";
         } else {
           elDiscrepancy.className = "text-rose-400 font-bold text-sm";
         }
@@ -4017,7 +4071,7 @@ ${txRows}
     if (db) {
       const { data, error } = await db.from('stock_ledgers').select('*').eq('product_id', parseInt(productId, 10)).order('created_at', { ascending: false }).limit(50);
       if (error) {
-        tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-400">Gagal memuat data</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-rose-400">Gagal memuat data</td></tr>';
       } else if (!data || data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center">Belum ada riwayat mutasi</td></tr>';
       } else {
@@ -4764,6 +4818,26 @@ ${txRows}
     dom.deleteAccountConfirmBtn?.addEventListener('click', handleDeleteAccount);
     document.addEventListener('click', e => {
       if (e.target === dom.deleteAccountModal) closeDeleteAccountModal();
+    });
+
+    // ── Hapus Cabang ──
+    dom.closeDeleteBranchModal?.addEventListener('click', closeDeleteBranchModal);
+    dom.cancelDeleteBranchModal?.addEventListener('click', closeDeleteBranchModal);
+    dom.deleteBranchNameInput?.addEventListener('input', () => {
+      const s = (state.stores || []).find(x => String(x.id) === String(_deleteBranchId));
+      const match = !!s && dom.deleteBranchNameInput.value.trim() === (s.name || '');
+      dom.deleteBranchConfirmBtn.disabled = !match;
+      if (match) {
+        dom.deleteBranchConfirmBtn.classList.remove('bg-hairline-soft', 'text-muted-soft', 'cursor-not-allowed');
+        dom.deleteBranchConfirmBtn.classList.add('border', 'border-rose-700', 'text-rose-400', 'hover:bg-rose-950/40', 'cursor-pointer');
+      } else {
+        dom.deleteBranchConfirmBtn.classList.remove('border', 'border-rose-700', 'text-rose-400', 'hover:bg-rose-950/40', 'cursor-pointer');
+        dom.deleteBranchConfirmBtn.classList.add('bg-hairline-soft', 'text-muted-soft', 'cursor-not-allowed');
+      }
+    });
+    dom.deleteBranchConfirmBtn?.addEventListener('click', handleDeleteBranchConfirm);
+    document.addEventListener('click', e => {
+      if (e.target === dom.deleteBranchModal) closeDeleteBranchModal();
     });
   };
 
