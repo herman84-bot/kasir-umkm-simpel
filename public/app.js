@@ -1298,16 +1298,11 @@ const App = (() => {
     pin = pin.trim();
     if (!pin) { alert('PIN wajib diisi! Penambahan cabang dibatalkan.'); return; }
     if (!db || !state.authUser) { alert('Fitur cabang membutuhkan koneksi & login.'); return; }
-    // Cabang baru mewarisi status langganan toko utama (penambat langganan),
-    // bukan mengandalkan DEFAULT NULL kolom DB — cegah cabang baru dianggap trial baru.
-    const primary = primaryStore();
+    // Status langganan (trial_ends_at/premium_until/business_until) TIDAK dikirim
+    // dari sini — trigger DB trg_copy_subscription_from_main_store yang menimpanya
+    // dengan nilai toko utama, sebab client tidak boleh dipercaya untuk kolom ini.
     const { data: store, error } = await db.from('stores')
-      .insert({
-        owner_id: state.authUser.id, name,
-        trial_ends_at: primary?.trial_ends_at ?? null,
-        premium_until: primary?.premium_until ?? null,
-        business_until: primary?.business_until ?? null,
-      }).select().single();
+      .insert({ owner_id: state.authUser.id, name }).select().single();
     if (error || !store) { alert('Gagal membuat cabang: ' + friendlyError(error)); return; }
     // Buat admin default untuk cabang baru agar langsung bisa dipakai
     const { error: branchCashierErr } = await db.from('cashiers').insert({

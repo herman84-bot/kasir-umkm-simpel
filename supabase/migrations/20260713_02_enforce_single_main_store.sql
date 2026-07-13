@@ -82,3 +82,53 @@ CREATE TRIGGER trg_prevent_main_store_flag_change
   BEFORE UPDATE ON public.stores
   FOR EACH ROW
   EXECUTE FUNCTION public.prevent_main_store_flag_change();
+
+-- 4) Cabang baru wajib warisi status langganan toko utama (trial_ends_at,
+-- premium_until, business_until) dari server, BUKAN dari nilai yang dikirim
+-- client saat INSERT. RLS stores hanya membatasi owner_id, tidak membatasi
+-- kolom apa saja yang boleh diisi client saat insert — jadi client (console
+-- browser / request dimodifikasi) bisa mengirim nilai apapun untuk kolom
+-- subscription ini kalau kita percaya begitu saja. Trigger ini menimpa nilai
+-- tsb dengan nilai otoritatif dari toko utama pemilik yang sama, supaya
+-- client sama sekali tidak berpengaruh terhadap status langganan cabang baru.
+CREATE OR REPLACE FUNCTION public.copy_subscription_from_main_store()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE
+  main_store public.stores%ROWTYPE;
+BEGIN
+  IF NEW.is_main IS TRUE THEN
+    -- Toko pertama owner: DEFAULT kolom DB berlaku, trial baru yang sah.
+    RETURN NEW;
+  END IF;
+
+  SELECT * INTO main_store
+  FROM public.stores
+  WHERE owner_id = NEW.owner_id AND is_main IS TRUE
+  LIMIT 1;
+
+  IF FOUND THEN
+    NEW.trial_ends_at := main_store.trial_ends_at;
+    NEW.premium_until := main_store.premium_until;
+    NEW.business_until := main_store.business_until;
+  ELSE
+    -- Edge case: owner belum punya toko utama. Jangan gagalkan insert,
+    -- kolom-kolom ini nullable — biarkan NULL daripada percaya client.
+    NEW.trial_ends_at := NULL;
+    NEW.premium_until := NULL;
+    NEW.business_until := NULL;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_copy_subscription_from_main_store ON public.stores;
+
+CREATE TRIGGER trg_copy_subscription_from_main_store
+  BEFORE INSERT ON public.stores
+  FOR EACH ROW
+  EXECUTE FUNCTION public.copy_subscription_from_main_store();
