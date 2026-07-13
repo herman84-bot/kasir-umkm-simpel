@@ -132,3 +132,17 @@ CREATE TRIGGER trg_copy_subscription_from_main_store
   BEFORE INSERT ON public.stores
   FOR EACH ROW
   EXECUTE FUNCTION public.copy_subscription_from_main_store();
+
+-- 5) Kolom subscription (trial_ends_at, premium_until, business_until) HANYA
+-- boleh diubah lewat RPC activate_subscription/revoke_subscription (SECURITY
+-- DEFINER, jalan sebagai owner function) atau service_role (Edge Function
+-- Pakasir webhook/admin-subscription), BUKAN langsung oleh role `authenticated`.
+-- RLS stores cuma cek owner_id, tidak membatasi kolom — tanpa REVOKE ini,
+-- owner mana pun bisa UPDATE premium_until/business_until sendiri langsung
+-- (self-escalation/billing bypass) atau kirim nilai forged saat INSERT toko
+-- pertama (is_main=true). Trigger BEFORE INSERT/UPDATE yang ada TETAP aman
+-- jalan karena privilege check Postgres hanya berlaku pada kolom yang
+-- disebutkan EKSPLISIT di statement client, bukan pada nilai yang di-set
+-- trigger secara internal terhadap NEW.
+REVOKE UPDATE (trial_ends_at, premium_until, business_until) ON public.stores FROM authenticated;
+REVOKE INSERT (trial_ends_at, premium_until, business_until) ON public.stores FROM authenticated;
