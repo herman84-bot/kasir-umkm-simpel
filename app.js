@@ -677,7 +677,7 @@ const App = (() => {
       toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] rounded-lg px-5 py-3 text-white text-sm font-semibold shadow-sm transition-opacity duration-300 no-print';
       document.body.appendChild(toast);
     }
-    const bgMap = { error: '#e11d48', success: '#059669', info: '#334155' };
+    const bgMap = { error: '#dc2626', success: '#22c55e', info: '#242424' };
     toast.style.background = bgMap[type] || bgMap.info;
     toast.textContent = text;
     toast.style.opacity = '1';
@@ -1349,14 +1349,14 @@ const App = (() => {
     list.innerHTML = stores.map(s => {
       const isActive = String(s.id) === String(state.storeId);
       const isPrimary = String(s.id) === primaryId;
-      return `<div class="flex items-center justify-between gap-3 rounded-lg border ${isActive ? 'border-primary bg-primary-light' : 'border-hairline bg-white'} px-4 py-3">
+      return `<div class="flex items-center justify-between gap-3 rounded-lg border ${isActive ? 'border-primary bg-primary-light' : 'border-hairline bg-card'} px-4 py-3">
         <div class="min-w-0">
-          <p class="font-semibold truncate">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-primary">(Pusat)</span>' : ''}${isActive ? ' <span class="text-xs text-emerald-600">• aktif</span>' : ''}</p>
+          <p class="font-semibold truncate">${esc(s.name || 'Toko')}${s.is_main ? ' <span class="text-xs text-primary">(Pusat)</span>' : ''}${isActive ? ' <span class="text-xs text-emerald-400">• aktif</span>' : ''}</p>
         </div>
         <div class="flex gap-1 shrink-0">
           ${isActive ? '' : `<button data-branch-switch="${esc(s.id)}" class="rounded-lg bg-primary px-2.5 py-1.5 text-white text-xs hover:bg-primary-active">Buka</button>`}
-          <button data-branch-rename="${esc(s.id)}" class="rounded-lg bg-hairline-soft px-2.5 py-1.5 text-body text-xs hover:bg-hairline">Nama</button>
-          ${(stores.length > 1 && !isPrimary) ? `<button data-branch-delete="${esc(s.id)}" class="rounded-lg bg-rose-100 px-2.5 py-1.5 text-rose-700 text-xs hover:bg-rose-200">Hapus</button>` : ''}
+          <button data-branch-rename="${esc(s.id)}" class="rounded-lg bg-hairline-soft px-2.5 py-1.5 text-secondary text-xs hover:bg-hairline">Nama</button>
+          ${(stores.length > 1 && !isPrimary) ? `<button data-branch-delete="${esc(s.id)}" class="rounded-lg bg-rose-950/40 px-2.5 py-1.5 text-rose-300 text-xs hover:bg-rose-900/40">Hapus</button>` : ''}
         </div>
       </div>`;
     }).join('');
@@ -1451,27 +1451,27 @@ const App = (() => {
       const isSelf = c.id === activeId;
       const initial = esc(c.name.charAt(0).toUpperCase());
       const roleLabel = isAdmin ? '👑 Admin' : '🧾 Kasir';
-      const roleBg = isAdmin ? 'bg-primary-light text-primary' : 'bg-surface-soft text-body';
+      const roleBg = isAdmin ? 'bg-primary-light text-primary' : 'bg-surface-soft text-secondary';
       const avatarBg = isAdmin ? 'bg-primary' : 'bg-surface-soft0';
       return `
-        <div class="rounded-xl bg-white border border-hairline shadow-sm p-5 flex flex-col gap-4">
+        <div class="rounded-xl bg-card border border-hairline shadow-sm p-5 flex flex-col gap-4">
           <div class="flex items-center gap-4">
             <div class="w-14 h-14 rounded-full ${avatarBg} flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">${initial}</div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <p class="font-semibold text-ink truncate">${esc(c.name)}</p>
-                ${isSelf ? '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Anda</span>' : ''}
+                <p class="font-semibold text-heading truncate">${esc(c.name)}</p>
+                ${isSelf ? '<span class="text-xs bg-green-950/40 text-green-300 px-2 py-0.5 rounded-full">Anda</span>' : ''}
               </div>
               <span class="text-xs px-2 py-0.5 rounded-full ${roleBg} font-medium mt-1 inline-block">${roleLabel}</span>
             </div>
           </div>
           <div class="flex gap-2">
             <button data-edit-cashier="${c.id}"
-              class="flex-1 rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-body hover:bg-surface-soft transition font-medium">
+              class="flex-1 rounded-lg border border-hairline bg-card px-3 py-2 text-sm text-secondary hover:bg-surface-soft transition font-medium">
               ✏️ Edit
             </button>
             <button data-delete-cashier="${c.id}" ${isSelf ? 'disabled title="Tidak bisa hapus akun sendiri"' : ''}
-              class="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600 hover:bg-rose-100 transition font-medium ${isSelf ? 'opacity-40 cursor-not-allowed' : ''}">
+              class="flex-1 rounded-lg border border-rose-800 bg-rose-950/40 px-3 py-2 text-sm text-rose-400 hover:bg-rose-900/40 transition font-medium ${isSelf ? 'opacity-40 cursor-not-allowed' : ''}">
               🗑 Hapus
             </button>
           </div>
@@ -1518,7 +1518,7 @@ const App = (() => {
     dom.deleteAccountEmailInput.value = '';
     dom.deleteAccountError.classList.add('hidden');
     dom.deleteAccountConfirmBtn.disabled = true;
-    dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'hover:bg-rose-700', 'text-white', 'cursor-pointer');
+    dom.deleteAccountConfirmBtn.classList.remove('border', 'border-rose-700', 'hover:bg-rose-950/40', 'text-rose-400', 'cursor-pointer');
     dom.deleteAccountConfirmBtn.classList.add('bg-hairline-soft', 'text-muted-soft', 'cursor-not-allowed');
     dom.deleteAccountModal.classList.remove('hidden');
     dom.deleteAccountEmailInput.focus();
@@ -2091,7 +2091,7 @@ const App = (() => {
       const subtotal = item.qty * item.price;
       total += subtotal;
       return `
-        <div class="flex items-center justify-between gap-3 rounded-lg bg-white p-3 border border-hairline mb-3">
+        <div class="flex items-center justify-between gap-3 rounded-lg bg-card p-3 border border-hairline mb-3">
           <div>
             <p class="font-semibold">${esc(item.name)}</p>
             <p class="text-muted text-sm">Qty ${item.qty} x ${formatCurrency(item.price)}</p>
@@ -2319,19 +2319,20 @@ const App = (() => {
         datasets: [{
           label: 'Pendapatan',
           data: amounts,
-          borderColor: '#22d3ee',
-          backgroundColor: 'rgba(34,211,238,0.15)',
+          borderColor: '#f97316',
+          backgroundColor: 'rgba(249,115,22,0.15)',
           fill: true,
           tension: 0.3,
           pointRadius: 4,
-          pointBackgroundColor: '#0284c7'
+          pointBackgroundColor: '#ea580c'
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
-          y: { beginAtZero: true, ticks: { callback: value => formatCurrency(value) } }
+          x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.06)' } },
+          y: { beginAtZero: true, ticks: { color: '#9ca3af', callback: value => formatCurrency(value) }, grid: { color: 'rgba(255,255,255,0.06)' } }
         },
         plugins: { legend: { display: false } }
       }
@@ -2343,7 +2344,7 @@ const App = (() => {
     dom.productGrid.innerHTML = filtered.map(product => {
       const isCritical = product.stock <= (product.minStock || 5);
       return `
-        <article data-id="${esc(product.id)}" class="group cursor-pointer overflow-hidden rounded-xl border border-hairline bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+        <article data-id="${esc(product.id)}" class="group cursor-pointer overflow-hidden rounded-xl border border-hairline bg-card shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
           <img src="${esc(product.image)}" alt="${esc(product.name)}" class="h-44 w-full object-cover" />
           <div class="p-5">
             <div class="flex items-center justify-between gap-3">
@@ -2351,11 +2352,11 @@ const App = (() => {
                 <h4 class="text-lg font-semibold">${esc(product.name)}</h4>
                 <p class="text-muted text-sm">${esc(product.category)}</p>
               </div>
-              <span class="rounded-lg bg-surface-soft px-3 py-1 text-xs text-body">Stok: ${esc(product.stock)}${isCritical ? ' ⚠️' : ''}</span>
+              <span class="rounded-lg bg-surface-soft px-3 py-1 text-xs text-secondary">Stok: ${esc(product.stock)}${isCritical ? ' ⚠️' : ''}</span>
             </div>
             <div class="mt-4 flex items-center justify-between">
-              <span class="text-xl font-semibold text-ink">${formatCurrency(product.price)}</span>
-              <span class="rounded-full px-3 py-1 text-xs font-semibold ${isCritical ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}">${isCritical ? 'Kritis' : 'Tersedia'}</span>
+              <span class="text-xl font-semibold text-heading">${formatCurrency(product.price)}</span>
+              <span class="rounded-full px-3 py-1 text-xs font-semibold ${isCritical ? 'bg-rose-950/40 text-rose-300' : 'bg-emerald-950/40 text-emerald-300'}">${isCritical ? 'Kritis' : 'Tersedia'}</span>
             </div>
           </div>
         </article>
@@ -2380,9 +2381,9 @@ const App = (() => {
     today.setHours(0,0,0,0);
     const exp = new Date(expiryDate);
     const diffDays = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) return { label: 'KEDALUWARSA', class: 'bg-rose-100 text-rose-800' };
-    if (diffDays < 30) return { label: `Dekat (${diffDays} hr)`, class: 'bg-amber-100 text-amber-800' };
-    return { label: 'Aman', class: 'bg-emerald-100 text-emerald-800' };
+    if (diffDays < 0) return { label: 'KEDALUWARSA', class: 'bg-rose-950/40 text-rose-300' };
+    if (diffDays < 30) return { label: `Dekat (${diffDays} hr)`, class: 'bg-amber-950/40 text-amber-300' };
+    return { label: 'Aman', class: 'bg-emerald-950/40 text-emerald-300' };
   };
 
   const addToCart = productId => {
@@ -2427,16 +2428,16 @@ const App = (() => {
       <div class="rounded-xl border border-hairline bg-surface-soft p-4">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h4 class="font-semibold text-ink">${esc(item.name)}</h4>
+            <h4 class="font-semibold text-heading">${esc(item.name)}</h4>
             <p class="text-muted text-sm">${formatCurrency(item.price)} x ${esc(item.qty)}</p>
           </div>
-          <button data-remove="${esc(item.id)}" class="rounded-full bg-rose-100 px-3 py-2 text-rose-700">Hapus</button>
+          <button data-remove="${esc(item.id)}" class="rounded-full bg-rose-950/40 px-3 py-2 text-rose-300">Hapus</button>
         </div>
-        <div class="mt-3 flex items-center gap-2 text-sm text-body">
-          <button data-decrease="${esc(item.id)}" class="rounded-lg border border-hairline bg-white px-3 py-2">−</button>
+        <div class="mt-3 flex items-center gap-2 text-sm text-secondary">
+          <button data-decrease="${esc(item.id)}" class="rounded-lg border border-hairline bg-card px-3 py-2">−</button>
           <span class="font-semibold">${esc(item.qty)}</span>
-          <button data-increase="${esc(item.id)}" class="rounded-lg border border-hairline bg-white px-3 py-2">+</button>
-          <span class="ml-auto font-semibold text-ink">${formatCurrency(item.price * item.qty)}</span>
+          <button data-increase="${esc(item.id)}" class="rounded-lg border border-hairline bg-card px-3 py-2">+</button>
+          <span class="ml-auto font-semibold text-heading">${formatCurrency(item.price * item.qty)}</span>
         </div>
       </div>
     `).join('') : '<div class="rounded-xl border border-dashed border-hairline bg-surface-soft p-8 text-center text-muted">Keranjang kosong. Tambahkan produk untuk memulai transaksi.</div>';
@@ -2479,8 +2480,8 @@ const App = (() => {
 
     dom.inventoryTable.innerHTML = state.products.map(product => {
       const isLowStock = product.stock <= (product.minStock || 5);
-      const criticalClass = isLowStock ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800';
-      const rowClass = isLowStock ? 'border-b border-rose-200 bg-rose-50/30' : 'border-b border-hairline';
+      const criticalClass = isLowStock ? 'bg-rose-950/40 text-rose-300' : 'bg-emerald-950/40 text-emerald-300';
+      const rowClass = isLowStock ? 'border-b border-rose-900 bg-rose-950/20' : 'border-b border-hairline';
       const expStatus = getExpiryStatus(product.expiry_date);
       return `
         <tr class="${rowClass}">
@@ -2495,7 +2496,7 @@ const App = (() => {
             <button data-adjust="${product.id}" class="rounded-lg bg-amber-600 px-4 py-2 text-white text-sm" title="Sesuaikan Stok">⚙️</button>
             <button data-ledger="${product.id}" class="rounded-lg bg-primary px-4 py-2 text-white text-sm" title="Kartu Stok">📋</button>
             <button data-edit="${product.id}" class="rounded-lg bg-ink px-4 py-2 text-white text-sm">Edit</button>
-            <button data-delete="${product.id}" class="rounded-lg bg-rose-600 px-4 py-2 text-white text-sm">Hapus</button>
+            <button data-delete="${product.id}" class="rounded-lg border border-rose-800 px-4 py-2 text-rose-400 text-sm hover:bg-rose-950/40 transition">Hapus</button>
           </td>
         </tr>
       `;
@@ -2524,7 +2525,7 @@ const App = (() => {
       const diffDays = Math.ceil((new Date() - new Date(tx.date)) / (1000 * 60 * 60 * 24));
       const canReturn = tx.status !== 'void' && diffDays <= 3;
       const isVoided = tx.status === 'void';
-      const rowClass = isVoided ? 'border-b border-hairline opacity-60 bg-rose-50/20' : 'border-b border-hairline';
+      const rowClass = isVoided ? 'border-b border-hairline opacity-60 bg-rose-950/20' : 'border-b border-hairline';
 
       return `
         <tr class="${rowClass}">
@@ -2533,16 +2534,16 @@ const App = (() => {
           <td class="p-3">${esc(tx.cashier || '-')}</td>
           <td class="p-3 font-semibold">${formatCurrency(tx.total)}</td>
           <td class="p-3">${esc(productCount)} item</td>
-          <td class="p-3"><span class="rounded-full px-2 py-0.5 text-xs font-medium ${tx.paymentMethod === 'Tunai' ? 'bg-green-100 text-green-700' : tx.paymentMethod === 'QRIS' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">${esc(tx.paymentMethod || 'Tunai')}</span></td>
+          <td class="p-3"><span class="rounded-full px-2 py-0.5 text-xs font-medium ${tx.paymentMethod === 'Tunai' ? 'bg-green-950/40 text-green-300' : tx.paymentMethod === 'QRIS' ? 'bg-purple-950/40 text-purple-300' : 'bg-blue-950/40 text-blue-300'}">${esc(tx.paymentMethod || 'Tunai')}</span></td>
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.cash) : '-'}</td>
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.change) : '-'}</td>
           <td class="p-3 space-x-1 whitespace-nowrap">
-            <button data-reprint="${esc(tx.id)}" class="rounded-lg border border-hairline bg-white px-3 py-1.5 text-xs text-body hover:bg-surface-soft transition whitespace-nowrap">🖨 Struk</button>
+            <button data-reprint="${esc(tx.id)}" class="rounded-lg border border-hairline bg-card px-3 py-1.5 text-xs text-secondary hover:bg-surface-soft transition whitespace-nowrap">🖨 Struk</button>
             ${isVoided ? `
-              <span class="inline-block rounded-full bg-rose-100 text-rose-700 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider">VOID</span>
+              <span class="inline-block rounded-full bg-rose-950/40 text-rose-300 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider">VOID</span>
             ` : `
-              ${isToday ? `<button data-void="${esc(tx.id)}" class="rounded-lg bg-rose-50 border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-100 transition whitespace-nowrap">🚫 Void</button>` : ''}
-              ${canReturn ? `<button data-return="${esc(tx.id)}" class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-100 transition whitespace-nowrap">↩️ Retur</button>` : ''}
+              ${isToday ? `<button data-void="${esc(tx.id)}" class="rounded-lg bg-rose-950/40 border border-rose-800 px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-900/40 transition whitespace-nowrap">🚫 Void</button>` : ''}
+              ${canReturn ? `<button data-return="${esc(tx.id)}" class="rounded-lg bg-amber-950/40 border border-amber-800 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-900/40 transition whitespace-nowrap">↩️ Retur</button>` : ''}
             `}
           </td>
         </tr>
@@ -2589,7 +2590,7 @@ const App = (() => {
     document.querySelectorAll('.menu-btn, .bottom-nav-btn').forEach(btn => {
       const isActive = btn.dataset.screen === screenId;
       btn.classList.toggle('text-white', isActive);
-      btn.classList.toggle('text-hairline', !isActive);
+      btn.classList.toggle('text-muted-soft', !isActive);
       btn.classList.toggle('bg-primary-active', isActive);
     });
     _activeScreenId = screenId;
@@ -3392,7 +3393,7 @@ ${discountHtml}${taxHtml}
         } else if (discrepancy > 0) {
           elDiscrepancy.className = "text-blue-600 font-bold text-sm";
         } else {
-          elDiscrepancy.className = "text-rose-600 font-bold text-sm";
+          elDiscrepancy.className = "text-rose-400 font-bold text-sm";
         }
       }
     };
@@ -3644,12 +3645,12 @@ ${txRows}
       itemsList.innerHTML = tx.items.map(item => `
         <div class="flex items-center justify-between border-b border-hairline-soft py-3">
           <div class="flex-1">
-            <p class="font-semibold text-ink">${esc(item.name)}</p>
+            <p class="font-semibold text-heading">${esc(item.name)}</p>
             <p class="text-xs text-muted">${formatCurrency(item.price)} • Beli: ${item.qty} pcs</p>
           </div>
           <div class="flex items-center gap-2">
             <span class="text-xs text-muted-soft">Retur:</span>
-            <input type="number" min="0" max="${item.qty}" value="0" data-product-id="${item.id}" data-price="${item.price}" class="return-qty-input w-20 text-center rounded-xl border border-hairline px-2 py-1.5 focus:border-ink focus:border-2 focus:ring-0" />
+            <input type="number" min="0" max="${item.qty}" value="0" data-product-id="${item.id}" data-price="${item.price}" class="return-qty-input w-20 text-center rounded-xl border border-hairline px-2 py-1.5 focus:border-primary focus:border-2 focus:ring-0" />
           </div>
         </div>
       `).join('');
@@ -3887,7 +3888,7 @@ ${txRows}
     state.paymentMethod = method;
     document.querySelectorAll('.paymethod-btn').forEach(btn => {
       const active = btn.dataset.paymethod === method;
-      btn.className = `paymethod-btn flex-1 rounded-lg border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-primary bg-primary-light text-primary' : 'border-hairline bg-white text-body hover:border-hairline'}`;
+      btn.className = `paymethod-btn flex-1 rounded-lg border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-primary bg-primary-light text-primary' : 'border-hairline bg-card text-secondary hover:border-hairline'}`;
     });
     const splitWrapper = document.getElementById('splitInputWrapper');
     if (dom.cashInputWrapper) {
@@ -4016,7 +4017,7 @@ ${txRows}
     if (db) {
       const { data, error } = await db.from('stock_ledgers').select('*').eq('product_id', parseInt(productId, 10)).order('created_at', { ascending: false }).limit(50);
       if (error) {
-        tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500">Gagal memuat data</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-400">Gagal memuat data</td></tr>';
       } else if (!data || data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center">Belum ada riwayat mutasi</td></tr>';
       } else {
@@ -4024,7 +4025,7 @@ ${txRows}
           const time = new Date(row.created_at).toLocaleString('id-ID');
           const typeMap = { sale: 'Penjualan', purchase: 'Pembelian', return: 'Retur', void: 'Batal', adjustment: 'Penyesuaian', opname: 'Opname' };
           const typeName = typeMap[row.reference_type] || row.reference_type;
-          const qtyText = row.qty_changed > 0 ? `<span class="text-emerald-600 font-bold">+${row.qty_changed}</span>` : `<span class="text-rose-600 font-bold">${row.qty_changed}</span>`;
+          const qtyText = row.qty_changed > 0 ? `<span class="text-emerald-400 font-bold">+${row.qty_changed}</span>` : `<span class="text-rose-400 font-bold">${row.qty_changed}</span>`;
           return `
             <tr class="border-b border-hairline-soft hover:bg-surface-soft">
               <td class="p-3">${time}</td>
@@ -4071,20 +4072,20 @@ ${txRows}
             diffCount++;
         }
       }
-      const lossText = loss === 0 ? '-' : (loss < 0 ? `<span class="text-rose-600">${formatCurrency(Math.abs(loss))}</span>` : `<span class="text-emerald-600">+${formatCurrency(loss)}</span>`);
-      const diffText = diff === 0 ? '-' : (diff < 0 ? `<span class="text-rose-600">${diff}</span>` : `<span class="text-emerald-600">+${diff}</span>`);
+      const lossText = loss === 0 ? '-' : (loss < 0 ? `<span class="text-rose-400">${formatCurrency(Math.abs(loss))}</span>` : `<span class="text-emerald-400">+${formatCurrency(loss)}</span>`);
+      const diffText = diff === 0 ? '-' : (diff < 0 ? `<span class="text-rose-400">${diff}</span>` : `<span class="text-emerald-400">+${diff}</span>`);
       return `
         <tr class="border-b border-hairline-soft hover:bg-surface-soft">
           <td class="p-3 font-medium">${esc(p.name)}</td>
           <td class="p-3">${p.stock}</td>
-          <td class="p-3"><input type="number" min="0" value="${p.physical}" data-opname-id="${p.id}" class="opname-input w-24 rounded border border-hairline px-2 py-1 focus:border-ink focus:border-2 focus:ring-0" /></td>
+          <td class="p-3"><input type="number" min="0" value="${p.physical}" data-opname-id="${p.id}" class="opname-input w-24 rounded border border-hairline px-2 py-1 focus:border-primary focus:border-2 focus:ring-0" /></td>
           <td class="p-3">${p.physical === '' ? '-' : diffText}</td>
           <td class="p-3">${p.physical === '' ? '-' : lossText}</td>
         </tr>
       `;
     }).join('');
 
-    document.getElementById('opnameTotalLoss').innerHTML = totalLoss < 0 ? `<span class="text-rose-600 font-bold">${formatCurrency(Math.abs(totalLoss))} (Rugi)</span>` : `<span class="text-emerald-600 font-bold">${formatCurrency(totalLoss)} (Untung)</span>`;
+    document.getElementById('opnameTotalLoss').innerHTML = totalLoss < 0 ? `<span class="text-rose-400 font-bold">${formatCurrency(Math.abs(totalLoss))} (Rugi)</span>` : `<span class="text-emerald-400 font-bold">${formatCurrency(totalLoss)} (Untung)</span>`;
     document.getElementById('opnameItemCount').textContent = diffCount;
 
     document.querySelectorAll('.opname-input').forEach(input => {
@@ -4345,11 +4346,11 @@ ${txRows}
       loginForm2.classList.toggle('hidden', !onLogin);
       registerForm.classList.toggle('hidden', onLogin);
       tabLogin.className = onLogin
-        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition min-h-[44px]'
-        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-body transition min-h-[44px]';
+        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-card text-heading shadow-sm transition min-h-[44px]'
+        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-secondary transition min-h-[44px]';
       tabRegister.className = !onLogin
-        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition min-h-[44px]'
-        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-body transition min-h-[44px]';
+        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-card text-heading shadow-sm transition min-h-[44px]'
+        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-secondary transition min-h-[44px]';
     };
     tabLogin?.addEventListener('click', () => activateTab('login'));
     tabRegister?.addEventListener('click', () => activateTab('register'));
@@ -4686,7 +4687,7 @@ ${txRows}
         if (remaining === 0) {
           splitRem.className = "font-semibold text-green-600";
         } else {
-          splitRem.className = "font-semibold text-rose-600";
+          splitRem.className = "font-semibold text-rose-400";
         }
       }
     };
@@ -4754,9 +4755,9 @@ ${txRows}
       dom.deleteAccountConfirmBtn.disabled = !match;
       if (match) {
         dom.deleteAccountConfirmBtn.classList.remove('bg-hairline-soft', 'text-muted-soft', 'cursor-not-allowed');
-        dom.deleteAccountConfirmBtn.classList.add('bg-rose-600', 'text-white', 'hover:bg-rose-700', 'cursor-pointer');
+        dom.deleteAccountConfirmBtn.classList.add('border', 'border-rose-700', 'text-rose-400', 'hover:bg-rose-950/40', 'cursor-pointer');
       } else {
-        dom.deleteAccountConfirmBtn.classList.remove('bg-rose-600', 'text-white', 'hover:bg-rose-700', 'cursor-pointer');
+        dom.deleteAccountConfirmBtn.classList.remove('border', 'border-rose-700', 'text-rose-400', 'hover:bg-rose-950/40', 'cursor-pointer');
         dom.deleteAccountConfirmBtn.classList.add('bg-hairline-soft', 'text-muted-soft', 'cursor-not-allowed');
       }
     });
@@ -4990,23 +4991,23 @@ ${txRows}
           itemsHtml = `<div class="text-xs text-muted mt-1">${d.items.map(i => `${esc(i.product_name)} (${i.qty}x)`).join(', ')}</div>`;
       }
       return `
-        <div class="rounded-xl bg-white border ${isPaid ? 'border-hairline opacity-60' : 'border-amber-200'} shadow-sm p-5 space-y-3">
+        <div class="rounded-xl bg-card border ${isPaid ? 'border-hairline opacity-60' : 'border-amber-700'} shadow-sm p-5 space-y-3">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
-              <p class="font-semibold text-ink truncate">${esc(d.customer_name)}</p>
+              <p class="font-semibold text-heading truncate">${esc(d.customer_name)}</p>
               <p class="text-xs text-muted-soft">${date}${d.note ? ' — ' + esc(d.note) : ''}</p>
               ${itemsHtml}
             </div>
             <div class="flex flex-col items-end gap-1">
-              <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
-              ${d.pending ? '<span class="rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-xs whitespace-nowrap">Belum tersimpan online</span>' : ''}
+              <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-950/40 text-emerald-300' : 'bg-amber-950/40 text-amber-300'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
+              ${d.pending ? '<span class="rounded-full bg-amber-950/40 text-amber-300 px-2 py-0.5 text-xs whitespace-nowrap">Belum tersimpan online</span>' : ''}
             </div>
           </div>
-          <p class="text-2xl font-bold ${isPaid ? 'text-muted-soft line-through' : 'text-rose-600'}">${formatCurrency(d.amount)}</p>
+          <p class="text-2xl font-bold ${isPaid ? 'text-muted-soft line-through' : 'text-rose-400'}">${formatCurrency(d.amount)}</p>
           <div class="flex gap-2">
             ${tagBtn}
             ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-lg bg-primary px-3 py-2 text-xs text-white font-semibold hover:bg-primary-active transition">✅ Tandai Lunas</button>` : ''}
-            <button data-debt-delete="${esc(d.id)}" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 hover:bg-rose-100 transition">🗑</button>
+            <button data-debt-delete="${esc(d.id)}" class="rounded-lg border border-rose-800 bg-rose-950/40 px-3 py-2 text-xs text-rose-400 hover:bg-rose-900/40 transition">🗑</button>
           </div>
         </div>`;
     }).join('') || '<div class="col-span-full rounded-xl border border-dashed border-hairline bg-surface-soft p-8 text-center text-muted">Belum ada catatan kasbon. Klik "+ Catat Kasbon" untuk mulai.</div>';
@@ -5037,19 +5038,19 @@ ${txRows}
     
     div.innerHTML = `
         <div class="w-[45%]">
-            <select class="w-full rounded-xl border border-hairline px-2 py-1.5 text-sm focus:border-ink focus:border-2 focus:ring-0 focus:outline-none debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
+            <select class="w-full rounded-xl border border-hairline px-2 py-1.5 text-sm focus:border-primary focus:border-2 focus:ring-0 focus:outline-none debt-product-select" onchange="updateDebtItemPrice(this, '${rowId}')">
                 <option value="" disabled selected>Pilih Produk</option>
                 ${productOptions}
             </select>
         </div>
         <div class="w-[20%]">
-            <input type="number" min="1" value="1" class="w-full rounded-xl border border-hairline px-2 py-1.5 text-sm focus:border-ink focus:border-2 focus:ring-0 focus:outline-none debt-qty-input" oninput="calculateDebtTotal()">
+            <input type="number" min="1" value="1" class="w-full rounded-xl border border-hairline px-2 py-1.5 text-sm focus:border-primary focus:border-2 focus:ring-0 focus:outline-none debt-qty-input" oninput="calculateDebtTotal()">
         </div>
         <div class="w-[25%]">
              <input type="text" class="w-full rounded-xl border border-hairline bg-surface-soft px-2 py-1.5 text-sm text-muted" readonly value="0">
         </div>
         <div class="w-[10%] flex justify-end">
-             <button type="button" class="rounded-xl bg-rose-100 text-rose-600 px-3 py-1.5 hover:bg-rose-200 transition font-bold" onclick="removeDebtItemRow('${rowId}')">✕</button>
+             <button type="button" class="rounded-xl bg-rose-950/40 text-rose-400 px-3 py-1.5 hover:bg-rose-900/40 transition font-bold" onclick="removeDebtItemRow('${rowId}')">✕</button>
         </div>
     `;
     container.appendChild(div);
@@ -5449,7 +5450,7 @@ ${txRows}
         document.body.appendChild(toast);
       }
       toast.textContent = text;
-      toast.style.background = ok ? '#059669' : '#e11d48';
+      toast.style.background = ok ? '#22c55e' : '#dc2626';
       toast.style.opacity = '1';
       clearTimeout(toast._timer);
       toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2000);
@@ -5567,7 +5568,7 @@ ${txRows}
       const div = document.createElement('div');
       div.className = who === 'user'
         ? 'ml-auto max-w-[85%] rounded-lg rounded-br-md bg-primary text-white px-4 py-2.5'
-        : 'mr-auto max-w-[85%] rounded-lg rounded-bl-md bg-white border border-hairline text-body px-4 py-2.5';
+        : 'mr-auto max-w-[85%] rounded-lg rounded-bl-md bg-card border border-hairline text-secondary px-4 py-2.5';
       // Selalu pakai textContent (bukan innerHTML) agar aman dari XSS jawaban LLM/input pengguna
       div.textContent = text;
       messages.appendChild(div);
@@ -5732,9 +5733,9 @@ ${txRows}
     const bizMs  = store.business_until ? new Date(store.business_until).getTime() : null;
     const premMs = store.premium_until  ? new Date(store.premium_until).getTime()  : null;
     const triMs  = store.trial_ends_at  ? new Date(store.trial_ends_at).getTime()  : null;
-    if (bizMs  && bizMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-xs font-semibold">Bisnis</span>';
+    if (bizMs  && bizMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-violet-950/40 text-violet-300 text-xs font-semibold">Bisnis</span>';
     if (premMs && premMs > now) return '<span class="px-2 py-0.5 rounded-full bg-primary-light text-primary text-xs font-semibold">Premium</span>';
-    if (triMs  && triMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">Trial</span>';
+    if (triMs  && triMs  > now) return '<span class="px-2 py-0.5 rounded-full bg-amber-950/40 text-amber-300 text-xs font-semibold">Trial</span>';
     return '<span class="px-2 py-0.5 rounded-full bg-surface-soft text-muted text-xs font-semibold">Gratis</span>';
   };
 
@@ -5776,7 +5777,7 @@ ${txRows}
         <tbody>
           ${stores.map(s => `
             <tr class="border-b border-hairline-soft hover:bg-surface-soft transition">
-              <td class="py-2 pr-4 font-medium text-ink">${esc(s.name || '-')}</td>
+              <td class="py-2 pr-4 font-medium text-heading">${esc(s.name || '-')}</td>
               <td class="py-2 pr-4 text-muted font-mono text-xs">${esc(s.owner_id || '-')}</td>
               <td class="py-2 pr-4 text-muted">${esc(s.owner_email || '-')}</td>
               <td class="py-2 pr-4">${superAdminFmtDate(s.trial_ends_at)}</td>
@@ -5927,7 +5928,7 @@ ${txRows}
         wrapper.innerHTML = `<p class="text-muted text-sm mb-2">${data.length} entri log terbaru:</p>` +
           data.map(row => `<div class="rounded-lg border border-hairline bg-surface-soft p-3 mb-2 text-xs font-mono overflow-x-auto">
             <span class="text-muted-soft">${esc(row.created_at ? new Date(row.created_at).toLocaleString('id-ID') : '')}</span>
-            <span class="ml-2 text-rose-600 font-semibold">${esc(row.message)}</span>
+            <span class="ml-2 text-rose-400 font-semibold">${esc(row.message)}</span>
             ${row.store_name ? `<span class="ml-2 text-muted">[${esc(row.store_name)}]</span>` : ''}
             ${row.url ? `<span class="ml-2 text-muted-soft">${esc(row.url)}</span>` : ''}
           </div>`).join('');

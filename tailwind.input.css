@@ -4,6 +4,39 @@
 
 @layer base {
   /* Sidebar collapse transition */
+
+  /* Dark theme: let native form UI (scrollbar, date-picker, select popup)
+     render in dark colors instead of forcing a white flash on open. */
+  html {
+    color-scheme: dark;
+  }
+
+  select,
+  input,
+  textarea {
+    background-color: theme('colors.card');
+    color: theme('colors.heading');
+  }
+
+  /* Kill the browser's default blue focus outline everywhere, replace with
+     the orange accent ring only when navigating via keyboard/assistive tech. */
+  select:focus,
+  input:focus,
+  textarea:focus {
+    outline: none;
+  }
+
+  select:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid theme('colors.primary');
+    outline-offset: 1px;
+  }
+
+  option {
+    background-color: theme('colors.card');
+    color: theme('colors.heading');
+  }
 }
 
 @media (min-width: 768px) {
