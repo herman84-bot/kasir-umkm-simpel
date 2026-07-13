@@ -628,7 +628,7 @@ const App = (() => {
     const msg = (err?.message || String(err || '')).toLowerCase();
     if (code === '23505' || msg.includes('duplicate key')) return 'Data sudah ada, tidak bisa duplikat.';
     if (code === '23503' || msg.includes('foreign key')) return 'Data terhubung ke data lain, tidak bisa dihapus dulu.';
-    if (code === '23514' || msg.includes('toko utama tidak bisa dihapus') || msg.includes('toko terakhir')) return err?.message || 'Aksi ini tidak diperbolehkan.';
+    if (msg.includes('toko utama tidak bisa dihapus') || msg.includes('toko terakhir') || msg.includes('status toko utama tidak bisa diubah')) return err?.message || 'Aksi ini tidak diperbolehkan.';
     if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('timeout')) return 'Koneksi bermasalah. Pastikan internet aktif dan coba lagi.';
     return 'Terjadi kesalahan. Coba lagi, atau hubungi tim kami jika masalah berlanjut.';
   };
