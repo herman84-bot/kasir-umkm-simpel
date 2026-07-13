@@ -1007,6 +1007,7 @@ const App = (() => {
     cancelDeleteBranchModal: document.getElementById('cancelDeleteBranchModal'),
     deleteBranchNameTarget: document.getElementById('deleteBranchNameTarget'),
     deleteBranchNameInput: document.getElementById('deleteBranchNameInput'),
+    deleteBranchNameHint: document.getElementById('deleteBranchNameHint'),
     deleteBranchError: document.getElementById('deleteBranchError'),
     deleteBranchConfirmBtn: document.getElementById('deleteBranchConfirmBtn'),
     deleteAccountError: document.getElementById('deleteAccountError')
@@ -1335,6 +1336,7 @@ const App = (() => {
     dom.deleteBranchNameTarget.textContent = '"' + (s.name || '') + '"';
     dom.deleteBranchNameInput.value = '';
     dom.deleteBranchError.classList.add('hidden');
+    if (dom.deleteBranchNameHint) dom.deleteBranchNameHint.textContent = '';
     dom.deleteBranchConfirmBtn.disabled = true;
     dom.deleteBranchConfirmBtn.classList.remove('border', 'border-rose-700', 'hover:bg-rose-950/40', 'text-rose-400', 'cursor-pointer');
     dom.deleteBranchConfirmBtn.classList.add('bg-hairline-soft', 'text-muted-soft', 'cursor-not-allowed');
@@ -1365,7 +1367,7 @@ const App = (() => {
     const s = (state.stores || []).find(x => String(x.id) === String(id));
     if (!s) { closeDeleteBranchModal(); return; }
     const typed = dom.deleteBranchNameInput.value.trim();
-    if (typed !== (s.name || '')) {
+    if (typed.toLowerCase() !== (s.name || '').trim().toLowerCase()) {
       dom.deleteBranchError.textContent = 'Nama cabang tidak cocok. Ketik ulang nama cabang dengan tepat.';
       dom.deleteBranchError.classList.remove('hidden');
       return;
@@ -4825,7 +4827,11 @@ ${txRows}
     dom.cancelDeleteBranchModal?.addEventListener('click', closeDeleteBranchModal);
     dom.deleteBranchNameInput?.addEventListener('input', () => {
       const s = (state.stores || []).find(x => String(x.id) === String(_deleteBranchId));
-      const match = !!s && dom.deleteBranchNameInput.value.trim() === (s.name || '');
+      const typed = dom.deleteBranchNameInput.value.trim();
+      const match = !!s && typed.toLowerCase() === (s.name || '').trim().toLowerCase();
+      if (dom.deleteBranchNameHint) {
+        dom.deleteBranchNameHint.textContent = match ? '' : 'Belum cocok — pastikan huruf besar/kecil dan spasi sama persis';
+      }
       dom.deleteBranchConfirmBtn.disabled = !match;
       if (match) {
         dom.deleteBranchConfirmBtn.classList.remove('bg-hairline-soft', 'text-muted-soft', 'cursor-not-allowed');

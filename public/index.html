@@ -1775,9 +1775,10 @@
         </div>
         <label class="block">
           <span class="text-secondary font-medium text-sm">Ketik ulang nama cabang <span id="deleteBranchNameTarget" class="font-semibold text-heading"></span> untuk konfirmasi</span>
-          <input id="deleteBranchNameInput" type="text" autocomplete="off"
+          <input id="deleteBranchNameInput" type="text" autocomplete="off" autocapitalize="off" autocorrect="off"
             class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-primary focus:border-2 focus:ring-0 focus:outline-none"
             placeholder="Nama cabang" />
+          <p id="deleteBranchNameHint" class="mt-2 text-muted-soft text-sm"></p>
         </label>
         <div id="deleteBranchError" class="hidden rounded-lg bg-rose-950/40 border border-rose-800 px-4 py-3 text-sm text-rose-300"></div>
         <button id="deleteBranchConfirmBtn" disabled
