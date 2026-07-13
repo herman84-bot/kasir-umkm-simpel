@@ -4830,7 +4830,7 @@ ${txRows}
       const typed = dom.deleteBranchNameInput.value.trim();
       const match = !!s && typed.toLowerCase() === (s.name || '').trim().toLowerCase();
       if (dom.deleteBranchNameHint) {
-        dom.deleteBranchNameHint.textContent = match ? '' : 'Belum cocok — pastikan huruf besar/kecil dan spasi sama persis';
+        dom.deleteBranchNameHint.textContent = match ? '' : 'Belum cocok — periksa kembali nama cabang yang Anda ketik';
       }
       dom.deleteBranchConfirmBtn.disabled = !match;
       if (match) {
