@@ -2585,12 +2585,7 @@ const App = (() => {
     dom.screens.forEach(screen => {
       screen.classList.toggle('hidden', screen.id !== screenId);
     });
-    dom.menuButtons.forEach(button => {
-      button.classList.toggle('bg-ink', button.dataset.screen === screenId);
-      button.classList.toggle('text-white', button.dataset.screen === screenId);
-    });
-    // Update bottom nav active state
-
+    // Update sidebar and bottom nav active state
     document.querySelectorAll('.menu-btn, .bottom-nav-btn').forEach(btn => {
       const isActive = btn.dataset.screen === screenId;
       btn.classList.toggle('text-white', isActive);
@@ -3220,26 +3215,26 @@ ${discountHtml}${taxHtml}
     const txRows = filtered.slice(0, 100).map(tx => {
       const time = new Date(tx.date).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
       return `<tr>
-        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${time}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${esc(tx.id)}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${esc(tx.cashier || '-')}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right">${formatCurrency(tx.total)}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${esc(tx.paymentMethod || 'Tunai')}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #E7E2DB">${time}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #E7E2DB">${esc(tx.id)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #E7E2DB">${esc(tx.cashier || '-')}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #E7E2DB;text-align:right">${formatCurrency(tx.total)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #E7E2DB">${esc(tx.paymentMethod || 'Tunai')}</td>
       </tr>`;
     }).join('');
 
     const html = `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Laporan ${esc(store.name)}</title>
 <style>
-  body{font-family:Arial,sans-serif;font-size:12px;color:#1e293b;padding:0;margin:0}
+  body{font-family:'Plus Jakarta Sans',Arial,sans-serif;font-size:12px;color:#44403C;padding:0;margin:0}
   h1{margin:0 0 4px;font-size:20px}
-  .header{background:#0f172a;color:#fff;padding:20px 24px}
+  .header{background:#CC6B49;color:#fff;padding:20px 24px}
   .content{padding:20px 24px}
   .stats{display:flex;gap:16px;margin:16px 0;flex-wrap:wrap}
-  .stat{flex:1;min-width:120px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;text-align:center}
-  .stat-val{font-size:18px;font-weight:bold;color:#0f172a}
-  .stat-lbl{font-size:10px;color:#64748b;text-transform:uppercase;margin-top:4px}
+  .stat{flex:1;min-width:120px;background:#F5F2EB;border:1px solid #E7E2DB;border-radius:8px;padding:12px;text-align:center}
+  .stat-val{font-size:18px;font-weight:bold;color:#26231F}
+  .stat-lbl{font-size:10px;color:#78716C;text-transform:uppercase;margin-top:4px}
   table{width:100%;border-collapse:collapse;margin-top:12px}
-  th{background:#f1f5f9;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#475569}
+  th{background:#EDE7DB;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#44403C}
   @media print{@page{size:A4;margin:15mm}}
 </style></head><body>
 <div class="header">
@@ -4350,11 +4345,11 @@ ${txRows}
       loginForm2.classList.toggle('hidden', !onLogin);
       registerForm.classList.toggle('hidden', onLogin);
       tabLogin.className = onLogin
-        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition'
-        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-body transition';
+        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition min-h-[44px]'
+        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-body transition min-h-[44px]';
       tabRegister.className = !onLogin
-        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition'
-        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-body transition';
+        ? 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition min-h-[44px]'
+        : 'flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-body transition min-h-[44px]';
     };
     tabLogin?.addEventListener('click', () => activateTab('login'));
     tabRegister?.addEventListener('click', () => activateTab('register'));

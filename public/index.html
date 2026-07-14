@@ -7,7 +7,7 @@
   <meta name="description" content="Aplikasi kasir gratis untuk warung dan toko UMKM Indonesia. Solusi POS mudah dan kasir online gratis: kelola penjualan, stok, dan laporan dengan cepat." />
   <meta name="keywords" content="aplikasi kasir gratis, kasir UMKM, aplikasi POS mudah, kasir online gratis, aplikasi kasir untuk warung, kasir toko UMKM, point of sale, stok, inventory, umkm" />
   <meta name="robots" content="index, follow" />
-  <meta name="theme-color" content="#ff385c" />
+  <meta name="theme-color" content="#CC6B49" />
   <link rel="canonical" href="https://www.simpelkasir.my.id/" />
   <meta property="og:title" content="Kasir UMKM Simpel — Aplikasi Kasir Gratis untuk Warung &amp; Toko" />
   <meta property="og:description" content="Aplikasi kasir gratis dan kasir online gratis untuk UMKM. Solusi aplikasi POS mudah untuk mengelola penjualan, stok, dan laporan toko Anda." />
@@ -23,7 +23,10 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="tailwind.css?v=4" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" />
+  <link rel="stylesheet" href="tailwind.css?v=5" />
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -33,7 +36,7 @@
       max-width: 100%;
     }
     body {
-      font-family: 'Airbnb Cereal VF', Circular, -apple-system, system-ui, Roboto, 'Helvetica Neue', sans-serif;
+      font-family: 'Plus Jakarta Sans', ui-sans-serif, -apple-system, system-ui, Roboto, 'Segoe UI', sans-serif;
     }
     .print-hidden {
       display: none;
@@ -105,7 +108,7 @@
   </div>
 
   <!-- Login / Register Page -->
-  <div id="loginPage" class="fixed inset-0 z-[99] hidden items-center justify-center bg-gradient-to-br from-pink-500 via-rose-500 to-orange-400 overflow-y-auto py-8">
+  <div id="loginPage" class="fixed inset-0 z-[99] hidden items-center justify-center bg-gradient-to-br from-accent-gold via-primary to-primary-active overflow-y-auto py-8">
     <div class="w-full max-w-md px-6">
       <div class="text-center mb-6">
         <div class="text-6xl mb-3 drop-shadow-md">🛒</div>
@@ -209,6 +212,8 @@
           <label class="block">
             <span class="text-body text-sm font-medium">Email</span>
             <input id="regEmail" type="email" required autocomplete="email"
+              class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+              placeholder="email@toko.com" />
           </label>
           <label class="block">
             <span class="text-body text-sm font-medium">Password (min. 6 karakter)</span>
@@ -238,7 +243,7 @@
           <p class="text-xs text-center font-semibold text-primary">✨ Gratis selamanya untuk fitur dasar + bonus Premium 30 hari pertama.</p>
         </form>
       </div>
-      <p class="text-center text-xs text-muted mt-5">Data toko Anda terisolasi & aman.</p>
+      <p class="text-center text-xs text-white/80 mt-5 drop-shadow-sm">Data toko Anda terisolasi &amp; aman.</p>
     </div>
   </div>
 
@@ -250,7 +255,7 @@
         <p class="text-muted-soft text-sm mt-1">Point of Sale & Inventory</p>
       </div>
       <nav class="space-y-2 flex-1">
-        <button data-screen="dashboard" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg bg-ink hover:bg-muted transition">📊 Dashboard</button>
+        <button data-screen="dashboard" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition">📊 Dashboard</button>
         <button data-screen="kasir" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition">🧾 Kasir</button>
         <button data-screen="inventory" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition">📦 Inventory</button>
         <button data-screen="opname" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition">📋 Stok Opname</button>
@@ -1754,7 +1759,7 @@
   </div>
 
   <!-- Chat Bantuan -->
-  <button id="helpChatFab" class="hidden fixed bottom-20 md:bottom-6 right-4 z-[90] h-14 w-14 rounded-full bg-gradient-to-br from-[#e00b41] to-[#ff385c] text-3xl shadow-sm hover:scale-110 transition-transform flex items-center justify-center no-print" title="Tanya Aisyah">🧕</button>
+  <button id="helpChatFab" class="hidden fixed bottom-20 md:bottom-6 right-4 z-[90] h-14 w-14 rounded-full bg-gradient-to-br from-primary-active to-primary text-3xl shadow-sm hover:scale-110 transition-transform flex items-center justify-center no-print" title="Tanya Aisyah">🧕</button>
   <div id="helpChatPanel" class="hidden fixed bottom-36 md:bottom-24 right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm h-[28rem] max-h-[calc(100vh-10rem)] rounded-xl bg-white border border-hairline shadow-sm flex flex-col overflow-hidden no-print">
     <div class="bg-gradient-to-r from-ink to-ink text-white px-5 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
