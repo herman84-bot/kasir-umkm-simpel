@@ -1066,12 +1066,6 @@ const App = (() => {
     const { data, error } = await db.from('stores').select('*').order('created_at', { ascending: true });
     if (error) { console.warn('loadStore error:', error); return null; }
     state.stores = data || [];
-    
-    document.getElementById('closeAdjustmentModal')?.addEventListener('click', closeAdjustmentModal);
-    document.getElementById('adjustmentForm')?.addEventListener('submit', saveAdjustment);
-    document.getElementById('closeLedgerModal')?.addEventListener('click', closeLedgerModal);
-    document.getElementById('startOpnameButton')?.addEventListener('click', startOpname);
-    document.getElementById('applyOpnameButton')?.addEventListener('click', applyOpname);
 
     // Force service worker update for new deployments
     if ('serviceWorker' in navigator) {
@@ -4013,7 +4007,7 @@ ${txRows}
           qtyAdjusted: adjustedQty,
           reason,
           note,
-          cashier: activeCashierName(),
+          cashier: getSelectedCashier()?.name || 'Admin',
           refType: 'adjustment',
           adminPin: pin
         });
@@ -4125,19 +4119,30 @@ ${txRows}
     });
   };
 
+  let applyOpnameBusy = false;
   const applyOpname = async () => {
+    if (applyOpnameBusy) return;
     const changes = opnameData.filter(p => p.physical !== '' && parseInt(p.physical, 10) !== p.stock);
     if (changes.length === 0) { alert('Tidak ada selisih stok untuk diterapkan.'); return; }
-    
+
     const pin = prompt('Masukkan PIN/Password Admin untuk konfirmasi opname:');
     if (!pin) return;
-    
-    if (db) {
-      const user = state.cashiers.find(c => c.id === state.selectedCashierId);
-      if (user && user.role !== 'admin') {
-         alert('Hanya admin yang bisa konfirmasi stok opname!'); return;
-      }
-      
+
+    if (!db) {
+      alert('Tidak bisa stok opname dalam mode offline.');
+      return;
+    }
+
+    const user = state.cashiers.find(c => c.id === state.selectedCashierId);
+    if (user && user.role !== 'admin') {
+      alert('Hanya admin yang bisa konfirmasi stok opname!');
+      return;
+    }
+
+    applyOpnameBusy = true;
+    const applyBtn = document.getElementById('applyOpnameButton');
+    if (applyBtn) applyBtn.disabled = true;
+    try {
       for (const p of changes) {
         const diff = parseInt(p.physical, 10) - p.stock;
         try {
@@ -4146,33 +4151,52 @@ ${txRows}
             qtyAdjusted: diff,
             reason: 'Koreksi Administratif',
             note: 'Hasil Stok Opname',
-            cashier: activeCashierName(),
+            cashier: getSelectedCashier()?.name || 'Admin',
             refType: 'opname',
             adminPin: pin
           });
         } catch (error) {
           logError('applyOpname: secure_adjust_stock gagal', { productId: p.id, refType: 'opname' }, error);
-          alert('Stok opname belum tersimpan. Periksa PIN admin dan koneksi internet, lalu coba lagi.');
+          syncStorage();
+          renderInventory();
+          renderProducts();
+          renderOpnameTable();
+          alert('Sebagian stok opname sudah tersimpan. Item yang gagal masih terlihat di tabel, silakan coba lagi.');
           return;
         }
+        const appliedStock = parseInt(p.physical, 10);
         const realP = state.products.find(rp => rp.id === p.id);
-        if (realP) realP.stock = parseInt(p.physical, 10);
+        if (realP) realP.stock = appliedStock;
+        // Tandai item ini selesai agar retry setelah gagal di item berikutnya
+        // tidak mengirim ulang koreksi yang sudah sukses di server.
+        p.stock = appliedStock;
+        p.physical = String(appliedStock);
       }
       syncStorage();
       renderInventory();
       renderProducts();
       alert('Hasil stok opname berhasil diterapkan!');
-      
-      document.getElementById('applyOpnameButton').classList.add('hidden');
-      document.getElementById('opnameSummary').classList.add('hidden');
-      document.getElementById('opnameTable').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-muted">Stok opname selesai.</td></tr>';
+
+      if (applyBtn) applyBtn.classList.add('hidden');
+      document.getElementById('opnameSummary')?.classList.add('hidden');
+      const tbody = document.getElementById('opnameTable');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-muted">Stok opname selesai.</td></tr>';
       opnameData = [];
-    } else {
-        alert('Tidak bisa stok opname dalam mode offline.');
+    } finally {
+      applyOpnameBusy = false;
+      if (applyBtn) applyBtn.disabled = false;
     }
   };
 
   const bindEvents = () => {
+    // Inventory adjustment / ledger / opname — bind sekali di sini (bukan di loadStore).
+    // loadStore bisa dipanggil ulang saat ganti cabang → listener dobel → RPC terpanggil berkali-kali.
+    document.getElementById('closeAdjustmentModal')?.addEventListener('click', closeAdjustmentModal);
+    document.getElementById('adjustmentForm')?.addEventListener('submit', saveAdjustment);
+    document.getElementById('closeLedgerModal')?.addEventListener('click', closeLedgerModal);
+    document.getElementById('startOpnameButton')?.addEventListener('click', startOpname);
+    document.getElementById('applyOpnameButton')?.addEventListener('click', applyOpname);
+
     const toggleBtn = document.getElementById('sidebarToggleBtn');
     const sidebar = document.getElementById('mainSidebar');
     if (toggleBtn && sidebar) {
