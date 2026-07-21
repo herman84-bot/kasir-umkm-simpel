@@ -3968,6 +3968,19 @@ ${txRows}
     document.getElementById('adjustmentModal').classList.add('hidden');
   };
 
+  const secureAdjustStock = async ({ productId, qtyAdjusted, reason, note, cashier, refType, adminPin }) => {
+    const { error } = await db.rpc('secure_adjust_stock', {
+      p_product_id: parseInt(productId, 10),
+      p_qty_adjusted: qtyAdjusted,
+      p_reason: reason,
+      p_note: note,
+      p_cashier: cashier,
+      p_ref_type: refType,
+      p_admin_pin: adminPin
+    });
+    if (error) throw error;
+  };
+
   const saveAdjustment = async (e) => {
     e.preventDefault();
     const pid = document.getElementById('adjProductId').value;
@@ -3984,18 +3997,33 @@ ${txRows}
       return;
     }
 
-    if (db) {
-      const { error } = await db.rpc('adjust_stock', {
-        p_product_id: parseInt(pid, 10),
-        p_qty_adjusted: adjustedQty,
-        p_reason: reason,
-        p_note: note,
-        p_cashier: activeCashierName(),
-        p_ref_type: 'adjustment'
-      });
-      if (error) { alert('Gagal sesuaikan stok: ' + friendlyError(error)); return; }
+    const user = state.cashiers.find(c => c.id === state.selectedCashierId);
+    if (user && user.role !== 'admin') {
+      alert('Hanya admin yang bisa menyesuaikan stok.');
+      return;
     }
-    
+
+    const pin = prompt('Masukkan PIN/Password Admin untuk konfirmasi penyesuaian stok:');
+    if (!pin) return;
+
+    if (db) {
+      try {
+        await secureAdjustStock({
+          productId: pid,
+          qtyAdjusted: adjustedQty,
+          reason,
+          note,
+          cashier: activeCashierName(),
+          refType: 'adjustment',
+          adminPin: pin
+        });
+      } catch (error) {
+        logError('saveAdjustment: secure_adjust_stock gagal', { productId: pid, refType: 'adjustment' }, error);
+        alert('Gagal sesuaikan stok: ' + friendlyError(error));
+        return;
+      }
+    }
+
     product.stock += adjustedQty;
     syncStorage();
     renderInventory();
@@ -4112,14 +4140,21 @@ ${txRows}
       
       for (const p of changes) {
         const diff = parseInt(p.physical, 10) - p.stock;
-        await db.rpc('adjust_stock', {
-            p_product_id: parseInt(p.id, 10),
-            p_qty_adjusted: diff,
-            p_reason: 'Koreksi Administratif',
-            p_note: 'Hasil Stok Opname',
-            p_cashier: activeCashierName(),
-            p_ref_type: 'opname'
-        });
+        try {
+          await secureAdjustStock({
+            productId: p.id,
+            qtyAdjusted: diff,
+            reason: 'Koreksi Administratif',
+            note: 'Hasil Stok Opname',
+            cashier: activeCashierName(),
+            refType: 'opname',
+            adminPin: pin
+          });
+        } catch (error) {
+          logError('applyOpname: secure_adjust_stock gagal', { productId: p.id, refType: 'opname' }, error);
+          alert('Stok opname belum tersimpan. Periksa PIN admin dan koneksi internet, lalu coba lagi.');
+          return;
+        }
         const realP = state.products.find(rp => rp.id === p.id);
         if (realP) realP.stock = parseInt(p.physical, 10);
       }
