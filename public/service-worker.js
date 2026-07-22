@@ -8,7 +8,7 @@ const CACHE_NAME = 'kasir-umkm-cache-v32';
 // app.js?v=N harus cocok dengan <script src> di index agar precache = runtime URL.
 const ASSETS = [
   './',
-  'app.js?v=9',
+  'app.js?v=16',
   'manifest.json',
   'icons/icon-192.png',
   'icons/icon-512.png',

@@ -42,6 +42,13 @@
       display: none;
     }
     /* Line icons — monochrome stroke, Claude/Lucide feel */
+    .icon-sprite {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
     .icon {
       width: 1.15rem;
       height: 1.15rem;
@@ -53,6 +60,7 @@
       stroke-linecap: round;
       stroke-linejoin: round;
       vertical-align: -0.15em;
+      pointer-events: none;
     }
     .icon-sm { width: 1rem; height: 1rem; }
     .icon-lg { width: 1.35rem; height: 1.35rem; }
@@ -60,6 +68,8 @@
       display: flex;
       align-items: center;
       gap: 0.7rem;
+      position: relative;
+      z-index: 1;
     }
     .menu-btn .icon {
       opacity: 0.85;
@@ -96,6 +106,11 @@
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    /* Opacity-only: jangan pakai transform di .screen — merusak position:fixed di dalam section (bar bayar mobile) */
+    @keyframes screen-enter-fade {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
     @keyframes paper-fade {
       from { opacity: 0; }
       to { opacity: 1; }
@@ -105,7 +120,7 @@
       to { opacity: 1; transform: translate(-50%, 0); }
     }
     .screen-enter {
-      animation: paper-enter var(--motion-slow) var(--ease-paper) both;
+      animation: screen-enter-fade var(--motion-slow) var(--ease-paper) both;
     }
     .cart-item-enter {
       animation: paper-enter var(--motion-base) var(--ease-paper) both;
@@ -156,11 +171,135 @@
       }
     }
 
+    /* Layout: full-width main + keranjang padat; mobile: bar bayar fixed di atas bottom nav */
+    .content-shell {
+      width: 100%;
+      max-width: none;
+      margin-left: 0;
+      margin-right: 0;
+    }
+    .kasir-layout {
+      display: grid;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+      width: 100%;
+    }
+    .kasir-cart-panel {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    /* Mobile: aksi bayar fixed — selalu terlihat di atas bottom nav */
+    .kasir-pay-actions {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+      z-index: 35;
+      margin: 0;
+      padding: 0.5rem 0.75rem;
+      background: #ffffff;
+      border-top: 1px solid #E7E2DB;
+      box-shadow: 0 -8px 24px rgba(38, 35, 31, 0.1);
+    }
+    /* ruang agar konten tidak ketutup bar bayar + bottom nav (mobile) */
+    #kasir.screen {
+      padding-bottom: calc(165px + 56px + env(safe-area-inset-bottom, 0px));
+    }
+    @media (min-width: 1024px) {
+      .kasir-layout {
+        grid-template-columns: minmax(0, 1.4fr) minmax(340px, 0.9fr);
+        align-items: start;
+        gap: 1rem;
+      }
+      .kasir-cart-panel {
+        position: sticky;
+        top: 0.75rem;
+        max-height: calc(100dvh - 5.5rem);
+        overflow-y: auto;
+      }
+      .kasir-pay-actions {
+        position: static;
+        left: auto;
+        right: auto;
+        bottom: auto;
+        z-index: auto;
+        box-shadow: none;
+        border-top: none;
+        padding: 0;
+        margin-top: 0.75rem;
+        background: transparent;
+      }
+      #kasir.screen {
+        padding-bottom: 0;
+      }
+    }
+    .kasir-product-grid {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-height: min(38vh, 320px);
+      overflow-y: auto;
+      padding-right: 0.25rem;
+      -webkit-overflow-scrolling: touch;
+    }
+    @media (min-width: 1024px) {
+      .kasir-product-grid {
+        max-height: min(58vh, 560px);
+      }
+    }
+    @media (min-width: 1280px) {
+      .kasir-product-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+    #cartList {
+      max-height: min(18vh, 150px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    @media (min-width: 1024px) {
+      #cartList {
+        max-height: min(28vh, 240px);
+      }
+    }
+    .pay-methods {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5rem;
+    }
+    @media (min-width: 640px) {
+      .pay-methods {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+    /* Bar mobile lebih pendek: cetak struk di desktop saja */
+    @media (max-width: 1023px) {
+      .kasir-pay-actions #printButton {
+        display: none;
+      }
+    }
+    /* Modal: di mobile dari bawah, di tablet+ center */
+    .motion-overlay {
+      align-items: flex-end;
+    }
+    @media (min-width: 640px) {
+      .motion-overlay {
+        align-items: center;
+      }
+    }
+    .motion-overlay > * {
+      max-height: min(92dvh, 100%);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
     @media print {
       body * { visibility: hidden; }
       #receiptContent, #receiptContent * { visibility: visible; }
       #receiptContent { position: absolute; left: 0; top: 0; width: 100%; }
       .no-print { display: none !important; }
+      .kasir-pay-actions { position: static !important; box-shadow: none !important; border: none !important; }
     }
 
   </style>
@@ -212,7 +351,7 @@
 </head>
 <body class="bg-surface-soft text-ink">
   <!-- Premium line-icon sprite (Lucide/Claude-style, monochrome stroke) -->
-  <svg xmlns="http://www.w3.org/2000/svg" class="absolute w-0 h-0 overflow-hidden" aria-hidden="true" focusable="false">
+  <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none">
     <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
     <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1.5L8 22l2-1.5L12 22l2-1.5L16 22l2-1.5L20 22V2l-2 1.5L16 2l-2 1.5L12 2 10 3.5 8 2 6 3.5 4 2z"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
     <symbol id="i-package" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3.3 7.5L12 12l8.7-4.5M12 22V12"/></symbol>
@@ -477,8 +616,9 @@
       </button>
     </nav>
 
-    <main class="flex-1 min-w-0 max-w-full relative overflow-visible p-3 md:p-6 pb-20 md:pb-6">
-      <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <main class="flex-1 min-w-0 relative overflow-x-hidden p-3 md:p-5 pb-24 md:pb-5">
+      <div class="content-shell">
+      <header class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-3">
           <button id="sidebarToggleBtn" class="hidden md:flex items-center gap-2 text-body bg-surface-soft hover:bg-hairline-soft px-4 py-2.5 rounded-xl font-medium transition shadow-sm border border-hairline" title="Toggle Sidebar">
             <svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg>
@@ -603,18 +743,18 @@
           <div></div>
           <button id="tutupKasirBtn" class="btn-icon rounded-lg bg-amber-600 px-4 py-2.5 text-white text-sm font-semibold hover:bg-amber-700 transition"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>Tutup Kasir</button>
         </div>
-        <div class="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1fr_1fr] 2xl:grid-cols-[1.2fr_0.8fr] mb-6">
-          <div class="rounded-xl bg-white p-6 shadow-sm border border-hairline">
-            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-5">
+        <div class="kasir-layout">
+          <div class="kasir-products-panel rounded-xl bg-white p-4 md:p-5 shadow-sm border border-hairline min-w-0">
+            <div class="flex flex-col gap-3 mb-4">
               <div>
                 <h3 class="text-xl font-semibold">Cari Produk</h3>
-                <p class="text-body">Klik produk untuk menambah ke keranjang.</p>
+                <p class="text-body text-sm">Klik produk untuk menambah ke keranjang.</p>
               </div>
-              <div class="flex flex-wrap gap-3">
-                <input id="searchInput" type="search" placeholder="Cari nama atau kode..." class="flex-1 min-w-[200px] rounded-full border border-hairline px-6 py-3 focus:border-ink focus:border-2 focus:ring-0" />
-                <input id="barcodeInput" type="text" placeholder="Masukkan / scan kode" class="flex-1 min-w-[200px] rounded-full border border-hairline px-6 py-3 focus:border-ink focus:border-2 focus:ring-0" />
-                <button id="scanButton" type="button" class="btn-icon rounded-full bg-ink px-6 py-3 text-white hover:bg-primary-active transition"><svg class="icon" aria-hidden="true"><use href="#i-scan"/></svg>Scan Barcode</button>
-                <select id="categoryFilter" class="rounded-full border border-hairline px-6 py-3 bg-white">
+              <div class="flex flex-wrap gap-2">
+                <input id="searchInput" type="search" placeholder="Cari nama atau kode..." class="flex-1 min-w-[140px] rounded-full border border-hairline px-4 py-2.5 text-sm focus:border-ink focus:border-2 focus:ring-0" />
+                <input id="barcodeInput" type="text" placeholder="Scan kode" class="flex-1 min-w-[120px] rounded-full border border-hairline px-4 py-2.5 text-sm focus:border-ink focus:border-2 focus:ring-0" />
+                <button id="scanButton" type="button" class="btn-icon rounded-full bg-ink px-4 py-2.5 text-white text-sm hover:bg-primary-active transition"><svg class="icon" aria-hidden="true"><use href="#i-scan"/></svg>Scan</button>
+                <select id="categoryFilter" class="rounded-full border border-hairline px-4 py-2.5 bg-white text-sm">
                   <option value="All">Semua Kategori</option>
                   <option value="Makanan">Makanan</option>
                   <option value="Minuman">Minuman</option>
@@ -623,72 +763,72 @@
                 </select>
               </div>
             </div>
-            <div id="productGrid" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"></div>
+            <div id="productGrid" class="kasir-product-grid"></div>
           </div>
-          <div class="rounded-xl bg-white p-6 shadow-sm border border-hairline flex flex-col">
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="text-xl font-semibold">Keranjang Belanja</h3>
-              <span id="cartCount" class="rounded-full bg-surface-soft px-3 py-1 text-body">0 item</span>
+          <div class="kasir-cart-panel rounded-xl bg-white p-4 md:p-5 shadow-sm border border-hairline flex flex-col min-w-0">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-lg font-semibold">Keranjang</h3>
+              <span id="cartCount" class="rounded-full bg-surface-soft px-3 py-1 text-body text-sm">0 item</span>
             </div>
-            <div class="space-y-3 mb-5 overflow-y-auto max-h-[40vh] lg:max-h-[50vh]" id="cartList"></div>
-            <div class="rounded-xl bg-surface-soft p-4 space-y-4 mt-auto">
+            <div class="space-y-2 mb-3" id="cartList"></div>
+            <div class="rounded-xl bg-surface-soft p-3 space-y-3 mt-auto">
               <div class="flex items-center justify-between text-sm text-body">
                 <span>Subtotal</span><span id="cartSubtotal">Rp0</span>
               </div>
-              <div class="grid gap-3 sm:grid-cols-2">
+              <div class="grid gap-2 grid-cols-2">
                 <label class="block">
-                  <span class="text-body text-sm">Diskon (%)</span>
-                  <input id="discountPercent" type="number" min="0" max="100" value="0" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3" />
+                  <span class="text-body text-xs">Diskon (%)</span>
+                  <input id="discountPercent" type="number" min="0" max="100" value="0" class="mt-1 w-full rounded-lg border border-hairline px-3 py-2 text-sm" />
                 </label>
                 <label class="block">
-                  <span class="text-body text-sm">Diskon (Rp)</span>
-                  <input id="discountNominal" type="number" min="0" value="0" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3" />
+                  <span class="text-body text-xs">Diskon (Rp)</span>
+                  <input id="discountNominal" type="number" min="0" value="0" class="mt-1 w-full rounded-lg border border-hairline px-3 py-2 text-sm" />
                 </label>
               </div>
               <div class="hidden items-center justify-between text-sm text-body">
                 <span>Pajak</span><span id="cartTax">Rp0</span>
               </div>
-              <div class="flex items-center justify-between text-lg font-semibold">
+              <div class="flex items-center justify-between text-base font-semibold">
                 <span>Total Akhir</span><span id="cartTotal">Rp0</span>
               </div>
             </div>
-            <div class="mt-5 space-y-4">
+            <div class="kasir-pay-actions space-y-2">
               <div>
-                <span class="text-body text-sm font-medium block mb-2">Metode Pembayaran</span>
-                <div class="flex gap-2">
-                  <button type="button" data-paymethod="Tunai" class="paymethod-btn btn-icon flex-1 rounded-lg border-2 border-primary bg-primary-light px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-primary transition"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-banknote"/></svg>Tunai</button>
-                  <button type="button" data-paymethod="QRIS" class="paymethod-btn btn-icon flex-1 rounded-lg border-2 border-hairline bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-body transition hover:border-hairline"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-smartphone"/></svg>QRIS</button>
-                  <button type="button" data-paymethod="Transfer" class="paymethod-btn flex-1 rounded-lg border-2 border-hairline bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-body transition hover:border-hairline">🏦 Transfer</button>
-                  <button type="button" data-paymethod="Split" class="paymethod-btn flex-1 rounded-lg border-2 border-hairline bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-body transition hover:border-hairline">⚖️ Split</button>
+                <span class="text-body text-xs font-medium block mb-2">Metode Pembayaran</span>
+                <div class="pay-methods">
+                  <button type="button" data-paymethod="Tunai" class="paymethod-btn btn-icon rounded-lg border-2 border-primary bg-primary-light px-2 py-2 text-xs font-semibold text-primary transition min-h-[44px]"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-banknote"/></svg>Tunai</button>
+                  <button type="button" data-paymethod="QRIS" class="paymethod-btn btn-icon rounded-lg border-2 border-hairline bg-white px-2 py-2 text-xs font-semibold text-body transition hover:border-hairline min-h-[44px]"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-smartphone"/></svg>QRIS</button>
+                  <button type="button" data-paymethod="Transfer" class="paymethod-btn rounded-lg border-2 border-hairline bg-white px-2 py-2 text-xs font-semibold text-body transition hover:border-hairline min-h-[44px]">Transfer</button>
+                  <button type="button" data-paymethod="Split" class="paymethod-btn rounded-lg border-2 border-hairline bg-white px-2 py-2 text-xs font-semibold text-body transition hover:border-hairline min-h-[44px]">Split</button>
                 </div>
               </div>
               <div id="cashInputWrapper">
                 <label class="block">
-                  <span class="text-body text-sm">Tunai Dibayarkan</span>
-                  <input id="cashInput" type="number" min="0" value="0" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3" />
+                  <span class="text-body text-xs">Tunai Dibayarkan</span>
+                  <input id="cashInput" type="number" min="0" value="0" inputmode="numeric" class="mt-1 w-full rounded-lg border border-hairline px-3 py-2.5 text-sm min-h-[44px]" />
                 </label>
-                <div class="flex items-center justify-between text-body mt-2">
+                <div class="flex items-center justify-between text-body text-sm mt-2">
                   <span>Kembalian</span><span id="cashChange">Rp0</span>
                 </div>
               </div>
-              <div id="splitInputWrapper" class="hidden space-y-3">
-                <div class="grid gap-3 sm:grid-cols-2">
+              <div id="splitInputWrapper" class="hidden space-y-2">
+                <div class="grid gap-2 grid-cols-2">
                   <label class="block">
-                    <span class="text-body text-sm">Porsi Tunai (Cash)</span>
-                    <input id="splitCashInput" type="number" min="0" value="0" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3" />
+                    <span class="text-body text-xs">Porsi Tunai</span>
+                    <input id="splitCashInput" type="number" min="0" value="0" inputmode="numeric" class="mt-1 w-full rounded-lg border border-hairline px-3 py-2.5 text-sm min-h-[44px]" />
                   </label>
                   <label class="block">
-                    <span class="text-body text-sm">Porsi Non-Tunai</span>
-                    <input id="splitNonCashInput" type="number" min="0" value="0" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3" />
+                    <span class="text-body text-xs">Porsi Non-Tunai</span>
+                    <input id="splitNonCashInput" type="number" min="0" value="0" inputmode="numeric" class="mt-1 w-full rounded-lg border border-hairline px-3 py-2.5 text-sm min-h-[44px]" />
                   </label>
                 </div>
-                <div class="flex items-center justify-between text-sm text-body mt-2">
+                <div class="flex items-center justify-between text-xs text-body">
                   <span>Sisa Belum Dialokasikan</span>
                   <span id="splitRemaining" class="font-semibold text-ink">Rp0</span>
                 </div>
               </div>
-              <button id="payButton" class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition">Bayar & Simpan Transaksi</button>
-              <button id="printButton" class="w-full rounded-lg border border-hairline bg-white px-5 py-3 text-body font-semibold hover:bg-surface-soft transition">Cetak Struk</button>
+              <button id="payButton" class="w-full rounded-lg bg-primary px-4 py-3 text-white font-semibold hover:bg-primary-active transition min-h-[48px]">Bayar & Simpan Transaksi</button>
+              <button id="printButton" class="w-full rounded-lg border border-hairline bg-white px-4 py-2.5 text-body font-semibold hover:bg-surface-soft transition min-h-[44px]">Cetak Struk</button>
             </div>
           </div>
         </div>
@@ -1111,6 +1251,7 @@
           </div>
         </div>
       </section>
+      </div>
     </main>
   </div>
 
@@ -1930,6 +2071,6 @@
   </div>
 
 
-  <script src="app.js?v=9" defer></script>
+  <script src="app.js?v=16" defer></script>
 </body>
 </html>
