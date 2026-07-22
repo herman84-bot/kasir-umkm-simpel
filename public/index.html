@@ -41,6 +41,121 @@
     .print-hidden {
       display: none;
     }
+    /* Line icons — monochrome stroke, Claude/Lucide feel */
+    .icon {
+      width: 1.15rem;
+      height: 1.15rem;
+      display: inline-block;
+      flex-shrink: 0;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      vertical-align: -0.15em;
+    }
+    .icon-sm { width: 1rem; height: 1rem; }
+    .icon-lg { width: 1.35rem; height: 1.35rem; }
+    .menu-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+    .menu-btn .icon {
+      opacity: 0.85;
+    }
+    .menu-btn:hover .icon,
+    .menu-btn.active .icon {
+      opacity: 1;
+    }
+    .bottom-nav-btn .icon {
+      width: 1.25rem;
+      height: 1.25rem;
+      opacity: 0.9;
+    }
+    .bottom-nav-btn:hover .icon,
+    .bottom-nav-btn.active .icon {
+      opacity: 1;
+    }
+    .btn-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+
+    /* Soft Paper Motion — tenang & mewah (CSS-first) */
+    :root {
+      --motion-fast: 140ms;
+      --motion-base: 220ms;
+      --motion-slow: 320ms;
+      --ease-paper: cubic-bezier(0.22, 1, 0.36, 1);
+      --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+    }
+    @keyframes paper-enter {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes paper-fade {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes toast-enter {
+      from { opacity: 0; transform: translate(-50%, 10px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+    .screen-enter {
+      animation: paper-enter var(--motion-slow) var(--ease-paper) both;
+    }
+    .cart-item-enter {
+      animation: paper-enter var(--motion-base) var(--ease-paper) both;
+    }
+    .menu-btn,
+    .bottom-nav-btn {
+      transition:
+        background-color var(--motion-base) var(--ease-paper),
+        color var(--motion-base) var(--ease-paper),
+        opacity var(--motion-base) var(--ease-paper),
+        transform var(--motion-fast) var(--ease-paper);
+    }
+    .menu-btn:active,
+    .bottom-nav-btn:active {
+      transform: scale(0.98);
+    }
+    .menu-btn .icon,
+    .bottom-nav-btn .icon {
+      transition: opacity var(--motion-base) var(--ease-paper);
+    }
+    /* Overlay/modal: fade scrim + soft rise panel */
+    .motion-overlay:not(.hidden) {
+      animation: paper-fade var(--motion-base) var(--ease-paper) both;
+    }
+    .motion-overlay:not(.hidden) > * {
+      animation: paper-enter var(--motion-slow) var(--ease-paper) both;
+    }
+    #appGlobalToast.toast-enter {
+      animation: toast-enter var(--motion-base) var(--ease-paper) both;
+    }
+    #appGlobalToast.toast-exit {
+      opacity: 0 !important;
+      transform: translate(-50%, 6px);
+      transition:
+        opacity var(--motion-base) var(--ease-exit),
+        transform var(--motion-base) var(--ease-exit);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      .menu-btn:active,
+      .bottom-nav-btn:active {
+        transform: none;
+      }
+    }
+
     @media print {
       body * { visibility: hidden; }
       #receiptContent, #receiptContent * { visibility: visible; }
@@ -96,6 +211,41 @@
   </style>
 </head>
 <body class="bg-surface-soft text-ink">
+  <!-- Premium line-icon sprite (Lucide/Claude-style, monochrome stroke) -->
+  <svg xmlns="http://www.w3.org/2000/svg" class="absolute w-0 h-0 overflow-hidden" aria-hidden="true" focusable="false">
+    <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1.5L8 22l2-1.5L12 22l2-1.5L16 22l2-1.5L20 22V2l-2 1.5L16 2l-2 1.5L12 2 10 3.5 8 2 6 3.5 4 2z"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+    <symbol id="i-package" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3.3 7.5L12 12l8.7-4.5M12 22V12"/></symbol>
+    <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><path d="M9 12h6M9 16h4"/></symbol>
+    <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2.5 3h2l2.2 11.2a2 2 0 002 1.6H18a2 2 0 001.95-1.55L21 7H6.2"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></symbol>
+    <symbol id="i-store" viewBox="0 0 24 24"><path d="M3 9l1-5h16l1 5"/><path d="M3 9v11a1 1 0 001 1h16a1 1 0 001-1V9"/><path d="M9 21V12h6v9"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></symbol>
+    <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/><path d="M7 12h10"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/></symbol>
+    <symbol id="i-crown" viewBox="0 0 24 24"><path d="M2 18h20l-2-10-5 4-3-7-3 7-5-4-2 10z"/><path d="M4 18h16v2H4z"/></symbol>
+    <symbol id="i-banknote" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></symbol>
+    <symbol id="i-smartphone" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></symbol>
+    <symbol id="i-credit" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-building" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6M9 10h.01M15 10h.01M9 14h.01M15 14h.01"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></symbol>
+  </svg>
 
   <!-- Loading Overlay -->
   <div id="loadingOverlay" class="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-ink text-white transition-opacity duration-300">
@@ -255,16 +405,16 @@
         <p class="text-muted-soft text-sm mt-1">Point of Sale & Inventory</p>
       </div>
       <nav class="space-y-2 flex-1">
-        <button data-screen="dashboard" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition">📊 Dashboard</button>
-        <button data-screen="kasir" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition">🧾 Kasir</button>
-        <button data-screen="inventory" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition">📦 Inventory</button>
-        <button data-screen="opname" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition">📋 Stok Opname</button>
-        <button data-screen="pembelian" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition">🛍 Pembelian</button>
-        <button data-screen="riwayat" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition">📋 Riwayat</button>
-        <button data-screen="kasbon" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition">📒 Kasbon</button>
-        <button data-screen="kelolaKasir" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition">👥 Kelola Kasir</button>
-        <button data-screen="pengaturan" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition">⚙️ Pengaturan</button>
-        <button data-screen="tentang" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition">ℹ️ Tentang</button>
+        <button data-screen="dashboard" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-layout"/></svg>Dashboard</button>
+        <button data-screen="kasir" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>Kasir</button>
+        <button data-screen="inventory" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-package"/></svg>Inventory</button>
+        <button data-screen="opname" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-clipboard"/></svg>Stok Opname</button>
+        <button data-screen="pembelian" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-cart"/></svg>Pembelian</button>
+        <button data-screen="riwayat" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg>Riwayat</button>
+        <button data-screen="kasbon" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>Kasbon</button>
+        <button data-screen="kelolaKasir" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>Kelola Kasir</button>
+        <button data-screen="pengaturan" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg>Pengaturan</button>
+        <button data-screen="tentang" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>Tentang</button>
       </nav>
       <!-- User Info & Logout -->
       <div class="mt-6 border-t border-ink pt-5">
@@ -275,8 +425,8 @@
             <span id="sidebarUserRole" class="text-xs px-2 py-0.5 rounded-full bg-ink text-muted-soft">kasir</span>
           </div>
         </div>
-        <button id="logoutButton" class="w-full rounded-lg border border-muted px-4 py-2.5 text-sm text-muted-soft hover:bg-body transition text-left">
-          🚪 Keluar
+        <button id="logoutButton" class="btn-icon w-full rounded-lg border border-muted px-4 py-2.5 text-sm text-muted-soft hover:bg-body transition text-left">
+          <svg class="icon" aria-hidden="true"><use href="#i-logout"/></svg>Keluar
         </button>
       </div>
     </aside>
@@ -286,43 +436,43 @@
     <!-- Bottom Navigation Bar: visible on mobile only -->
     <nav id="bottomNav" class="fixed bottom-0 left-0 right-0 z-40 bg-ink md:hidden flex items-stretch border-t border-ink overflow-x-auto scroll-smooth hide-scrollbar" style="-webkit-overflow-scrolling: touch; scrollbar-width: none;">
       <button data-screen="dashboard" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
-        <span class="text-xl leading-none">📊</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-layout"/></svg>
         <span class="text-[10px] mt-0.5 leading-tight">Dashboard</span>
       </button>
       <button data-screen="kasir" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
-        <span class="text-xl leading-none">🧾</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>
         <span class="text-[10px] mt-0.5 leading-tight">Kasir</span>
       </button>
       <button data-screen="inventory" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
-        <span class="text-xl leading-none">📦</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-package"/></svg>
         <span class="text-[10px] mt-0.5 leading-tight">Inventory</span>
       </button>
       <button data-screen="opname" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
-        <span class="text-xl leading-none">📋</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-clipboard"/></svg>
         <span class="text-[10px] mt-0.5 leading-tight">Opname</span>
       </button>
       <button data-screen="pembelian" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
-        <span class="text-xl leading-none">🛍</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-cart"/></svg>
         <span class="text-[10px] mt-0.5 leading-tight">Beli</span>
       </button>
       <button data-screen="riwayat" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
-        <span class="text-xl leading-none">📋</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-history"/></svg>
         <span class="text-[10px] mt-0.5 leading-tight">Riwayat</span>
       </button>
       <button data-screen="kasbon" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
-        <span class="text-xl leading-none">📒</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>
         <span class="text-[10px] mt-0.5 leading-tight">Kasbon</span>
       </button>
       <button data-screen="kelolaKasir" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
-        <span class="text-xl leading-none">👥</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>
         <span class="text-[10px] mt-0.5 leading-tight">Kasir</span>
       </button>
       <button data-screen="pengaturan" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
-        <span class="text-xl leading-none">⚙️</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg>
         <span class="text-[10px] mt-0.5 leading-tight">Atur</span>
       </button>
       <button data-screen="tentang" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
-        <span class="text-xl leading-none">ℹ️</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>
         <span class="text-[10px] mt-0.5 leading-tight">Tentang</span>
       </button>
     </nav>
@@ -331,7 +481,7 @@
       <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-3">
           <button id="sidebarToggleBtn" class="hidden md:flex items-center gap-2 text-body bg-surface-soft hover:bg-hairline-soft px-4 py-2.5 rounded-xl font-medium transition shadow-sm border border-hairline" title="Toggle Sidebar">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            <svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg>
             <span>Menu</span>
           </button>
           <div>
@@ -341,18 +491,18 @@
         </div>
         <div class="flex flex-wrap items-center gap-2 text-sm w-full sm:w-auto mt-2 sm:mt-0">
           <div class="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-sm text-body w-full sm:w-auto overflow-hidden" id="storeSwitcherWrapper" style="display:none">
-            <span class="font-medium text-muted whitespace-nowrap">🏪 Cabang:</span>
+            <span class="font-medium text-muted whitespace-nowrap btn-icon"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-store"/></svg>Cabang:</span>
             <select id="storeSwitcher" class="flex-1 rounded-xl border border-hairline bg-white px-2 py-1.5 text-ink text-sm min-w-0 truncate"></select>
           </div>
           <div class="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-sm text-body" id="cashierSelectWrapper">
             <span class="font-medium text-muted">Kasir:</span>
             <select id="cashierSelect" class="rounded-xl border border-hairline bg-white px-2 py-1.5 text-ink text-sm max-w-[120px] sm:max-w-none"></select>
           </div>
-          <button id="exportDataButton" class="rounded-lg bg-white px-3 py-3 text-body shadow-sm hover:bg-surface-soft transition text-sm" title="Backup">
-            <span>💾</span><span class="hidden sm:inline"> Backup</span>
+          <button id="exportDataButton" class="btn-icon rounded-lg bg-white px-3 py-3 text-body shadow-sm hover:bg-surface-soft transition text-sm" title="Backup">
+            <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg><span class="hidden sm:inline">Backup</span>
           </button>
-          <button id="importDataButton" class="rounded-lg bg-white px-3 py-3 text-body shadow-sm hover:bg-surface-soft transition text-sm" title="Restore">
-            <span>📂</span><span class="hidden sm:inline"> Restore</span>
+          <button id="importDataButton" class="btn-icon rounded-lg bg-white px-3 py-3 text-body shadow-sm hover:bg-surface-soft transition text-sm" title="Restore">
+            <svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg><span class="hidden sm:inline">Restore</span>
           </button>
         </div>
       </header>
@@ -360,7 +510,7 @@
       <section id="dashboard" class="screen">
         <div id="dashboardPusat" class="hidden rounded-xl bg-white p-6 shadow-sm border border-hairline mb-6">
           <div class="flex items-center gap-2 mb-4">
-            <h3 class="text-xl font-semibold">🏢 Dashboard Pusat</h3>
+            <h3 class="text-xl font-semibold btn-icon"><svg class="icon" aria-hidden="true"><use href="#i-building"/></svg>Dashboard Pusat</h3>
             <span class="text-xs px-2 py-0.5 rounded-full bg-primary-light text-primary">Semua Cabang</span>
           </div>
           <div class="overflow-x-auto" id="dashboardPusatBody"></div>
@@ -451,7 +601,7 @@
       <section id="kasir" class="screen hidden">
         <div class="flex items-center justify-between mb-4">
           <div></div>
-          <button id="tutupKasirBtn" class="rounded-lg bg-amber-600 px-4 py-2.5 text-white text-sm font-semibold hover:bg-amber-700 transition">🔒 Tutup Kasir</button>
+          <button id="tutupKasirBtn" class="btn-icon rounded-lg bg-amber-600 px-4 py-2.5 text-white text-sm font-semibold hover:bg-amber-700 transition"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>Tutup Kasir</button>
         </div>
         <div class="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1fr_1fr] 2xl:grid-cols-[1.2fr_0.8fr] mb-6">
           <div class="rounded-xl bg-white p-6 shadow-sm border border-hairline">
@@ -463,7 +613,7 @@
               <div class="flex flex-wrap gap-3">
                 <input id="searchInput" type="search" placeholder="Cari nama atau kode..." class="flex-1 min-w-[200px] rounded-full border border-hairline px-6 py-3 focus:border-ink focus:border-2 focus:ring-0" />
                 <input id="barcodeInput" type="text" placeholder="Masukkan / scan kode" class="flex-1 min-w-[200px] rounded-full border border-hairline px-6 py-3 focus:border-ink focus:border-2 focus:ring-0" />
-                <button id="scanButton" type="button" class="rounded-full bg-ink px-6 py-3 text-white hover:bg-primary-active transition">Scan Barcode</button>
+                <button id="scanButton" type="button" class="btn-icon rounded-full bg-ink px-6 py-3 text-white hover:bg-primary-active transition"><svg class="icon" aria-hidden="true"><use href="#i-scan"/></svg>Scan Barcode</button>
                 <select id="categoryFilter" class="rounded-full border border-hairline px-6 py-3 bg-white">
                   <option value="All">Semua Kategori</option>
                   <option value="Makanan">Makanan</option>
@@ -506,8 +656,8 @@
               <div>
                 <span class="text-body text-sm font-medium block mb-2">Metode Pembayaran</span>
                 <div class="flex gap-2">
-                  <button type="button" data-paymethod="Tunai" class="paymethod-btn flex-1 rounded-lg border-2 border-primary bg-primary-light px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-primary transition">💵 Tunai</button>
-                  <button type="button" data-paymethod="QRIS" class="paymethod-btn flex-1 rounded-lg border-2 border-hairline bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-body transition hover:border-hairline">📱 QRIS</button>
+                  <button type="button" data-paymethod="Tunai" class="paymethod-btn btn-icon flex-1 rounded-lg border-2 border-primary bg-primary-light px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-primary transition"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-banknote"/></svg>Tunai</button>
+                  <button type="button" data-paymethod="QRIS" class="paymethod-btn btn-icon flex-1 rounded-lg border-2 border-hairline bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-body transition hover:border-hairline"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-smartphone"/></svg>QRIS</button>
                   <button type="button" data-paymethod="Transfer" class="paymethod-btn flex-1 rounded-lg border-2 border-hairline bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-body transition hover:border-hairline">🏦 Transfer</button>
                   <button type="button" data-paymethod="Split" class="paymethod-btn flex-1 rounded-lg border-2 border-hairline bg-white px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold text-body transition hover:border-hairline">⚖️ Split</button>
                 </div>
@@ -671,8 +821,8 @@
       <section id="kasbon" class="screen hidden">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div>
-            <h3 class="text-2xl font-semibold">📒 Kasbon Pelanggan</h3>
-            <p class="text-body">Catat hutang pelanggan dan tandai saat lunas. <span class="text-amber-600 font-medium">Gratis: maks. 5 kasbon aktif — Premium: tanpa batas 👑</span></p>
+            <h3 class="text-2xl font-semibold btn-icon"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>Kasbon Pelanggan</h3>
+            <p class="text-body">Catat hutang pelanggan dan tandai saat lunas. <span class="text-amber-600 font-medium">Gratis: maks. 5 kasbon aktif — Premium: tanpa batas</span></p>
           </div>
           <button id="addDebtBtn" class="rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition whitespace-nowrap">+ Catat Kasbon</button>
         </div>
@@ -701,10 +851,10 @@
         <div id="branchSettingsSection" class="max-w-xl mb-6">
           <div class="rounded-xl bg-white border border-hairline shadow-sm p-6">
             <div class="flex items-center justify-between gap-3 mb-1">
-              <h4 class="text-lg font-semibold">🏪 Cabang Toko</h4>
+              <h4 class="text-lg font-semibold btn-icon"><svg class="icon" aria-hidden="true"><use href="#i-store"/></svg>Cabang Toko</h4>
               <button id="addBranchBtn" class="rounded-lg bg-primary px-4 py-2 text-white text-sm font-semibold hover:bg-primary-active transition whitespace-nowrap">+ Tambah Cabang</button>
             </div>
-            <p class="text-muted text-sm mb-4">Kelola banyak cabang dalam satu akun. Tiap cabang punya stok & transaksi sendiri; pemilik dapat memantau semua dari Dashboard Pusat. <span class="text-amber-600 font-medium">Paket Bisnis Rp50.000/bulan 🏢</span></p>
+            <p class="text-muted text-sm mb-4">Kelola banyak cabang dalam satu akun. Tiap cabang punya stok & transaksi sendiri; pemilik dapat memantau semua dari Dashboard Pusat. <span class="text-amber-600 font-medium">Paket Bisnis Rp50.000/bulan</span></p>
             <div id="branchList" class="space-y-2"></div>
           </div>
         </div>
@@ -745,11 +895,11 @@
                 <div id="qrisPreviewWrapper" class="mt-3 hidden">
                   <p class="text-xs text-muted mb-2">Preview QRIS tersimpan:</p>
                   <img id="qrisPreviewImg" src="" alt="QRIS" class="w-40 h-40 object-contain border border-hairline rounded-lg bg-white p-2" />
-                  <button type="button" id="qrisDeleteBtn" class="mt-2 text-xs text-red-500 hover:text-red-700">🗑 Hapus QRIS</button>
+                  <button type="button" id="qrisDeleteBtn" class="btn-icon mt-2 text-xs text-red-500 hover:text-red-700"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg>Hapus QRIS</button>
                 </div>
               </div>
-              <button id="saveSettingsBtn" class="mt-4 w-full rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-primary-active transition">💾 Simpan Pengaturan</button>
-              <div id="settingsSaved" class="hidden text-center text-green-600 text-sm font-medium mt-2">✅ Pengaturan berhasil disimpan!</div>
+              <button id="saveSettingsBtn" class="btn-icon mt-4 w-full rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-primary-active transition"><svg class="icon" aria-hidden="true"><use href="#i-save"/></svg>Simpan Pengaturan</button>
+              <div id="settingsSaved" class="hidden text-center text-green-600 text-sm font-medium mt-2 btn-icon justify-center"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-check"/></svg>Pengaturan berhasil disimpan!</div>
             </div>
             <button id="openSuperAdminBtn" data-role="superadmin" class="hidden w-full rounded-lg bg-violet-700 px-5 py-3 text-white font-semibold hover:bg-violet-800 transition">🛡 Admin Panel</button>
           </div>
@@ -791,7 +941,7 @@
         <!-- Hapus Akun -->
         <div id="deleteAccountSection" class="mt-6 max-w-xl" data-role="admin">
           <div class="rounded-xl bg-white border border-hairline shadow-sm p-6">
-            <h4 class="text-lg font-semibold text-ink mb-1">🔒 Tutup Akun</h4>
+            <h4 class="text-lg font-semibold text-ink mb-1 btn-icon"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>Tutup Akun</h4>
             <p class="text-muted text-sm mb-4">Menutup akun akan menghapus seluruh data toko Anda secara permanen dan tidak dapat dibatalkan.</p>
             <button id="deleteAccountBtn" class="rounded-lg border border-red-200 px-5 py-3 text-red-600 font-semibold hover:bg-rose-100 transition">Tutup Akun</button>
           </div>
@@ -807,8 +957,8 @@
                 <span id="mobileUserRole" class="text-xs px-2 py-0.5 rounded-full bg-ink text-muted-soft">Kasir</span>
               </div>
             </div>
-            <button id="mobileLogoutButton" class="shrink-0 rounded-lg border border-hairline px-4 py-2.5 min-h-[44px] text-sm font-medium text-body hover:bg-surface-soft transition">
-              🚪 Keluar
+            <button id="mobileLogoutButton" class="btn-icon shrink-0 rounded-lg border border-hairline px-4 py-2.5 min-h-[44px] text-sm font-medium text-body hover:bg-surface-soft transition">
+              <svg class="icon" aria-hidden="true"><use href="#i-logout"/></svg>Keluar
             </button>
           </div>
         </div>
@@ -935,8 +1085,8 @@
               </label>
             </div>
             <div class="flex gap-3 pt-2">
-              <button id="superAdminActivateBtn" class="flex-1 rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition">✅ Aktifkan</button>
-              <button id="superAdminRevokeBtn" class="flex-1 rounded-lg bg-rose-600 px-5 py-3 text-white font-semibold hover:bg-rose-700 transition">🗑 Revokasi</button>
+              <button id="superAdminActivateBtn" class="btn-icon flex-1 rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>Aktifkan</button>
+              <button id="superAdminRevokeBtn" class="btn-icon flex-1 rounded-lg bg-rose-600 px-5 py-3 text-white font-semibold hover:bg-rose-700 transition"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>Revokasi</button>
             </div>
           </div>
         </div>
@@ -965,7 +1115,7 @@
   </div>
 
   <!-- Modal Tambah/Edit Kasir -->
-  <div id="cashierModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+  <div id="cashierModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
     <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
       <div class="flex items-center justify-between border-b border-hairline p-5">
@@ -998,8 +1148,8 @@
         <label class="block">
           <span class="text-body font-medium text-sm">Role / Jabatan</span>
           <select id="cashierFormRole" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 bg-white focus:border-ink focus:border-2 focus:ring-0 focus:outline-none">
-            <option value="kasir">🧾 Kasir — akses kasir & riwayat</option>
-            <option value="admin">👑 Admin — akses penuh semua fitur</option>
+            <option value="kasir">Kasir — akses kasir & riwayat</option>
+            <option value="admin">Admin — akses penuh semua fitur</option>
           </select>
         </label>
         <div id="cashierFormError" class="hidden rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
@@ -1013,7 +1163,7 @@
   </div>
 
   <!-- Modal Konfirmasi Pembayaran QRIS/Transfer -->
-  <div id="paymentConfirmModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+  <div id="paymentConfirmModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
     <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
       <div class="flex items-center justify-between border-b border-hairline p-5">
@@ -1047,7 +1197,7 @@
     </div>
   </div>
 
-  <div id="loginModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+  <div id="loginModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
     <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
       <div class="border-b border-hairline p-5">
@@ -1066,7 +1216,7 @@
     </div>
   </div>
 
-  <div id="scannerModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/70 px-4 py-6">
+  <div id="scannerModal" class="fixed inset-0 z-[100] hidden motion-overlay items-center justify-center bg-black/70 px-4 py-6">
     <div class="w-full max-w-3xl rounded-xl bg-white shadow-sm overflow-hidden max-h-[90vh] flex flex-col">
       <div class="flex items-center justify-between border-b border-hairline p-5">
         <div>
@@ -1081,18 +1231,18 @@
           <div id="scannerScanLine" class="absolute left-0 right-0 h-0.5 bg-red-500 shadow-[0_0_8px_red] hidden z-20" style="top:50%"></div>
           <div id="scannerPlaceholder" class="absolute inset-0 flex items-center justify-center text-muted-soft pointer-events-none z-10">
             <div class="text-center">
-              <div class="text-5xl mb-2">📷</div>
+              <svg class="icon icon-lg mx-auto mb-2 text-muted" style="width:2.5rem;height:2.5rem" aria-hidden="true"><use href="#i-camera"/></svg>
               <p class="text-sm">Tekan "Mulai Scan" untuk membuka kamera</p>
             </div>
           </div>
         </div>
         <div id="scannerResult" class="hidden mt-4 rounded-lg bg-green-50 border border-green-200 p-4">
-          <p class="text-green-700 font-semibold text-sm">✅ Produk Ditemukan</p>
+          <p class="text-green-700 font-semibold text-sm btn-icon"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-check"/></svg>Produk Ditemukan</p>
           <p id="scannerResultName" class="text-green-800 font-bold mt-1"></p>
           <p id="scannerResultCode" class="text-green-600 text-sm"></p>
         </div>
         <div id="scannerNotFound" class="hidden mt-4 rounded-lg bg-red-50 border border-red-200 p-4">
-          <p class="text-red-700 font-semibold text-sm">❌ Produk Tidak Ditemukan</p>
+          <p class="text-red-700 font-semibold text-sm btn-icon"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-x"/></svg>Produk Tidak Ditemukan</p>
           <p id="scannerNotFoundCode" class="text-red-600 text-sm mt-1"></p>
         </div>
         <div class="mt-4 flex flex-wrap items-center gap-3">
@@ -1113,7 +1263,7 @@
     </div>
   </div>
 
-  <div id="purchaseModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 py-6">
+  <div id="purchaseModal" class="fixed inset-0 z-50 hidden motion-overlay items-center justify-center bg-black/40 px-4 py-6">
     <div class="w-full max-w-3xl rounded-xl bg-white shadow-sm overflow-hidden max-h-[90vh] flex flex-col">
       <div class="flex items-center justify-between border-b border-hairline p-5 flex-shrink-0">
         <div>
@@ -1148,12 +1298,12 @@
     </div>
   </div>
 
-  <div id="receiptModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+  <div id="receiptModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
     <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
       <div class="flex items-center justify-between border-b border-hairline p-5 no-print">
         <div>
-          <h3 class="text-xl font-semibold">🧾 Struk Transaksi</h3>
+          <h3 class="text-xl font-semibold btn-icon"><svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>Struk Transaksi</h3>
           <p class="text-muted text-sm">Preview sebelum cetak ke printer thermal.</p>
         </div>
         <button id="closeReceipt" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft text-xl leading-none">×</button>
@@ -1183,17 +1333,17 @@
         </div>
       </div>
       <div class="flex flex-wrap gap-3 border-t border-hairline p-4 no-print">
-        <button id="waReceiptBtn" class="flex-1 rounded-lg bg-green-600 px-4 py-3 text-white font-semibold hover:bg-green-700 transition text-sm whitespace-nowrap">💬 Kirim via WA</button>
-        <button id="printBluetoothBtn" class="hidden flex-1 rounded-lg bg-primary px-4 py-3 text-white font-semibold hover:bg-primary-active transition text-sm whitespace-nowrap">📶 Cetak Bluetooth</button>
-        <button id="printThermalBtn" class="flex-1 rounded-lg bg-ink px-4 py-3 text-white font-semibold hover:bg-primary-active transition text-sm">🖨 Cetak Thermal</button>
-        <button id="printReceipt" class="flex-1 rounded-lg bg-white border border-hairline px-4 py-3 text-body hover:bg-surface-soft transition text-sm">🖨 Cetak Biasa</button>
+        <button id="waReceiptBtn" class="btn-icon flex-1 rounded-lg bg-green-600 px-4 py-3 text-white font-semibold hover:bg-green-700 transition text-sm whitespace-nowrap"><svg class="icon" aria-hidden="true"><use href="#i-message"/></svg>Kirim via WA</button>
+        <button id="printBluetoothBtn" class="btn-icon hidden flex-1 rounded-lg bg-primary px-4 py-3 text-white font-semibold hover:bg-primary-active transition text-sm whitespace-nowrap"><svg class="icon" aria-hidden="true"><use href="#i-smartphone"/></svg>Cetak Bluetooth</button>
+        <button id="printThermalBtn" class="btn-icon flex-1 rounded-lg bg-ink px-4 py-3 text-white font-semibold hover:bg-primary-active transition text-sm"><svg class="icon" aria-hidden="true"><use href="#i-printer"/></svg>Cetak Thermal</button>
+        <button id="printReceipt" class="btn-icon flex-1 rounded-lg bg-white border border-hairline px-4 py-3 text-body hover:bg-surface-soft transition text-sm"><svg class="icon" aria-hidden="true"><use href="#i-printer"/></svg>Cetak Biasa</button>
         <button id="closeReceiptBottom" class="rounded-lg border border-hairline bg-white px-4 py-3 text-body hover:bg-surface-soft transition text-sm">Tutup</button>
       </div>
     </div>
     </div>
   </div>
 
-  <div id="inventoryModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 py-6">
+  <div id="inventoryModal" class="fixed inset-0 z-50 hidden motion-overlay items-center justify-center bg-black/40 px-4 py-6">
     <div class="w-full max-w-xl rounded-xl bg-white shadow-sm overflow-hidden max-h-[90vh] flex flex-col">
       <div class="flex items-center justify-between border-b border-hairline p-5 flex-shrink-0">
         <div>
@@ -1258,7 +1408,7 @@
               <span class="text-body font-medium text-sm">Barcode Produk</span>
               <input id="productBarcode" maxlength="50" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" placeholder="Scan atau ketik" />
             </label>
-            <button type="button" id="inventoryScanButton" class="mb-0.5 rounded-lg bg-primary px-4 py-3 text-white hover:bg-primary-active transition whitespace-nowrap">📷</button>
+            <button type="button" id="inventoryScanButton" class="btn-icon mb-0.5 rounded-lg bg-primary px-4 py-3 text-white hover:bg-primary-active transition whitespace-nowrap" title="Scan barcode"><svg class="icon" aria-hidden="true"><use href="#i-camera"/></svg></button>
           </div>
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
@@ -1277,7 +1427,7 @@
   </div>
 
   <!-- Modal Penyesuaian Stok (Manual Stock Adjustment) -->
-  <div id="adjustmentModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+  <div id="adjustmentModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
     <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-xl bg-white shadow-sm p-6">
       <div class="flex items-center justify-between mb-4">
@@ -1322,7 +1472,7 @@
   </div>
 
   <!-- Modal Kartu Stok (Stock Ledger) -->
-  <div id="ledgerModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="ledgerModal" class="fixed inset-0 z-50 hidden motion-overlay items-center justify-center bg-black/50 px-4 py-6">
     <div class="w-full max-w-3xl rounded-xl bg-white shadow-sm p-6 flex flex-col max-h-[90vh]">
       <div class="flex items-center justify-between mb-4 shrink-0">
         <div>
@@ -1356,10 +1506,10 @@
   </div>
 
   <!-- Halaman perpanjangan langganan (lock saat masa aktif habis) -->
-  <div id="subsOverlay" class="hidden fixed inset-0 z-[200] items-center justify-center bg-gradient-to-br from-ink via-body to-primary overflow-y-auto px-4 py-8">
+  <div id="subsOverlay" class="hidden fixed inset-0 z-[200] motion-overlay items-center justify-center bg-gradient-to-br from-ink via-body to-primary overflow-y-auto px-4 py-8">
     <div class="w-full max-w-md mx-auto">
       <div class="bg-white rounded-xl shadow-sm p-7 text-center">
-        <div class="text-5xl mb-3">👑</div>
+        <svg class="icon mx-auto mb-3 text-primary" style="width:2.75rem;height:2.75rem" aria-hidden="true"><use href="#i-crown"/></svg>
         <h2 id="subsOverlayTitle" class="text-2xl font-bold text-ink">Upgrade ke Premium</h2>
         <p id="subsOverlayDesc" class="text-muted mt-2 text-sm">Fitur dasar tetap gratis selamanya.
           Premium membuka fitur tambahan untuk toko yang makin ramai.</p>
@@ -1367,10 +1517,10 @@
         <div class="mt-5 rounded-lg bg-primary-light border border-hairline p-4">
           <p id="subsOverlayPrice" class="text-3xl font-bold text-primary">Rp25.000<span class="text-base font-medium text-primary">/bulan</span></p>
           <div id="subsOverlayFeatures" class="text-xs text-primary mt-2 text-left space-y-1">
-            <p>✅ QRIS Dinamis — nominal otomatis tertanam di QR</p>
-            <p>✅ Export laporan PDF</p>
-            <p>✅ Operator kasir tanpa batas</p>
-            <p>✅ Dukungan prioritas via Telegram</p>
+            <p class="btn-icon"><svg class="icon icon-sm text-emerald-600" aria-hidden="true"><use href="#i-check"/></svg>QRIS Dinamis — nominal otomatis tertanam di QR</p>
+            <p class="btn-icon"><svg class="icon icon-sm text-emerald-600" aria-hidden="true"><use href="#i-check"/></svg>Export laporan PDF</p>
+            <p class="btn-icon"><svg class="icon icon-sm text-emerald-600" aria-hidden="true"><use href="#i-check"/></svg>Operator kasir tanpa batas</p>
+            <p class="btn-icon"><svg class="icon icon-sm text-emerald-600" aria-hidden="true"><use href="#i-check"/></svg>Dukungan prioritas via Telegram</p>
           </div>
         </div>
 
@@ -1383,7 +1533,7 @@
 
         <a id="subsPayBtn" href="#"
           class="mt-4 block w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition">
-          💳 Bayar Sekarang via Pakasir
+          <svg class="icon" aria-hidden="true"><use href="#i-credit"/></svg>Bayar Sekarang via Pakasir
         </a>
         <p class="text-xs text-muted-soft mt-2">Pembayaran diproses oleh Pakasir — gateway resmi berlisensi QRIS</p>
         <button id="subsRecheckBtn" class="mt-3 w-full rounded-lg border border-hairline px-5 py-3 text-body hover:bg-surface-soft transition text-sm">
@@ -1395,7 +1545,7 @@
   </div>
 
   <!-- Modal QRIS -->
-  <div id="qrisModal" class="fixed inset-0 z-[110] hidden overflow-y-auto bg-black/70">
+  <div id="qrisModal" class="fixed inset-0 z-[110] hidden motion-overlay overflow-y-auto bg-black/70">
     <div class="flex min-h-full w-full items-center justify-center p-6">
     <div class="w-full max-w-xs rounded-xl bg-white shadow-sm p-6 flex flex-col items-center gap-4">
       <div class="flex items-center justify-between w-full">
@@ -1409,13 +1559,13 @@
         <img id="qrisModalImg" src="" alt="QRIS" class="w-full h-full object-contain p-2" />
         <div id="qrisModalQr" class="hidden p-3 bg-white"></div>
       </div>
-      <span id="qrisDynamicBadge" class="hidden rounded-full bg-emerald-100 text-emerald-700 px-3 py-1 text-xs font-semibold">👑 QRIS Dinamis — nominal sudah tertanam, pembeli tinggal konfirmasi</span>
+      <span id="qrisDynamicBadge" class="hidden rounded-full bg-emerald-100 text-emerald-700 px-3 py-1 text-xs font-semibold btn-icon"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-crown"/></svg>QRIS Dinamis — nominal sudah tertanam, pembeli tinggal konfirmasi</span>
       <div class="text-center">
         <p class="text-body text-sm">Total yang harus dibayar:</p>
         <p id="qrisModalTotal" class="text-2xl font-bold text-ink mt-1"></p>
       </div>
       <button id="qrisConfirmBtn" class="w-full rounded-lg bg-green-600 px-5 py-3 text-white font-semibold hover:bg-green-700 transition">
-        ✅ Konfirmasi Sudah Bayar
+        <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>Konfirmasi Sudah Bayar
       </button>
       <p class="text-xs text-muted-soft text-center">Pastikan notifikasi pembayaran masuk sebelum konfirmasi</p>
     </div>
@@ -1423,7 +1573,7 @@
   </div>
 
   <!-- Modal Tutup Kasir / Laporan Shift -->
-  <div id="shiftModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+  <div id="shiftModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
     <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
       <div class="flex items-center justify-between border-b border-hairline p-5">
@@ -1488,8 +1638,8 @@
         </div>
 
         <div class="flex gap-3 pt-2">
-          <button id="printShiftBtn" class="flex-1 rounded-lg bg-ink px-4 py-3 text-white font-semibold hover:bg-primary-active transition text-sm">🖨 Cetak Struk</button>
-          <button id="resetShiftBtn" class="flex-1 rounded-lg bg-amber-600 px-4 py-3 text-white font-semibold hover:bg-amber-700 transition text-sm">🔒 Tutup Shift & Selesai</button>
+          <button id="printShiftBtn" class="btn-icon flex-1 rounded-lg bg-ink px-4 py-3 text-white font-semibold hover:bg-primary-active transition text-sm"><svg class="icon" aria-hidden="true"><use href="#i-printer"/></svg>Cetak Struk</button>
+          <button id="resetShiftBtn" class="btn-icon flex-1 rounded-lg bg-amber-600 px-4 py-3 text-white font-semibold hover:bg-amber-700 transition text-sm"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>Tutup Shift & Selesai</button>
         </div>
         <button id="cancelShiftModal" class="w-full rounded-lg border border-hairline bg-white px-4 py-2.5 text-body hover:bg-surface-soft transition text-sm">Batal</button>
       </div>
@@ -1520,7 +1670,7 @@
   </div>
 
   <!-- Modal Otorisasi PIN Admin -->
-  <div id="pinAuthModal" class="fixed inset-0 z-[70] hidden overflow-y-auto bg-black/50">
+  <div id="pinAuthModal" class="fixed inset-0 z-[70] hidden motion-overlay overflow-y-auto bg-black/50">
     <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-sm rounded-xl bg-white shadow-sm overflow-hidden p-6 space-y-4">
       <div class="text-center">
@@ -1549,7 +1699,7 @@
   </div>
 
   <!-- Modal Void Transaksi -->
-  <div id="voidModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+  <div id="voidModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
     <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-sm rounded-xl bg-white shadow-sm overflow-hidden p-6 space-y-4">
       <div class="text-center">
@@ -1576,7 +1726,7 @@
   </div>
 
   <!-- Modal Retur Barang -->
-  <div id="returnModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
+  <div id="returnModal" class="fixed inset-0 z-50 hidden motion-overlay items-center justify-center bg-black/50 px-4 py-6">
     <div class="w-full max-w-lg rounded-xl bg-white shadow-sm overflow-hidden flex flex-col max-h-[90vh]">
       <div class="flex items-center justify-between border-b border-hairline p-5">
         <div>
@@ -1618,25 +1768,25 @@
   </div>
 
   <!-- Onboarding Overlay -->
-  <div id="onboardingOverlay" class="fixed inset-0 z-[200] hidden items-center justify-center bg-ink/95">
+  <div id="onboardingOverlay" class="fixed inset-0 z-[200] hidden motion-overlay items-center justify-center bg-ink/95">
     <div class="w-full max-w-sm px-6 text-center text-white">
       <div id="onboardingStep1" class="onboarding-step">
-        <div class="text-7xl mb-4">🎉</div>
+        <svg class="icon mx-auto mb-4 text-primary" style="width:3.5rem;height:3.5rem" aria-hidden="true"><use href="#i-check"/></svg>
         <h2 class="text-2xl font-bold mb-2">Selamat Datang!</h2>
         <p class="text-muted-soft text-lg mb-6" id="onboardingWelcomeText">Toko siap digunakan.</p>
-        <button id="onboardingNext1" class="w-full rounded-lg bg-primary px-6 py-3 text-white font-semibold hover:bg-primary-active transition">Lanjut →</button>
+        <button id="onboardingNext1" class="w-full rounded-lg bg-primary px-6 py-3 text-white font-semibold hover:bg-primary-active transition">Lanjut</button>
       </div>
       <div id="onboardingStep2" class="onboarding-step hidden">
-        <div class="text-7xl mb-4">📦</div>
+        <svg class="icon mx-auto mb-4 text-primary" style="width:3.5rem;height:3.5rem" aria-hidden="true"><use href="#i-package"/></svg>
         <h2 class="text-2xl font-bold mb-2">Langkah 2</h2>
         <p class="text-muted-soft text-lg mb-6">Tambah produk dulu di menu Inventory.</p>
-        <button id="onboardingNext2" class="w-full rounded-lg bg-primary px-6 py-3 text-white font-semibold hover:bg-primary-active transition">Lanjut →</button>
+        <button id="onboardingNext2" class="w-full rounded-lg bg-primary px-6 py-3 text-white font-semibold hover:bg-primary-active transition">Lanjut</button>
       </div>
       <div id="onboardingStep3" class="onboarding-step hidden">
-        <div class="text-7xl mb-4">🧾</div>
+        <svg class="icon mx-auto mb-4 text-primary" style="width:3.5rem;height:3.5rem" aria-hidden="true"><use href="#i-receipt"/></svg>
         <h2 class="text-2xl font-bold mb-2">Langkah 3</h2>
         <p class="text-muted-soft text-lg mb-6">Mulai transaksi di menu Kasir.</p>
-        <button id="onboardingFinish" class="w-full rounded-lg bg-emerald-600 px-6 py-3 text-white font-semibold hover:bg-emerald-700 transition">Mulai Sekarang 🚀</button>
+        <button id="onboardingFinish" class="w-full rounded-lg bg-emerald-600 px-6 py-3 text-white font-semibold hover:bg-emerald-700 transition">Mulai Sekarang</button>
       </div>
       <div class="flex justify-center gap-2 mt-6">
         <div id="ob-dot1" class="w-2 h-2 rounded-full bg-primary"></div>
@@ -1648,7 +1798,7 @@
 
   <input type="file" id="backupFileInput" accept="application/json" class="hidden" />
   <!-- Modal Kasbon -->
-  <div id="debtModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+  <div id="debtModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
     <div class="flex min-h-full items-center justify-center p-4">
       <form id="debtForm" class="relative w-full max-w-md bg-white rounded-xl shadow-sm flex flex-col">
         <div class="flex shrink-0 items-center justify-between border-b border-hairline p-5">
@@ -1696,14 +1846,14 @@
           </label>
         </div>
         <div class="p-5 border-t border-hairline shrink-0">
-          <button type="submit" class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition">💾 Simpan Kasbon</button>
+          <button type="submit" class="btn-icon w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition"><svg class="icon" aria-hidden="true"><use href="#i-save"/></svg>Simpan Kasbon</button>
         </div>
       </form>
     </div>
   </div>
 
   <!-- Modal Konfirmasi Hapus Kasbon -->
-  <div id="debtDeleteModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+  <div id="debtDeleteModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
     <div class="flex min-h-full w-full items-center justify-center p-4">
       <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
         <div class="flex items-center justify-between border-b border-hairline p-5">
@@ -1722,7 +1872,7 @@
   </div>
 
   <!-- Modal Hapus Akun -->
-  <div id="deleteAccountModal" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black/50">
+  <div id="deleteAccountModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
     <div class="flex min-h-full w-full items-center justify-center p-4">
     <div class="w-full max-w-md rounded-lg bg-white shadow-sm overflow-hidden">
       <div class="flex items-center justify-between border-b border-hairline p-5">
@@ -1734,7 +1884,7 @@
       </div>
       <div class="p-6 space-y-4">
         <div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-          <p class="font-semibold mb-1">⚠️ Data berikut akan dihapus permanen:</p>
+          <p class="font-semibold mb-1 btn-icon"><svg class="icon icon-sm text-amber-600" aria-hidden="true"><use href="#i-alert"/></svg>Data berikut akan dihapus permanen:</p>
           <ul class="list-disc list-inside space-y-0.5 text-amber-700">
             <li>Toko, produk, dan transaksi</li>
             <li>Kasir dan kasbon</li>
@@ -1759,11 +1909,11 @@
   </div>
 
   <!-- Chat Bantuan -->
-  <button id="helpChatFab" class="hidden fixed bottom-20 md:bottom-6 right-4 z-[90] h-14 w-14 rounded-full bg-gradient-to-br from-primary-active to-primary text-3xl shadow-sm hover:scale-110 transition-transform flex items-center justify-center no-print" title="Tanya Aisyah">🧕</button>
+  <button id="helpChatFab" class="hidden fixed bottom-20 md:bottom-6 right-4 z-[90] h-14 w-14 rounded-full bg-gradient-to-br from-primary-active to-primary shadow-sm hover:scale-110 transition-transform flex items-center justify-center no-print text-white" title="Tanya Aisyah"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-message"/></svg></button>
   <div id="helpChatPanel" class="hidden fixed bottom-36 md:bottom-24 right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm h-[28rem] max-h-[calc(100vh-10rem)] rounded-xl bg-white border border-hairline shadow-sm flex flex-col overflow-hidden no-print">
     <div class="bg-gradient-to-r from-ink to-ink text-white px-5 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-2xl">🧕</span>
+        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white"><svg class="icon" aria-hidden="true"><use href="#i-message"/></svg></span>
         <div>
           <p class="font-semibold text-sm">Aisyah — Asisten Kasir</p>
           <p class="text-xs text-white/70 flex items-center gap-1"><span class="inline-block h-2 w-2 rounded-full bg-green-400"></span> Online — siap membantu</p>
@@ -1780,6 +1930,6 @@
   </div>
 
 
-  <script src="app.js?v=7" defer></script>
+  <script src="app.js?v=9" defer></script>
 </body>
 </html>

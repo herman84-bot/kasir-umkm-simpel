@@ -1,13 +1,14 @@
-const CACHE_NAME = 'kasir-umkm-cache-v31';
+const CACHE_NAME = 'kasir-umkm-cache-v32';
 // CATATAN PENTING: jangan masukkan 'index.html' di sini. Vercel cleanUrls=true
 // me-redirect /index.html -> / (308); Cache API menolak menyimpan response
 // hasil redirect sehingga cache.addAll() reject dan install SW GAGAL TOTAL —
 // akibatnya SW lama tidak pernah tergantikan dan aset basi terus disajikan.
 // Root './' melayani index tanpa redirect. HTML tetap di-cache runtime (network-first).
 // CDN di bawah memakai Promise.allSettled sehingga redirect/404 tidak membatalkan install.
+// app.js?v=N harus cocok dengan <script src> di index agar precache = runtime URL.
 const ASSETS = [
   './',
-  'app.js',
+  'app.js?v=9',
   'manifest.json',
   'icons/icon-192.png',
   'icons/icon-512.png',
@@ -41,7 +42,7 @@ self.addEventListener('activate', event => {
 });
 
 // Network-first untuk file aplikasi (HTML/JS) agar update langsung terpakai.
-// Cache dipakai sebagai fallback saat offline.
+// Cache dipakai sebagai fallback saat offline. Hanya cache response OK (hindari 404/5xx).
 self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -52,8 +53,10 @@ self.addEventListener('fetch', event => {
   if (isAppFile) {
     event.respondWith(
       fetch(req).then(res => {
-        const copy = res.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
+        }
         return res;
       }).catch(() => caches.match(req).then(r => r || caches.match('./')))
     );
@@ -61,8 +64,10 @@ self.addEventListener('fetch', event => {
     // Aset eksternal (CDN): cache-first
     event.respondWith(
       caches.match(req).then(r => r || fetch(req).then(res => {
-        const copy = res.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
+        }
         return res;
       }))
     );

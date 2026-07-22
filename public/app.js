@@ -4,6 +4,12 @@ const App = (() => {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+  // Premium line icons (sprite di index.html). Pakai untuk chrome UI, bukan pesan chat/alert panjang.
+  const icon = (name, cls = 'icon') =>
+    `<svg class="${cls}" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+  const iconText = (name, label, cls = 'icon') =>
+    `${icon(name, cls)} ${label}`;
+
   const APP_VERSION = '1.2.0';
 
   // Muat script eksternal sekali (no-op jika sudah ada); dipakai untuk lazy-load CDN
@@ -182,7 +188,7 @@ const App = (() => {
     });
     if (error) {
       alert('Gagal menyiapkan pembayaran. Pastikan SQL 08_pakasir.sql sudah dijalankan.');
-      if (payBtn) { payBtn.textContent = '💳 Bayar Sekarang via Pakasir'; payBtn.style.pointerEvents = ''; }
+      if (payBtn) { payBtn.innerHTML = iconText('credit', 'Bayar Sekarang via Pakasir'); payBtn.style.pointerEvents = ''; }
       return;
     }
     localStorage.setItem('pending_subs_order', JSON.stringify({ orderId, tier }));
@@ -240,7 +246,7 @@ const App = (() => {
 
   const PLANS = {
     premium: {
-      title: '👑 Upgrade ke Premium',
+      title: 'Upgrade ke Premium',
       label: 'Premium',
       price: 'Rp25.000',
       amount: 25000,
@@ -253,7 +259,7 @@ const App = (() => {
       ]
     },
     business: {
-      title: '🏢 Upgrade ke Bisnis',
+      title: 'Upgrade ke Bisnis',
       label: 'Bisnis',
       price: 'Rp50.000',
       amount: 50000,
@@ -278,7 +284,7 @@ const App = (() => {
       ? `${featureName} termasuk paket ${p.label}. Aplikasi dasar tetap gratis selamanya.`
       : 'Fitur dasar tetap gratis selamanya.';
     if (price) price.innerHTML = `${esc(p.price)}<span class="text-base font-medium text-primary">/bulan</span>`;
-    if (feats) feats.innerHTML = p.features.map(f => `<p>✅ ${esc(f)}</p>`).join('');
+    if (feats) feats.innerHTML = p.features.map(f => `<p class="btn-icon">${icon('check', 'icon icon-sm text-emerald-600')}<span>${esc(f)}</span></p>`).join('');
     showSubsOverlay(p);
   };
 
@@ -674,15 +680,24 @@ const App = (() => {
     if (!toast) {
       toast = document.createElement('div');
       toast.id = 'appGlobalToast';
-      toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] rounded-lg px-5 py-3 text-white text-sm font-semibold shadow-sm transition-opacity duration-300 no-print';
+      toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-[300] rounded-lg px-5 py-3 text-white text-sm font-semibold shadow-sm no-print';
       document.body.appendChild(toast);
     }
     const bgMap = { error: '#e11d48', success: '#059669', info: '#334155' };
     toast.style.background = bgMap[type] || bgMap.info;
     toast.textContent = text;
+    // Soft Paper: enter dari bawah, exit lembut
+    toast.classList.remove('toast-exit');
+    toast.classList.remove('toast-enter');
+    // reflow agar animasi enter bisa di-replay
+    void toast.offsetWidth;
+    toast.classList.add('toast-enter');
     toast.style.opacity = '1';
     clearTimeout(toast._timer);
-    toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 4000);
+    toast._timer = setTimeout(() => {
+      toast.classList.remove('toast-enter');
+      toast.classList.add('toast-exit');
+    }, 4000);
   };
 
   // Setelah login: pemilik toko selalu admin (akses penuh)
@@ -699,7 +714,7 @@ const App = (() => {
     const avatar = document.getElementById('userAvatar');
     if (nameEl) nameEl.textContent = name;
     if (roleEl) {
-      roleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
+      roleEl.innerHTML = isAdmin ? iconText('crown', 'Admin Toko', 'icon icon-sm') : iconText('receipt', 'Kasir', 'icon icon-sm');
       roleEl.className = isAdmin
         ? 'text-xs px-2 py-0.5 rounded-full bg-primary-active text-white/70'
         : 'text-xs px-2 py-0.5 rounded-full bg-ink text-muted-soft';
@@ -710,7 +725,7 @@ const App = (() => {
     const mobileAvatar = document.getElementById('mobileUserAvatar');
     if (mobileNameEl) mobileNameEl.textContent = name;
     if (mobileRoleEl) {
-      mobileRoleEl.textContent = isAdmin ? '👑 Admin Toko' : '🧾 Kasir';
+      mobileRoleEl.innerHTML = isAdmin ? iconText('crown', 'Admin Toko', 'icon icon-sm') : iconText('receipt', 'Kasir', 'icon icon-sm');
       mobileRoleEl.className = isAdmin
         ? 'text-xs px-2 py-0.5 rounded-full bg-primary-active text-white/70'
         : 'text-xs px-2 py-0.5 rounded-full bg-ink text-muted-soft';
@@ -1444,7 +1459,7 @@ const App = (() => {
       const isAdmin = c.role === 'admin';
       const isSelf = c.id === activeId;
       const initial = esc(c.name.charAt(0).toUpperCase());
-      const roleLabel = isAdmin ? '👑 Admin' : '🧾 Kasir';
+      const roleLabel = isAdmin ? iconText('crown', 'Admin', 'icon icon-sm') : iconText('receipt', 'Kasir', 'icon icon-sm');
       const roleBg = isAdmin ? 'bg-primary-light text-primary' : 'bg-surface-soft text-body';
       const avatarBg = isAdmin ? 'bg-primary' : 'bg-surface-soft0';
       return `
@@ -1462,11 +1477,11 @@ const App = (() => {
           <div class="flex gap-2">
             <button data-edit-cashier="${c.id}"
               class="flex-1 rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-body hover:bg-surface-soft transition font-medium">
-              ✏️ Edit
+              ${iconText('edit', 'Edit')}
             </button>
             <button data-delete-cashier="${c.id}" ${isSelf ? 'disabled title="Tidak bisa hapus akun sendiri"' : ''}
-              class="flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600 hover:bg-rose-100 transition font-medium ${isSelf ? 'opacity-40 cursor-not-allowed' : ''}">
-              🗑 Hapus
+              class="btn-icon flex-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600 hover:bg-rose-100 transition font-medium ${isSelf ? 'opacity-40 cursor-not-allowed' : ''}">
+              ${iconText('trash', 'Hapus')}
             </button>
           </div>
         </div>
@@ -1906,7 +1921,7 @@ const App = (() => {
       dom.scannerNotFound.classList.add('hidden');
       dom.scannerResultName.textContent = product.name;
       dom.scannerResultCode.textContent = `Kode: ${product.code} | Barcode: ${product.barcode || '-'} | Stok: ${product.stock}`;
-      dom.scannerStatus.textContent = `✅ Ditemukan: ${product.name}`;
+      dom.scannerStatus.textContent = `Ditemukan: ${product.name}`;
       addToCart(product.id);
       setTimeout(() => closeScannerModal(), 1000);
     } else {
@@ -2038,7 +2053,7 @@ const App = (() => {
     state.scannerEngine = null;
     if (dom.scannerScanLine) dom.scannerScanLine.classList.add('hidden');
     if (dom.scannerPlaceholder) dom.scannerPlaceholder.classList.remove('hidden');
-    if (dom.scannerStatus && !dom.scannerStatus.textContent.startsWith('✅')) {
+    if (dom.scannerStatus && !dom.scannerStatus.textContent.startsWith('Ditemukan:')) {
       dom.scannerStatus.textContent = 'Scanner dihentikan.';
     }
   };
@@ -2345,7 +2360,7 @@ const App = (() => {
                 <h4 class="text-lg font-semibold">${esc(product.name)}</h4>
                 <p class="text-muted text-sm">${esc(product.category)}</p>
               </div>
-              <span class="rounded-lg bg-surface-soft px-3 py-1 text-xs text-body">Stok: ${esc(product.stock)}${isCritical ? ' ⚠️' : ''}</span>
+              <span class="rounded-lg bg-surface-soft px-3 py-1 text-xs text-body">Stok: ${esc(product.stock)}${isCritical ? ' · rendah' : ''}</span>
             </div>
             <div class="mt-4 flex items-center justify-between">
               <span class="text-xl font-semibold text-ink">${formatCurrency(product.price)}</span>
@@ -2379,6 +2394,8 @@ const App = (() => {
     return { label: 'Aman', class: 'bg-emerald-100 text-emerald-800' };
   };
 
+  // Soft Paper: tandai item keranjang yang baru ditambah agar hanya baris itu yang dianimasikan
+  let _cartEnterId = null;
   const addToCart = productId => {
     const product = state.products.find(item => item.id === productId);
     if (!product || product.stock <= 0) return;
@@ -2393,6 +2410,7 @@ const App = (() => {
       const nextQty = state.cart[productId].qty + 1;
       if (nextQty <= product.stock) state.cart[productId].qty = nextQty;
     }
+    _cartEnterId = productId;
     state.cashAmount = 0;
     renderCart();
   };
@@ -2417,8 +2435,10 @@ const App = (() => {
     const items = getCartItems();
     const totals = calculateCart();
 
+    const enterId = _cartEnterId;
+    _cartEnterId = null;
     dom.cartList.innerHTML = items.length ? items.map(item => `
-      <div class="rounded-xl border border-hairline bg-surface-soft p-4">
+      <div class="rounded-xl border border-hairline bg-surface-soft p-4${String(item.id) === String(enterId) ? ' cart-item-enter' : ''}">
         <div class="flex items-start justify-between gap-3">
           <div>
             <h4 class="font-semibold text-ink">${esc(item.name)}</h4>
@@ -2486,8 +2506,8 @@ const App = (() => {
           <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${criticalClass}">${product.stock} / min ${product.minStock || 5}</span></td>
           <td class="p-3"><span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold ${expStatus.class}">${expStatus.label}</span></td>
           <td class="p-3 space-x-2 whitespace-nowrap">
-            <button data-adjust="${product.id}" class="rounded-lg bg-amber-600 px-4 py-2 text-white text-sm" title="Sesuaikan Stok">⚙️</button>
-            <button data-ledger="${product.id}" class="rounded-lg bg-primary px-4 py-2 text-white text-sm" title="Kartu Stok">📋</button>
+            <button data-adjust="${product.id}" class="btn-icon rounded-lg bg-amber-600 px-3 py-2 text-white text-sm" title="Sesuaikan Stok">${icon('settings')}</button>
+            <button data-ledger="${product.id}" class="btn-icon rounded-lg bg-primary px-3 py-2 text-white text-sm" title="Kartu Stok">${icon('clipboard')}</button>
             <button data-edit="${product.id}" class="rounded-lg bg-ink px-4 py-2 text-white text-sm">Edit</button>
             <button data-delete="${product.id}" class="rounded-lg bg-rose-600 px-4 py-2 text-white text-sm">Hapus</button>
           </td>
@@ -2531,7 +2551,7 @@ const App = (() => {
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.cash) : '-'}</td>
           <td class="p-3">${tx.paymentMethod === 'Tunai' || !tx.paymentMethod ? formatCurrency(tx.change) : '-'}</td>
           <td class="p-3 space-x-1 whitespace-nowrap">
-            <button data-reprint="${esc(tx.id)}" class="rounded-lg border border-hairline bg-white px-3 py-1.5 text-xs text-body hover:bg-surface-soft transition whitespace-nowrap">🖨 Struk</button>
+            <button data-reprint="${esc(tx.id)}" class="btn-icon rounded-lg border border-hairline bg-white px-3 py-1.5 text-xs text-body hover:bg-surface-soft transition whitespace-nowrap">${iconText('printer', 'Struk', 'icon icon-sm')}</button>
             ${isVoided ? `
               <span class="inline-block rounded-full bg-rose-100 text-rose-700 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider">VOID</span>
             ` : `
@@ -2577,7 +2597,16 @@ const App = (() => {
       checkOrOpenShift();
     }
     dom.screens.forEach(screen => {
-      screen.classList.toggle('hidden', screen.id !== screenId);
+      const isTarget = screen.id === screenId;
+      screen.classList.toggle('hidden', !isTarget);
+      // Soft Paper: animasi enter hanya di layar aktif (bukan re-render ulang data)
+      if (isTarget) {
+        screen.classList.remove('screen-enter');
+        void screen.offsetWidth;
+        screen.classList.add('screen-enter');
+      } else {
+        screen.classList.remove('screen-enter');
+      }
     });
     // Update sidebar and bottom nav active state
     document.querySelectorAll('.menu-btn, .bottom-nav-btn').forEach(btn => {
@@ -2667,7 +2696,7 @@ const App = (() => {
     const name = dom.productName.value.trim();
     const category = dom.productCategory.value.trim();
     if (isTobaccoProduct(name) || isTobaccoProduct(category)) {
-      alert('❌ Produk tembakau dan vape tidak diizinkan di aplikasi ini.');
+      alert('Produk tembakau dan vape tidak diizinkan di aplikasi ini.');
       return;
     }
     const pExp = document.getElementById('productExpiry');
@@ -2791,7 +2820,7 @@ const App = (() => {
       }
     }
     localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
-    if (synced > 0) console.log(`✅ ${synced} transaksi offline tersinkron ke cloud.`);
+    if (synced > 0) console.log(`${synced} transaksi offline tersinkron ke cloud.`);
     return synced;
   };
 
@@ -2936,7 +2965,7 @@ const App = (() => {
           items: cartItems.map(item => ({ id: item.id, name: item.name, qty: item.qty, price: item.price })),
           date: new Date().toISOString()
         });
-        alert('⚠️ Koneksi bermasalah — transaksi DISIMPAN OFFLINE dan akan otomatis tersinkron saat internet kembali. Struk tetap bisa dicetak.');
+        alert('Koneksi bermasalah — transaksi DISIMPAN OFFLINE dan akan otomatis tersinkron saat internet kembali. Struk tetap bisa dicetak.');
       }
     }
 
@@ -4516,7 +4545,7 @@ ${txRows}
       dom.saveSettingsBtn.textContent = 'Menyimpan...';
       const res = await saveStoreSettings(store);
       dom.saveSettingsBtn.disabled = false;
-      dom.saveSettingsBtn.textContent = '💾 Simpan Pengaturan';
+      dom.saveSettingsBtn.innerHTML = iconText('save', 'Simpan Pengaturan');
       if (res.error) { alert('Gagal menyimpan: ' + friendlyError(res.error)); return; }
       updateSettingsPreview(store);
       dom.settingsSaved.classList.remove('hidden');
@@ -4566,7 +4595,7 @@ ${txRows}
         const payload = await decodeQrisImage(base64);
         if (payload && payload.startsWith('000201')) {
           localStorage.setItem('qris_payload', payload);
-          alert('QRIS berhasil dibaca! ✅ Fitur QRIS Dinamis (nominal otomatis tertanam) aktif untuk pengguna Premium.');
+          alert('QRIS berhasil dibaca. Fitur QRIS Dinamis (nominal otomatis tertanam) aktif untuk pengguna Premium.');
         } else {
           alert('Gambar tersimpan, tapi isi QR tidak terbaca — QRIS Dinamis tidak tersedia. Coba upload gambar yang lebih jelas/tidak terpotong jika ingin fitur nominal otomatis.');
         }
@@ -5043,7 +5072,7 @@ ${txRows}
     list.innerHTML = sorted.map(d => {
       const isPaid = d.status === 'lunas';
       const date = new Date(d.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-      const tagBtn = (!isPaid && d.phone) ? `<button data-debt-wa="${esc(d.id)}" class="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs text-white font-semibold hover:bg-green-700 transition">💬 Tagih</button>` : '';
+      const tagBtn = (!isPaid && d.phone) ? `<button data-debt-wa="${esc(d.id)}" class="btn-icon flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs text-white font-semibold hover:bg-green-700 transition">${iconText('message', 'Tagih', 'icon icon-sm')}</button>` : '';
       let itemsHtml = '';
       if (d.items && Array.isArray(d.items) && d.items.length > 0) {
           itemsHtml = `<div class="text-xs text-muted mt-1">${d.items.map(i => `${esc(i.product_name)} (${i.qty}x)`).join(', ')}</div>`;
@@ -5057,15 +5086,15 @@ ${txRows}
               ${itemsHtml}
             </div>
             <div class="flex flex-col items-end gap-1">
-              <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? '✅ Lunas' : 'Belum lunas'}</span>
+              <span class="rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${isPaid ? 'Lunas' : 'Belum lunas'}</span>
               ${d.pending ? '<span class="rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-xs whitespace-nowrap">Belum tersimpan online</span>' : ''}
             </div>
           </div>
           <p class="text-2xl font-bold ${isPaid ? 'text-muted-soft line-through' : 'text-rose-600'}">${formatCurrency(d.amount)}</p>
           <div class="flex gap-2">
             ${tagBtn}
-            ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="flex-1 rounded-lg bg-primary px-3 py-2 text-xs text-white font-semibold hover:bg-primary-active transition">✅ Tandai Lunas</button>` : ''}
-            <button data-debt-delete="${esc(d.id)}" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 hover:bg-rose-100 transition">🗑</button>
+            ${!isPaid ? `<button data-debt-paid="${esc(d.id)}" class="btn-icon flex-1 rounded-lg bg-primary px-3 py-2 text-xs text-white font-semibold hover:bg-primary-active transition">${iconText('check', 'Tandai Lunas', 'icon icon-sm')}</button>` : ''}
+            <button data-debt-delete="${esc(d.id)}" class="btn-icon rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 hover:bg-rose-100 transition" title="Hapus">${icon('trash', 'icon icon-sm')}</button>
           </div>
         </div>`;
     }).join('') || '<div class="col-span-full rounded-xl border border-dashed border-hairline bg-surface-soft p-8 text-center text-muted">Belum ada catatan kasbon. Klik "+ Catat Kasbon" untuk mulai.</div>';
@@ -5521,7 +5550,7 @@ ${txRows}
         const barcodeField = document.getElementById('productBarcode');
         if (barcodeField) {
           barcodeField.value = code;
-          showScanToast(`📷 Barcode terisi: ${code}`, true);
+          showScanToast(`Barcode terisi: ${code}`, true);
         }
         return;
       }
@@ -5531,16 +5560,16 @@ ${txRows}
       );
       if (product) {
         if (product.stock <= 0) {
-          showScanToast(`⚠️ ${product.name} — stok habis!`, false);
+          showScanToast(`${product.name} — stok habis`, false);
           return;
         }
         addToCart(product.id);
-        showScanToast(`✅ ${product.name} → keranjang`, true);
+        showScanToast(`${product.name} → keranjang`, true);
         // Pastikan kasir melihat keranjang: pindah ke layar kasir jika sedang di layar lain
         const kasirScreen = document.getElementById('kasir');
         if (kasirScreen && kasirScreen.classList.contains('hidden')) showScreen('kasir');
       } else {
-        showScanToast(`❌ Kode ${code} tidak ditemukan`, false);
+        showScanToast(`Kode ${code} tidak ditemukan`, false);
         if (dom.searchInput) { state.searchQuery = code; dom.searchInput.value = code; renderProducts(); }
       }
     };
@@ -5959,7 +5988,7 @@ ${txRows}
       } catch (e) {
         superAdminShowMsg('error', 'Terjadi kesalahan koneksi.');
       } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '✅ Aktifkan'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = iconText('check', 'Aktifkan'); }
       }
     });
 
@@ -6049,7 +6078,7 @@ ${txRows}
       } catch (e) {
         superAdminShowMsg('error', 'Terjadi kesalahan koneksi.');
       } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '🗑 Revokasi'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = iconText('trash', 'Revokasi'); }
       }
     });
   };
