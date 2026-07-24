@@ -2870,63 +2870,157 @@ const App = (() => {
     }
     return Date.now() + '-' + Math.random().toString(36).slice(2);
   };
-  const queueOfflineTransaction = entry => {
-    const q = getOfflineQueue();
-    q.push({ ...entry, client_id: generateClientId() });
-    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q));
-  };
-  const flushOfflineQueue = async () => {
-    if (!db || !navigator.onLine || !state.storeId) return 0;
-    const q = getOfflineQueue();
-    if (!q.length) return 0;
-    const remaining = [];
-    let synced = 0;
-    for (const entry of q) {
-      // AC6: legacy entries without client_id get a stable fallback so they are not permanently stuck
-      const clientId = entry.client_id || (entry.date + '-' + entry.total);
-      try {
-        const { data: tx, error: txErr } = await db.from('transactions').insert({
-          store_id: entry.store_id || state.storeId,
-          cashier_name: entry.cashier,
-          total_amount: entry.total,
-          payment_amount: entry.cash,
-          change_amount: entry.change,
-          discount_amount: entry.discount || 0,
-          payment_method: entry.paymentMethod || 'Tunai',
-          confirmed_by: entry.confirmedBy || null,
-          confirmed_at: entry.confirmedAt || null,
-          created_at: entry.date,
-          client_id: clientId
-        }).select().single();
-        if (txErr) throw txErr;
-        const itemRows = entry.items.map(item => ({
-          transaction_id: tx.id,
-          product_id: parseInt(item.id) || null,
-          product_name: item.name,
-          quantity: item.qty,
-          price_at_sale: item.price,
-          subtotal: item.qty * item.price
-        }));
-        const { error: itemsErr } = await db.from('transaction_items').insert(itemRows);
-        if (itemsErr) throw itemsErr;
-        // Kurangi stok di cloud sesuai qty yang terjual offline (atomic — satu statement, tanpa read dulu)
-        for (const item of entry.items) {
-          const numId = parseInt(item.id);
-          if (isNaN(numId)) continue;
-          if (!Number.isFinite(item.qty) || item.qty <= 0) continue;
-          const { error: stockErr } = await db.rpc('decrement_stock', { p_product_id: numId, p_qty: item.qty });
-          if (stockErr) throw stockErr;
-        }
-        synced++;
-      } catch (e) {
-        // AC4: duplicate insert from same store → already synced, drop silently without retry
-        if (e && e.code === '23505') continue;
-        remaining.push(entry); // gagal lagi → coba lain kali
+  let paymentInFlight = false;
+  let offlineQueueFlushing = false;
+  const setPaymentUiBusy = busy => {
+    const label = busy ? 'Menyimpan...' : 'Bayar';
+    if (dom.payButton) {
+      dom.payButton.disabled = !!busy;
+      if (busy) {
+        if (!dom.payButton.dataset.idleLabel) dom.payButton.dataset.idleLabel = dom.payButton.textContent || 'Bayar';
+        dom.payButton.textContent = label;
+      } else if (dom.payButton.dataset.idleLabel) {
+        dom.payButton.textContent = dom.payButton.dataset.idleLabel;
       }
     }
-    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
-    if (synced > 0) console.log(`${synced} transaksi offline tersinkron ke cloud.`);
-    return synced;
+    if (dom.paymentConfirmOk) {
+      dom.paymentConfirmOk.disabled = !!busy;
+      if (busy) {
+        if (!dom.paymentConfirmOk.dataset.idleLabel) {
+          dom.paymentConfirmOk.dataset.idleLabel = dom.paymentConfirmOk.textContent || 'Ya, Simpan';
+        }
+        dom.paymentConfirmOk.textContent = 'Menyimpan...';
+      } else if (dom.paymentConfirmOk.dataset.idleLabel) {
+        dom.paymentConfirmOk.textContent = dom.paymentConfirmOk.dataset.idleLabel;
+      }
+    }
+  };
+  const queueOfflineTransaction = entry => {
+    const q = getOfflineQueue();
+    const client_id = entry.client_id || generateClientId();
+    q.push({ ...entry, client_id });
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q));
+  };
+  // Pastikan items+stok lengkap untuk header yang sudah ada (idempotent: sisa items diinsert, sisa stok didecrement)
+  const ensureSaleComplete = async (txId, items) => {
+    if (!txId || !items || !items.length) return true;
+    const { data: existingItems, error: lookupErr } = await db
+      .from('transaction_items')
+      .select('product_id, quantity')
+      .eq('transaction_id', txId);
+    if (lookupErr) throw lookupErr;
+
+    const existingMap = new Map();
+    if (Array.isArray(existingItems)) {
+      existingItems.forEach(row => {
+        const pid = row.product_id ? String(row.product_id) : null;
+        if (pid) {
+          existingMap.set(pid, (existingMap.get(pid) || 0) + Number(row.quantity || 0));
+        }
+      });
+    }
+
+    const missingItems = [];
+    items.forEach(item => {
+      const itemIdStr = String(item.id);
+      const existingQty = existingMap.get(itemIdStr) || 0;
+      const missingQty = item.qty - existingQty;
+      if (missingQty > 0) {
+        missingItems.push({
+          ...item,
+          qty: missingQty
+        });
+      }
+    });
+
+    if (missingItems.length === 0) return true; // sudah lengkap
+
+    const itemRows = missingItems.map(item => ({
+      transaction_id: txId,
+      product_id: parseInt(item.id) || null,
+      product_name: item.name,
+      quantity: item.qty,
+      price_at_sale: item.price,
+      subtotal: item.qty * item.price
+    }));
+    const { error: itemsErr } = await db.from('transaction_items').insert(itemRows);
+    if (itemsErr) throw itemsErr;
+
+    for (const item of missingItems) {
+      const numId = parseInt(item.id);
+      if (isNaN(numId)) continue;
+      if (!Number.isFinite(item.qty) || item.qty <= 0) continue;
+      const { error: stockErr } = await db.rpc('decrement_stock', { p_product_id: numId, p_qty: item.qty });
+      if (stockErr) throw stockErr;
+    }
+    return true;
+  };
+
+  const flushOfflineQueue = async () => {
+    if (!db || !navigator.onLine || !state.storeId) return 0;
+    if (offlineQueueFlushing) return 0;
+    offlineQueueFlushing = true;
+    try {
+      const q = getOfflineQueue();
+      if (!q.length) return 0;
+      const remaining = [];
+      let synced = 0;
+      for (const entry of q) {
+        // Legacy tanpa client_id: fallback stabil, jangan generate UUID baru di flush
+        const clientId = entry.client_id || (entry.date + '-' + entry.total);
+        const storeId = entry.store_id || state.storeId;
+        try {
+          const { data: tx, error: txErr } = await db.from('transactions').insert({
+            store_id: storeId,
+            cashier_name: entry.cashier,
+            total_amount: entry.total,
+            payment_amount: entry.cash,
+            change_amount: entry.change,
+            discount_amount: entry.discount || 0,
+            payment_method: entry.paymentMethod || 'Tunai',
+            confirmed_by: entry.confirmedBy || null,
+            confirmed_at: entry.confirmedAt || null,
+            created_at: entry.date,
+            client_id: clientId,
+            shift_id: entry.shiftId || null,
+            status: entry.status || 'completed',
+            payment_cash_amount: entry.paymentCashAmount || 0,
+            payment_noncash_amount: entry.paymentNoncashAmount || 0
+          }).select().single();
+          if (txErr) throw txErr;
+          await ensureSaleComplete(tx.id, entry.items || []);
+          synced++;
+        } catch (e) {
+          // Duplikat (store_id, client_id) → pastikan items+stok lengkap dulu, baru drop
+          if (e && e.code === '23505') {
+            try {
+              const { data: existing } = await db.from('transactions')
+                .select('id')
+                .eq('store_id', storeId)
+                .eq('client_id', clientId)
+                .maybeSingle();
+              if (existing && existing.id) {
+                await ensureSaleComplete(existing.id, entry.items || []);
+                synced++;
+                continue;
+              }
+              // 23505 tapi lookup gagal temukan → biarkan remaining coba lagi
+              remaining.push(entry);
+            } catch (reconcileErr) {
+              logError('flushOfflineQueue: reconcile 23505 gagal', { clientId }, reconcileErr);
+              remaining.push(entry);
+            }
+            continue;
+          }
+          remaining.push(entry);
+        }
+      }
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
+      if (synced > 0) console.log(`${synced} transaksi offline tersinkron ke cloud.`);
+      return synced;
+    } finally {
+      offlineQueueFlushing = false;
+    }
   };
 
   // ── Kirim struk via WhatsApp (gratis — sekaligus promosi aplikasi) ────────
@@ -2958,6 +3052,7 @@ const App = (() => {
   };
 
   const handlePayment = async () => {
+    if (paymentInFlight) return;
     const cartItems = getCartItems();
     if (!cartItems.length) {
       alert('Keranjang masih kosong. Tambahkan produk terlebih dahulu.');
@@ -2992,71 +3087,178 @@ const App = (() => {
     }
   };
 
-  const _executePayment = async (cartItems, totals, confirmedBy, confirmedAt) => {
-    if (state.paymentMethod === 'Split') {
-      const valCash = Number(document.getElementById('splitCashInput')?.value) || 0;
-      totals.cash = valCash;
-      totals.change = 0;
-    } else if (state.paymentMethod !== 'Tunai') {
-      // QRIS/Transfer: nominal bayar otomatis = total, tanpa kembalian
-      state.cashAmount = totals.total;
-      totals.cash = totals.total;
-      totals.change = 0;
+  const _executePayment = async (cartItems, totals, confirmedBy, confirmedAt, opts) => {
+    const alreadyLocked = opts && opts.alreadyLocked;
+    if (!alreadyLocked) {
+      if (paymentInFlight) return;
+      paymentInFlight = true;
+      setPaymentUiBusy(true);
     }
+    try {
+      if (state.paymentMethod === 'Split') {
+        const valCash = Number(document.getElementById('splitCashInput')?.value) || 0;
+        totals.cash = valCash;
+        totals.change = 0;
+      } else if (state.paymentMethod !== 'Tunai') {
+        // QRIS/Transfer: nominal bayar otomatis = total, tanpa kembalian
+        state.cashAmount = totals.total;
+        totals.cash = totals.total;
+        totals.change = 0;
+      }
 
-    const cashier = getSelectedCashier();
-    let invoiceId = `INV${Date.now()}`;
-    let dbTx = null;
+      const cashier = getSelectedCashier();
+      let invoiceId = `INV${Date.now()}`;
+      let dbTx = null;
+      // Satu client_id per percobaan bayar (online + offline queue + flush)
+      const clientId = generateClientId();
 
-    const valCash = state.paymentMethod === 'Split' ? (Number(document.getElementById('splitCashInput')?.value) || 0) : (state.paymentMethod === 'Tunai' ? totals.total : 0);
-    const valNonCash = state.paymentMethod === 'Split' ? (Number(document.getElementById('splitNonCashInput')?.value) || 0) : (state.paymentMethod !== 'Tunai' ? totals.total : 0);
+      const valCash = state.paymentMethod === 'Split' ? (Number(document.getElementById('splitCashInput')?.value) || 0) : (state.paymentMethod === 'Tunai' ? totals.total : 0);
+      const valNonCash = state.paymentMethod === 'Split' ? (Number(document.getElementById('splitNonCashInput')?.value) || 0) : (state.paymentMethod !== 'Tunai' ? totals.total : 0);
 
-    if (db) {
-      try {
-        // Insert transaction header
-        const { data: tx, error: txErr } = await db.from('transactions').insert({
-          store_id: state.storeId,
-          cashier_name: cashier.name,
-          total_amount: totals.total,
-          payment_amount: totals.cash,
-          change_amount: totals.change,
-          discount_amount: totals.discount || 0,
-          payment_method: state.paymentMethod || 'Tunai',
-          confirmed_by: confirmedBy,
-          confirmed_at: confirmedAt,
-          shift_id: state.activeShift ? state.activeShift.id : null,
-          status: 'completed',
-          payment_cash_amount: valCash,
-          payment_noncash_amount: valNonCash
-        }).select().single();
-        if (txErr) throw txErr;
+      if (db) {
+        try {
+          // Insert transaction header
+          const { data: tx, error: txErr } = await db.from('transactions').insert({
+            store_id: state.storeId,
+            cashier_name: cashier.name,
+            total_amount: totals.total,
+            payment_amount: totals.cash,
+            change_amount: totals.change,
+            discount_amount: totals.discount || 0,
+            payment_method: state.paymentMethod || 'Tunai',
+            confirmed_by: confirmedBy,
+            confirmed_at: confirmedAt,
+            shift_id: state.activeShift ? state.activeShift.id : null,
+            status: 'completed',
+            payment_cash_amount: valCash,
+            payment_noncash_amount: valNonCash,
+            client_id: clientId
+          }).select().single();
+          if (txErr) throw txErr;
 
-        dbTx = tx;
-        invoiceId = 'INV' + tx.id;
+          dbTx = tx;
+          invoiceId = 'INV' + tx.id;
 
-        // Insert transaction items
-        const itemRows = cartItems.map(item => ({
-          transaction_id: tx.id,
-          product_id: parseInt(item.id) || null,
-          product_name: item.name,
-          quantity: item.qty,
-          price_at_sale: item.price,
-          subtotal: item.qty * item.price
-        }));
-        const { error: itemsErr } = await db.from('transaction_items').insert(itemRows);
-        if (itemsErr) throw itemsErr;
+          // Insert transaction items
+          const itemRows = cartItems.map(item => ({
+            transaction_id: tx.id,
+            product_id: parseInt(item.id) || null,
+            product_name: item.name,
+            quantity: item.qty,
+            price_at_sale: item.price,
+            subtotal: item.qty * item.price
+          }));
+          const { error: itemsErr } = await db.from('transaction_items').insert(itemRows);
+          if (itemsErr) throw itemsErr;
 
-        // Update stock in Supabase (atomic — prevents race condition between concurrent tabs)
-        for (const item of cartItems) {
-          const numId = parseInt(item.id);
-          if (isNaN(numId)) continue;
-          if (!Number.isFinite(item.qty) || item.qty <= 0) continue;
-          const { error: stockErr } = await db.rpc('decrement_stock', { p_product_id: numId, p_qty: item.qty });
-          if (stockErr) throw stockErr;
+          // Update stock in Supabase (atomic — prevents race condition between concurrent tabs)
+          for (const item of cartItems) {
+            const numId = parseInt(item.id);
+            if (isNaN(numId)) continue;
+            if (!Number.isFinite(item.qty) || item.qty <= 0) continue;
+            const { error: stockErr } = await db.rpc('decrement_stock', { p_product_id: numId, p_qty: item.qty });
+            if (stockErr) throw stockErr;
+          }
+        } catch (err) {
+          const errCode = err && err.code;
+          const cartSnapshot = cartItems.map(item => ({ id: item.id, name: item.name, qty: item.qty, price: item.price }));
+          // Unique (store_id, client_id) → header sudah ada; reconcile items+stok, jangan antrian baru
+          if (errCode === '23505') {
+            try {
+              const { data: existing } = await db.from('transactions')
+                .select('id')
+                .eq('store_id', state.storeId)
+                .eq('client_id', clientId)
+                .maybeSingle();
+              if (existing && existing.id) {
+                await ensureSaleComplete(existing.id, cartSnapshot);
+                dbTx = existing;
+                invoiceId = 'INV' + existing.id;
+              } else {
+                logError('_executePayment: 23505 tanpa baris client_id', { clientId }, err);
+                alert('Transaksi mungkin sudah tercatat. Periksa riwayat sebelum mencoba lagi.');
+                return;
+              }
+            } catch (lookupErr) {
+              logError('_executePayment: reconcile 23505 gagal', { clientId }, lookupErr);
+              alert('Gagal memastikan transaksi di server. Periksa riwayat atau coba lagi saat koneksi stabil.');
+              return;
+            }
+          } else if (dbTx) {
+            // Header sudah ter-insert; partial → repair idempotent; gagal repair = jangan anggap sukses lokal
+            logError('_executePayment: partial setelah header', { txId: dbTx.id, clientId }, err);
+            try {
+              await ensureSaleComplete(dbTx.id, cartSnapshot);
+            } catch (repairErr) {
+              logError('_executePayment: repair partial gagal', { txId: dbTx.id, clientId }, repairErr);
+              // Simpan antrean dengan client_id sama agar flush bisa resolve items+stok (tanpa double header)
+              queueOfflineTransaction({
+                store_id: state.storeId,
+                cashier: cashier.name,
+                total: totals.total,
+                cash: totals.cash,
+                change: totals.change,
+                discount: totals.discount || 0,
+                paymentMethod: state.paymentMethod || 'Tunai',
+                confirmedBy: confirmedBy,
+                confirmedAt: confirmedAt,
+                items: cartSnapshot,
+                date: new Date().toISOString(),
+                client_id: clientId,
+                shiftId: state.activeShift ? state.activeShift.id : null,
+                status: 'completed',
+                paymentCashAmount: valCash,
+                paymentNoncashAmount: valNonCash
+              });
+              alert('Transaksi tersimpan sebagian di server. Akan dilengkapi otomatis saat koneksi stabil. Struk tetap bisa dicetak.');
+            }
+          } else if (typeof isNetworkError === 'function' ? isNetworkError(err) : /Failed to fetch|NetworkError|Load failed|fetch failed/i.test(err?.message || '')) {
+            // Network: cek dulu apakah header sudah masuk (timeout setelah commit)
+            let recovered = false;
+            try {
+              const { data: existing } = await db.from('transactions')
+                .select('id')
+                .eq('store_id', state.storeId)
+                .eq('client_id', clientId)
+                .maybeSingle();
+              if (existing && existing.id) {
+                await ensureSaleComplete(existing.id, cartSnapshot);
+                dbTx = existing;
+                invoiceId = 'INV' + existing.id;
+                recovered = true;
+              }
+            } catch (recoverErr) {
+              // lookup gagal (masih offline) → antrean offline
+              logError('_executePayment: recover setelah network gagal', { clientId }, recoverErr);
+            }
+            if (!recovered) {
+              queueOfflineTransaction({
+                store_id: state.storeId,
+                cashier: cashier.name,
+                total: totals.total,
+                cash: totals.cash,
+                change: totals.change,
+                discount: totals.discount || 0,
+                paymentMethod: state.paymentMethod || 'Tunai',
+                confirmedBy: confirmedBy,
+                confirmedAt: confirmedAt,
+                items: cartSnapshot,
+                date: new Date().toISOString(),
+                client_id: clientId,
+                shiftId: state.activeShift ? state.activeShift.id : null,
+                status: 'completed',
+                paymentCashAmount: valCash,
+                paymentNoncashAmount: valNonCash
+              });
+              alert('Koneksi bermasalah — transaksi DISIMPAN OFFLINE dan akan otomatis tersinkron saat internet kembali. Struk tetap bisa dicetak.');
+            }
+          } else {
+            logError('_executePayment: gagal simpan transaksi', { clientId }, err);
+            alert('Gagal menyimpan transaksi. ' + (err?.message || 'Coba lagi atau periksa koneksi.'));
+            return;
+          }
         }
-      } catch (err) {
-        // Internet putus / server bermasalah → simpan ke antrean offline,
-        // transaksi tetap jalan dan akan otomatis tersinkron saat online.
+      } else {
         queueOfflineTransaction({
           store_id: state.storeId,
           cashier: cashier.name,
@@ -3068,56 +3270,64 @@ const App = (() => {
           confirmedBy: confirmedBy,
           confirmedAt: confirmedAt,
           items: cartItems.map(item => ({ id: item.id, name: item.name, qty: item.qty, price: item.price })),
-          date: new Date().toISOString()
+          date: new Date().toISOString(),
+          client_id: clientId,
+          shiftId: state.activeShift ? state.activeShift.id : null,
+          status: 'completed',
+          paymentCashAmount: valCash,
+          paymentNoncashAmount: valNonCash
         });
-        alert('Koneksi bermasalah — transaksi DISIMPAN OFFLINE dan akan otomatis tersinkron saat internet kembali. Struk tetap bisa dicetak.');
       }
+
+      const transaction = {
+        id: invoiceId,
+        dbId: dbTx ? dbTx.id : null,
+        clientId: clientId,
+        date: new Date().toISOString(),
+        cashier: cashier.name,
+        items: cartItems.map(item => ({ id: item.id, name: item.name, qty: item.qty, price: item.price, cost: item.cost, subtotal: item.qty * item.price })),
+        subtotal: totals.subtotal,
+        discount: totals.discount,
+        tax: totals.tax,
+        total: totals.total,
+        cash: totals.cash,
+        change: totals.change,
+        paymentMethod: state.paymentMethod || 'Tunai',
+        confirmedBy: confirmedBy,
+        confirmedAt: confirmedAt,
+        status: 'completed',
+        paymentCashAmount: valCash,
+        paymentNoncashAmount: valNonCash,
+        shiftId: state.activeShift ? state.activeShift.id : null
+      };
+
+      state.transactions.unshift(transaction);
+      state.currentTransaction = transaction;
+      cartItems.forEach(item => {
+        const product = state.products.find(productItem => productItem.id === item.id);
+        if (product) product.stock = Math.max(0, product.stock - item.qty);
+      });
+      state.cart = {};
+      state.cashAmount = 0;
+      state.discountPercent = 0;
+      state.discountNominal = 0;
+      syncStorage();
+      // F3: payment-complete SEBELUM renderCart (yang akan broadcast idle karena cart kosong)
+      _broadcastPaymentComplete(transaction);
+      renderCart();
+      renderInventory();
+      renderHistory();
+      updateDashboard();
+      renderSalesChart();
+      setPaymentMethod('Tunai'); // kembalikan default untuk transaksi berikutnya
+      // Langsung tampilkan struk agar kasir tinggal klik cetak
+      populateReceipt(transaction);
+      if (dom.printThermalBtn) dom.printThermalBtn._receiptData = transaction;
+      dom.receiptModal.classList.remove('hidden');
+    } finally {
+      paymentInFlight = false;
+      setPaymentUiBusy(false);
     }
-
-    const transaction = {
-      id: invoiceId,
-      dbId: dbTx ? dbTx.id : null,
-      date: new Date().toISOString(),
-      cashier: cashier.name,
-      items: cartItems.map(item => ({ id: item.id, name: item.name, qty: item.qty, price: item.price, cost: item.cost, subtotal: item.qty * item.price })),
-      subtotal: totals.subtotal,
-      discount: totals.discount,
-      tax: totals.tax,
-      total: totals.total,
-      cash: totals.cash,
-      change: totals.change,
-      paymentMethod: state.paymentMethod || 'Tunai',
-      confirmedBy: confirmedBy,
-      confirmedAt: confirmedAt,
-      status: 'completed',
-      paymentCashAmount: valCash,
-      paymentNoncashAmount: valNonCash,
-      shiftId: state.activeShift ? state.activeShift.id : null
-    };
-
-    state.transactions.unshift(transaction);
-    state.currentTransaction = transaction;
-    cartItems.forEach(item => {
-      const product = state.products.find(productItem => productItem.id === item.id);
-      if (product) product.stock = Math.max(0, product.stock - item.qty);
-    });
-    state.cart = {};
-    state.cashAmount = 0;
-    state.discountPercent = 0;
-    state.discountNominal = 0;
-    syncStorage();
-    // F3: payment-complete SEBELUM renderCart (yang akan broadcast idle karena cart kosong)
-    _broadcastPaymentComplete(transaction);
-    renderCart();
-    renderInventory();
-    renderHistory();
-    updateDashboard();
-    renderSalesChart();
-    setPaymentMethod('Tunai'); // kembalikan default untuk transaksi berikutnya
-    // Langsung tampilkan struk agar kasir tinggal klik cetak
-    populateReceipt(transaction);
-    if (dom.printThermalBtn) dom.printThermalBtn._receiptData = transaction;
-    dom.receiptModal.classList.remove('hidden');
   };
 
   const openReceipt = () => {
@@ -4498,13 +4708,16 @@ ${txRows}
     dom.paymentConfirmCancel.addEventListener('click', hidePaymentConfirmModal);
     dom.closePaymentConfirmModal.addEventListener('click', hidePaymentConfirmModal);
     dom.paymentConfirmOk.addEventListener('click', async () => {
+      if (paymentInFlight) return;
+      paymentInFlight = true;
+      setPaymentUiBusy(true);
       hidePaymentConfirmModal();
       const cartItems = getCartItems();
       const totals = calculateCart();
       const cashier = getSelectedCashier();
       const confirmedBy = cashier.name;
       const confirmedAt = new Date().toISOString();
-      await _executePayment(cartItems, totals, confirmedBy, confirmedAt);
+      await _executePayment(cartItems, totals, confirmedBy, confirmedAt, { alreadyLocked: true });
     });
 
     document.addEventListener('click', event => {
