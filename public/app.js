@@ -12,6 +12,79 @@ const App = (() => {
 
   const APP_VERSION = '1.2.0';
 
+  // ── Customer Display BroadcastChannel (lazy init) ─────────────────────
+  // Channel hanya dibuat jika customer-display.html terbuka (AC11).
+  // Tidak ada data sensitif (email/password/token/userId) yang dikirim (AC4).
+  let _customerDisplayChannel = null;
+  let _customerDisplayHeartbeat = null;
+
+  const _initCustomerDisplayChannel = () => {
+    if (_customerDisplayChannel) return _customerDisplayChannel;
+    _customerDisplayChannel = new BroadcastChannel('kasir-customer-display');
+    _customerDisplayChannel.onmessage = (event) => {
+      // customer-display.html baru dibuka → kirim state awal
+      if (event.data && event.data.type === 'customer-display-ready') {
+        _broadcastCartState();
+      }
+    };
+    // Heartbeat setiap 5 detik agar customer display tahu kasir masih aktif
+    _customerDisplayHeartbeat = setInterval(() => {
+      if (_customerDisplayChannel) {
+        _customerDisplayChannel.postMessage({ type: 'heartbeat' });
+      }
+    }, 5000);
+    return _customerDisplayChannel;
+  };
+
+  const _broadcastCartState = () => {
+    if (!_customerDisplayChannel) return;
+    const items = getCartItems();
+    const totals = calculateCart();
+    const store = getStoreSettings();
+    if (items.length === 0) {
+      _customerDisplayChannel.postMessage({ type: 'idle', payload: {} });
+    } else {
+      _customerDisplayChannel.postMessage({
+        type: 'cart-update',
+        payload: {
+          items: items.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
+          total: totals.total,
+          storeName: store.name
+        }
+      });
+    }
+  };
+
+  const _broadcastPaymentComplete = (transaction) => {
+    if (!_customerDisplayChannel) return;
+    const store = getStoreSettings();
+    _customerDisplayChannel.postMessage({
+      type: 'payment-complete',
+      payload: {
+        storeName: store.name,
+        total: transaction.total,
+        paymentMethod: transaction.paymentMethod,
+        change: transaction.change
+      }
+    });
+  };
+
+  const _broadcastIdle = () => {
+    if (_customerDisplayChannel) {
+      _customerDisplayChannel.postMessage({ type: 'idle', payload: {} });
+    }
+  };
+
+  const openCustomerDisplay = () => {
+    _initCustomerDisplayChannel();
+    const win = window.open('customer-display.html', 'customer-display',
+      'width=800,height=600,menubar=no,toolbar=no,location=no,status=no');
+    if (!win || win.closed) {
+      alert('Layar pelanggan diblokir oleh browser. Izinkan pop-up untuk situs ini, lalu coba lagi.');
+    }
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
   // Muat script eksternal sekali (no-op jika sudah ada); dipakai untuk lazy-load CDN
   const loadScript = url => new Promise((resolve, reject) => {
     if (document.querySelector(`script[src="${url}"]`)) { resolve(); return; }
@@ -2481,6 +2554,9 @@ const App = (() => {
     if (active !== dom.discountPercent) dom.discountPercent.value = state.discountPercent;
     if (active !== dom.discountNominal) dom.discountNominal.value = state.discountNominal;
     if (active !== dom.cashInput) dom.cashInput.value = state.cashAmount;
+
+    // Broadcast cart state ke customer display (jika channel aktif)
+    _broadcastCartState();
   };
 
   const renderInventory = () => {
@@ -3011,6 +3087,9 @@ const App = (() => {
     populateReceipt(transaction);
     if (dom.printThermalBtn) dom.printThermalBtn._receiptData = transaction;
     dom.receiptModal.classList.remove('hidden');
+
+    // Broadcast payment-complete ke customer display
+    _broadcastPaymentComplete(transaction);
   };
 
   const openReceipt = () => {
@@ -3220,6 +3299,8 @@ ${discountHtml}${taxHtml}
 
   const closeReceipt = () => {
     dom.receiptModal.classList.add('hidden');
+    // Setelah struk ditutup, kembalikan customer display ke idle
+    _broadcastIdle();
   };
 
   // ── Feature: Export PDF Laporan ──────────────────────────────────────────
@@ -4551,6 +4632,9 @@ ${txRows}
       dom.settingsSaved.classList.remove('hidden');
       setTimeout(() => dom.settingsSaved.classList.add('hidden'), 2500);
     });
+
+    // ── Layar Pelanggan ──
+    document.getElementById('openCustomerDisplayBtn')?.addEventListener('click', openCustomerDisplay);
 
     // ── Langganan ──
     document.getElementById('subsBannerBtn')?.addEventListener('click', () => showUpgradeOverlay('premium'));

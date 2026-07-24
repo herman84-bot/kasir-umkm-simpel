@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Layar Pelanggan — Kasir UMKM Simpel</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #CC6B49;
+      --primary-light: #FBEEE7;
+      --ink: #26231F;
+      --body: #44403C;
+      --muted: #78716C;
+      --muted-soft: #A8A29E;
+      --hairline: #E7E2DB;
+      --surface-soft: #F5F2EB;
+      --canvas: #ffffff;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Plus Jakarta Sans', ui-sans-serif, -apple-system, system-ui, Roboto, 'Segoe UI', sans-serif;
+      background: var(--surface-soft);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Layout: full viewport, flex column */
+    .display-root {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .display-header {
+      background: var(--primary);
+      color: white;
+      padding: 1rem 1.5rem;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .display-header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+    }
+    @media (min-width: 768px) {
+      .display-header h1 { font-size: 2rem; }
+    }
+
+    /* Content area — scrollable items */
+    .display-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.25rem;
+    }
+    .display-content::-webkit-scrollbar { width: 6px; }
+    .display-content::-webkit-scrollbar-track { background: transparent; }
+    .display-content::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 3px; }
+
+    /* Footer (total) */
+    .display-footer {
+      background: var(--canvas);
+      border-top: 1px solid var(--hairline);
+      padding: 1rem 1.5rem;
+      flex-shrink: 0;
+    }
+
+    /* Card */
+    .card {
+      background: var(--canvas);
+      border: 1px solid var(--hairline);
+      border-radius: 1.5rem;
+      padding: 1.25rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+
+    /* Item row */
+    .item-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 0.875rem 0;
+      border-bottom: 1px solid var(--hairline);
+      gap: 0.75rem;
+    }
+    .item-row:last-child { border-bottom: none; }
+
+    .item-name {
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--ink);
+      line-height: 1.4;
+    }
+    .item-detail {
+      font-size: 0.875rem;
+      color: var(--muted);
+      margin-top: 0.125rem;
+    }
+    .item-subtotal {
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--ink);
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    @media (min-width: 768px) {
+      .item-name { font-size: 1.125rem; }
+      .item-subtotal { font-size: 1.125rem; }
+    }
+
+    /* Total bar */
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .total-label {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--body);
+    }
+    .total-amount {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--primary);
+    }
+    @media (min-width: 768px) {
+      .total-label { font-size: 1.25rem; }
+      .total-amount { font-size: 2.25rem; }
+    }
+
+    /* State screens */
+    .state-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      height: 100%;
+      padding: 2rem;
+      gap: 1rem;
+    }
+    .state-screen.active { display: flex; }
+
+    .state-icon {
+      font-size: 3.5rem;
+      line-height: 1;
+      margin-bottom: 0.5rem;
+    }
+    .state-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .state-subtitle {
+      font-size: 1rem;
+      color: var(--muted);
+      max-width: 360px;
+      line-height: 1.5;
+    }
+    @media (min-width: 768px) {
+      .state-icon { font-size: 4.5rem; }
+      .state-title { font-size: 2rem; }
+      .state-subtitle { font-size: 1.125rem; }
+    }
+
+    /* Thank you screen */
+    .thankyou-card {
+      background: var(--canvas);
+      border: 1px solid var(--hairline);
+      border-radius: 1.5rem;
+      padding: 2rem;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .thankyou-store {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 1rem;
+    }
+    .thankyou-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      font-size: 1rem;
+      color: var(--body);
+    }
+    .thankyou-row.total {
+      border-top: 2px solid var(--hairline);
+      margin-top: 0.5rem;
+      padding-top: 0.75rem;
+      font-weight: 700;
+      font-size: 1.25rem;
+      color: var(--ink);
+    }
+    @media (min-width: 768px) {
+      .thankyou-card { padding: 2.5rem; }
+      .thankyou-store { font-size: 1.5rem; }
+      .thankyou-row { font-size: 1.125rem; }
+      .thankyou-row.total { font-size: 1.5rem; }
+    }
+
+    /* Pulse animation for waiting */
+    @keyframes pulse-slow {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .pulse-slow { animation: pulse-slow 2.5s ease-in-out infinite; }
+
+    /* Fade in animation */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 0.35s ease-out; }
+
+    /* Item count badge */
+    .item-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--primary-light);
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 0.875rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+  <div class="display-root">
+
+    <!-- === VIEW: CART (items + total) === -->
+    <div id="viewCart" style="display:none; flex-direction:column; height:100%;">
+      <header class="display-header">
+        <h1 id="headerStoreName">Kasir UMKM Simpel</h1>
+      </header>
+      <div class="display-content" id="cartItemsContainer">
+        <!-- Items rendered here -->
+      </div>
+      <div class="display-footer">
+        <div class="total-row">
+          <div style="display:flex; align-items:center; gap:0.75rem;">
+            <span class="total-label">Total</span>
+            <span class="item-count" id="cartItemCount">0 item</span>
+          </div>
+          <span class="total-amount" id="cartTotalAmount">Rp0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- === VIEW: IDLE (menunggu transaksi) === -->
+    <div id="viewIdle" class="state-screen active">
+      <div class="state-icon pulse-slow">🛒</div>
+      <p class="state-title">Menunggu transaksi...</p>
+      <p class="state-subtitle">Daftar belanja Anda akan muncul di layar ini secara otomatis.</p>
+    </div>
+
+    <!-- === VIEW: THANK YOU (pembayaran selesai) === -->
+    <div id="viewThankYou" class="state-screen">
+      <div class="state-icon">✅</div>
+      <p class="state-title">Terima Kasih!</p>
+      <div class="thankyou-card fade-in" id="thankYouCard">
+        <p class="thankyou-store" id="tyStoreName"></p>
+        <div id="tyDetails"></div>
+      </div>
+    </div>
+
+    <!-- === VIEW: DISCONNECTED (kasir offline) === -->
+    <div id="viewDisconnected" class="state-screen">
+      <div class="state-icon pulse-slow">📡</div>
+      <p class="state-title">Menunggu koneksi kasir...</p>
+      <p class="state-subtitle">Layar ini akan otomatis terhubung saat tab kasir dibuka kembali.</p>
+    </div>
+
+  </div>
+
+  <script>
+  (() => {
+    'use strict';
+
+    // --- Currency formatter (same as app.js) ---
+    const fmt = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
+    const formatCurrency = v => fmt.format(v);
+
+    // --- HTML escape ---
+    const esc = s => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+    // --- DOM refs ---
+    const views = {
+      cart: document.getElementById('viewCart'),
+      idle: document.getElementById('viewIdle'),
+      thankYou: document.getElementById('viewThankYou'),
+      disconnected: document.getElementById('viewDisconnected'),
+    };
+    const dom = {
+      headerStoreName: document.getElementById('headerStoreName'),
+      cartItems: document.getElementById('cartItemsContainer'),
+      cartItemCount: document.getElementById('cartItemCount'),
+      cartTotal: document.getElementById('cartTotalAmount'),
+      tyStoreName: document.getElementById('tyStoreName'),
+      tyDetails: document.getElementById('tyDetails'),
+    };
+
+    // --- View switching ---
+    // thankYouUntil: timestamp sampai kapan layar thank-you harus tetap ditampilkan
+    let thankYouUntil = 0;
+    let pendingView = null;
+
+    const showView = name => {
+      // Jika sedang menampilkan thank-you dan belum 5 detik, tunda view berikutnya
+      const now = Date.now();
+      if (thankYouUntil > now && name !== 'thankYou') {
+        pendingView = name;
+        setTimeout(() => {
+          // Hanya terapkan jika tidak ada view lain yang lebih baru
+          if (pendingView === name) {
+            pendingView = null;
+            _applyView(name);
+          }
+        }, thankYouUntil - now);
+        return;
+      }
+      pendingView = null;
+      _applyView(name);
+    };
+
+    const _applyView = name => {
+      Object.entries(views).forEach(([key, el]) => {
+        if (key === 'cart') {
+          el.style.display = key === name ? 'flex' : 'none';
+        } else {
+          el.classList.toggle('active', key === name);
+        }
+      });
+    };
+
+    // --- Render cart items ---
+    const renderCart = (data) => {
+      const { items, total, storeName } = data;
+
+      // Update store name in header
+      if (storeName) {
+        dom.headerStoreName.textContent = storeName;
+      }
+
+      // If no items → show idle
+      if (!items || items.length === 0) {
+        showView('idle');
+        return;
+      }
+
+      showView('cart');
+
+      // Count total items (sum of qty)
+      const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
+      dom.cartItemCount.textContent = `${totalQty} item`;
+      dom.cartTotal.textContent = formatCurrency(total || 0);
+
+      dom.cartItems.innerHTML = `<div class="card fade-in">${items.map(item => `
+        <div class="item-row">
+          <div>
+            <div class="item-name">${esc(item.name)}</div>
+            <div class="item-detail">${formatCurrency(item.price)} × ${esc(item.qty)}</div>
+          </div>
+          <div class="item-subtotal">${formatCurrency(item.price * item.qty)}</div>
+        </div>
+      `).join('')}</div>`;
+    };
+
+    // --- Render thank you ---
+    const renderThankYou = (data) => {
+      const { storeName, total, paymentMethod, change } = data;
+
+      dom.tyStoreName.textContent = storeName || 'Kasir UMKM Simpel';
+
+      let html = '';
+      html += `<div class="thankyou-row total"><span>Total Dibayar</span><span>${formatCurrency(total || 0)}</span></div>`;
+      html += `<div class="thankyou-row"><span>Metode</span><span>${esc(paymentMethod || 'Tunai')}</span></div>`;
+      if ((paymentMethod === 'Tunai' || !paymentMethod) && change > 0) {
+        html += `<div class="thankyou-row"><span>Kembalian</span><span>${formatCurrency(change)}</span></div>`;
+      }
+      dom.tyDetails.innerHTML = html;
+
+      // AC3: minimal 5 detik sebelum kembali ke idle
+      thankYouUntil = Date.now() + 5000;
+      showView('thankYou');
+    };
+
+    // --- BroadcastChannel ---
+    let channel = null;
+    let heartbeatTimer = null;
+    let kasirAlive = false;
+
+    // Heartbeat: jika kasir tidak mengirim pesan dalam 8 detik,
+    // anggap disconnected. Setiap pesan masuk me-reset timer.
+    const HEARTBEAT_TIMEOUT = 8000;
+
+    const resetHeartbeat = () => {
+      kasirAlive = true;
+      clearTimeout(heartbeatTimer);
+      heartbeatTimer = setTimeout(() => {
+        kasirAlive = false;
+        showView('disconnected');
+      }, HEARTBEAT_TIMEOUT);
+    };
+
+    const initChannel = () => {
+      channel = new BroadcastChannel('kasir-customer-display');
+
+      channel.onmessage = (event) => {
+        const msg = event.data;
+        if (!msg || !msg.type) return;
+
+        resetHeartbeat();
+
+        switch (msg.type) {
+          case 'cart-update':
+            renderCart(msg.payload);
+            break;
+
+          case 'payment-complete':
+            renderThankYou(msg.payload);
+            break;
+
+          case 'idle':
+            showView('idle');
+            break;
+
+          case 'heartbeat':
+            // heartbeat sudah di-reset di atas
+            break;
+        }
+      };
+
+      // Minta kasir kirim state awal
+      channel.postMessage({ type: 'customer-display-ready' });
+
+      // Mulai heartbeat check
+      resetHeartbeat();
+    };
+
+    initChannel();
+  })();
+  </script>
+</body>
+</html>
