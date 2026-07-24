@@ -2870,6 +2870,8 @@ const App = (() => {
     }
     return Date.now() + '-' + Math.random().toString(36).slice(2);
   };
+  // Error jaringan murni (fetch gagal), bukan error dari server/database — dipakai payment + debt queue
+  const isNetworkError = e => /Failed to fetch|NetworkError|Load failed|fetch failed/i.test(e?.message || '');
   let paymentInFlight = false;
   let offlineQueueFlushing = false;
   const setPaymentUiBusy = busy => {
@@ -2966,9 +2968,22 @@ const App = (() => {
       const remaining = [];
       let synced = 0;
       for (const entry of q) {
-        // Legacy tanpa client_id: fallback stabil, jangan generate UUID baru di flush
-        const clientId = entry.client_id || (entry.date + '-' + entry.total);
+        // Legacy tanpa client_id: fingerprint deterministik (JANGAN generateClientId di flush)
         const storeId = entry.store_id || state.storeId;
+        const clientId = entry.client_id || (() => {
+          const items = entry.items || [];
+          const fp = items
+            .map(i => `${i.id || ''}:${i.qty || 0}:${i.price || 0}`)
+            .sort()
+            .join('|');
+          return [
+            storeId || '',
+            entry.cashier || '',
+            entry.date || '',
+            String(entry.total ?? ''),
+            fp
+          ].join('::');
+        })();
         try {
           const { data: tx, error: txErr } = await db.from('transactions').insert({
             store_id: storeId,
@@ -3070,6 +3085,8 @@ const App = (() => {
         alert('Total porsi split (Tunai + Non-Tunai) harus sama dengan Total Akhir: ' + formatCurrency(totals.total));
         return;
       }
+      // Bekukan porsi split di state agar confirm/execute tidak re-read DOM yang bisa diubah
+      state._splitSnapshot = { valCash, valNonCash, total: totals.total };
       const cashier = getSelectedCashier();
       showPaymentConfirmModal('Split Payment', totals.total, cashier.name);
     } else if (state.paymentMethod === 'Tunai') {
@@ -3095,15 +3112,45 @@ const App = (() => {
       setPaymentUiBusy(true);
     }
     try {
+      // Defense: keranjang kosong / total invalid → jangan insert
+      if (!cartItems || !cartItems.length) {
+        alert('Keranjang masih kosong. Tambahkan produk terlebih dahulu.');
+        return;
+      }
+      if (!totals || !(totals.total > 0)) {
+        alert('Total transaksi tidak valid. Periksa diskon dan jumlah produk.');
+        return;
+      }
+
+      // Snapshot split / cash sekali di awal — prioritaskan opts/state (bukan re-read DOM)
+      let valCash = 0;
+      let valNonCash = 0;
       if (state.paymentMethod === 'Split') {
-        const valCash = Number(document.getElementById('splitCashInput')?.value) || 0;
+        const snap = (opts && opts.splitSnapshot) || state._splitSnapshot;
+        if (snap && Number(snap.valCash) + Number(snap.valNonCash) === totals.total) {
+          valCash = Number(snap.valCash) || 0;
+          valNonCash = Number(snap.valNonCash) || 0;
+        } else {
+          valCash = Number(document.getElementById('splitCashInput')?.value) || 0;
+          valNonCash = Number(document.getElementById('splitNonCashInput')?.value) || 0;
+          if (valCash + valNonCash !== totals.total) {
+            alert('Total porsi split (Tunai + Non-Tunai) harus sama dengan Total Akhir: ' + formatCurrency(totals.total));
+            return;
+          }
+        }
         totals.cash = valCash;
         totals.change = 0;
+        state._splitSnapshot = null;
       } else if (state.paymentMethod !== 'Tunai') {
         // QRIS/Transfer: nominal bayar otomatis = total, tanpa kembalian
         state.cashAmount = totals.total;
         totals.cash = totals.total;
         totals.change = 0;
+        valCash = 0;
+        valNonCash = totals.total;
+      } else {
+        valCash = totals.total;
+        valNonCash = 0;
       }
 
       const cashier = getSelectedCashier();
@@ -3111,9 +3158,6 @@ const App = (() => {
       let dbTx = null;
       // Satu client_id per percobaan bayar (online + offline queue + flush)
       const clientId = generateClientId();
-
-      const valCash = state.paymentMethod === 'Split' ? (Number(document.getElementById('splitCashInput')?.value) || 0) : (state.paymentMethod === 'Tunai' ? totals.total : 0);
-      const valNonCash = state.paymentMethod === 'Split' ? (Number(document.getElementById('splitNonCashInput')?.value) || 0) : (state.paymentMethod !== 'Tunai' ? totals.total : 0);
 
       if (db) {
         try {
@@ -3212,7 +3256,7 @@ const App = (() => {
               });
               alert('Transaksi tersimpan sebagian di server. Akan dilengkapi otomatis saat koneksi stabil. Struk tetap bisa dicetak.');
             }
-          } else if (typeof isNetworkError === 'function' ? isNetworkError(err) : /Failed to fetch|NetworkError|Load failed|fetch failed/i.test(err?.message || '')) {
+          } else if (isNetworkError(err)) {
             // Network: cek dulu apakah header sudah masuk (timeout setelah commit)
             let recovered = false;
             try {
@@ -4709,15 +4753,40 @@ ${txRows}
     dom.closePaymentConfirmModal.addEventListener('click', hidePaymentConfirmModal);
     dom.paymentConfirmOk.addEventListener('click', async () => {
       if (paymentInFlight) return;
+      const cartItems = getCartItems();
+      if (!cartItems.length) {
+        alert('Keranjang masih kosong. Tambahkan produk terlebih dahulu.');
+        return;
+      }
+      const totals = calculateCart();
+      if (totals.total <= 0) {
+        alert('Total transaksi tidak valid. Periksa diskon dan jumlah produk.');
+        return;
+      }
+      let splitSnapshot = null;
+      if (state.paymentMethod === 'Split') {
+        splitSnapshot = state._splitSnapshot;
+        if (!splitSnapshot || Number(splitSnapshot.valCash) + Number(splitSnapshot.valNonCash) !== totals.total) {
+          // Snapshot hilang / total berubah → re-snapshot + validasi ulang
+          const valCash = Number(document.getElementById('splitCashInput')?.value) || 0;
+          const valNonCash = Number(document.getElementById('splitNonCashInput')?.value) || 0;
+          if (valCash + valNonCash !== totals.total) {
+            alert('Total porsi split (Tunai + Non-Tunai) harus sama dengan Total Akhir: ' + formatCurrency(totals.total));
+            return;
+          }
+          splitSnapshot = { valCash, valNonCash, total: totals.total };
+        }
+      }
       paymentInFlight = true;
       setPaymentUiBusy(true);
       hidePaymentConfirmModal();
-      const cartItems = getCartItems();
-      const totals = calculateCart();
       const cashier = getSelectedCashier();
       const confirmedBy = cashier.name;
       const confirmedAt = new Date().toISOString();
-      await _executePayment(cartItems, totals, confirmedBy, confirmedAt, { alreadyLocked: true });
+      await _executePayment(cartItems, totals, confirmedBy, confirmedAt, {
+        alreadyLocked: true,
+        splitSnapshot
+      });
     });
 
     document.addEventListener('click', event => {
@@ -5313,8 +5382,6 @@ ${txRows}
     try { return JSON.parse(localStorage.getItem(DEBT_QUEUE_KEY) || '[]'); } catch { return []; }
   };
   const saveDebtQueue = q => localStorage.setItem(DEBT_QUEUE_KEY, JSON.stringify(q));
-  // Error jaringan murni (fetch gagal), bukan error dari server/database
-  const isNetworkError = e => /Failed to fetch|NetworkError|Load failed|fetch failed/i.test(e?.message || '');
 
   // Guard reentrancy: flush dipanggil dari loadData, event 'online', dan refresh layar
   // Kasbon — tanpa guard, dua flush bersamaan kirim RPC dobel (kasbon & stok terpotong 2x)
