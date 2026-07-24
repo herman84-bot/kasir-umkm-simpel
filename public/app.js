@@ -17,12 +17,30 @@ const App = (() => {
   // Tidak ada data sensitif (email/password/token/userId) yang dikirim (AC4).
   let _customerDisplayChannel = null;
   let _customerDisplayHeartbeat = null;
+  let _customerDisplayWindow = null;
+  let _customerDisplayWindowPoll = null;
+
+  const _teardownCustomerDisplayChannel = () => {
+    if (_customerDisplayHeartbeat) {
+      clearInterval(_customerDisplayHeartbeat);
+      _customerDisplayHeartbeat = null;
+    }
+    if (_customerDisplayWindowPoll) {
+      clearInterval(_customerDisplayWindowPoll);
+      _customerDisplayWindowPoll = null;
+    }
+    if (_customerDisplayChannel) {
+      try { _customerDisplayChannel.close(); } catch (_) { /* ignore */ }
+      _customerDisplayChannel = null;
+    }
+    _customerDisplayWindow = null;
+  };
 
   const _initCustomerDisplayChannel = () => {
     if (_customerDisplayChannel) return _customerDisplayChannel;
     _customerDisplayChannel = new BroadcastChannel('kasir-customer-display');
     _customerDisplayChannel.onmessage = (event) => {
-      // customer-display.html baru dibuka → kirim state awal
+      // customer-display.html baru dibuka / retry ready → kirim state awal
       if (event.data && event.data.type === 'customer-display-ready') {
         _broadcastCartState();
       }
@@ -77,11 +95,22 @@ const App = (() => {
 
   const openCustomerDisplay = () => {
     _initCustomerDisplayChannel();
+    // F2: kirim state segera (siap atau belum, display bisa retry ready)
+    _broadcastCartState();
     const win = window.open('customer-display.html', 'customer-display',
       'width=800,height=600,menubar=no,toolbar=no,location=no,status=no');
     if (!win || win.closed) {
       alert('Layar pelanggan diblokir oleh browser. Izinkan pop-up untuk situs ini, lalu coba lagi.');
+      return;
     }
+    _customerDisplayWindow = win;
+    // F4: teardown channel+heartbeat saat jendela customer ditutup
+    if (_customerDisplayWindowPoll) clearInterval(_customerDisplayWindowPoll);
+    _customerDisplayWindowPoll = setInterval(() => {
+      if (!_customerDisplayWindow || _customerDisplayWindow.closed) {
+        _teardownCustomerDisplayChannel();
+      }
+    }, 2000);
   };
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -3077,6 +3106,8 @@ const App = (() => {
     state.discountPercent = 0;
     state.discountNominal = 0;
     syncStorage();
+    // F3: payment-complete SEBELUM renderCart (yang akan broadcast idle karena cart kosong)
+    _broadcastPaymentComplete(transaction);
     renderCart();
     renderInventory();
     renderHistory();
@@ -3087,9 +3118,6 @@ const App = (() => {
     populateReceipt(transaction);
     if (dom.printThermalBtn) dom.printThermalBtn._receiptData = transaction;
     dom.receiptModal.classList.remove('hidden');
-
-    // Broadcast payment-complete ke customer display
-    _broadcastPaymentComplete(transaction);
   };
 
   const openReceipt = () => {

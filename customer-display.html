@@ -325,6 +325,10 @@
     // thankYouUntil: timestamp sampai kapan layar thank-you harus tetap ditampilkan
     let thankYouUntil = 0;
     let pendingView = null;
+    let currentView = 'idle';
+    let lastCartPayload = null;
+    let readyRetryTimer = null;
+    let hasReceivedState = false;
 
     const showView = name => {
       // Jika sedang menampilkan thank-you dan belum 5 detik, tunda view berikutnya
@@ -345,6 +349,7 @@
     };
 
     const _applyView = name => {
+      currentView = name;
       Object.entries(views).forEach(([key, el]) => {
         if (key === 'cart') {
           el.style.display = key === name ? 'flex' : 'none';
@@ -356,6 +361,10 @@
 
     // --- Render cart items ---
     const renderCart = (data) => {
+      if (!data) {
+        showView('idle');
+        return;
+      }
       const { items, total, storeName } = data;
 
       // Update store name in header
@@ -365,44 +374,58 @@
 
       // If no items → show idle
       if (!items || items.length === 0) {
+        lastCartPayload = null;
         showView('idle');
         return;
       }
 
+      lastCartPayload = data;
       showView('cart');
 
-      // Count total items (sum of qty)
-      const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
+      // F6: coerce Number; NaN → 0
+      const safeNum = v => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : 0;
+      };
+      const totalQty = items.reduce((sum, item) => sum + safeNum(item.qty), 0);
       dom.cartItemCount.textContent = `${totalQty} item`;
-      dom.cartTotal.textContent = formatCurrency(total || 0);
+      dom.cartTotal.textContent = formatCurrency(safeNum(total));
 
-      dom.cartItems.innerHTML = `<div class="card fade-in">${items.map(item => `
+      dom.cartItems.innerHTML = `<div class="card fade-in">${items.map(item => {
+        const price = safeNum(item.price);
+        const qty = safeNum(item.qty);
+        return `
         <div class="item-row">
           <div>
             <div class="item-name">${esc(item.name)}</div>
-            <div class="item-detail">${formatCurrency(item.price)} × ${esc(item.qty)}</div>
+            <div class="item-detail">${formatCurrency(price)} × ${esc(qty)}</div>
           </div>
-          <div class="item-subtotal">${formatCurrency(item.price * item.qty)}</div>
-        </div>
-      `).join('')}</div>`;
+          <div class="item-subtotal">${formatCurrency(price * qty)}</div>
+        </div>`;
+      }).join('')}</div>`;
     };
 
     // --- Render thank you ---
     const renderThankYou = (data) => {
-      const { storeName, total, paymentMethod, change } = data;
+      const { storeName, total, paymentMethod, change } = data || {};
 
       dom.tyStoreName.textContent = storeName || 'Kasir UMKM Simpel';
 
+      const safeNum = v => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : 0;
+      };
       let html = '';
-      html += `<div class="thankyou-row total"><span>Total Dibayar</span><span>${formatCurrency(total || 0)}</span></div>`;
+      html += `<div class="thankyou-row total"><span>Total Dibayar</span><span>${formatCurrency(safeNum(total))}</span></div>`;
       html += `<div class="thankyou-row"><span>Metode</span><span>${esc(paymentMethod || 'Tunai')}</span></div>`;
-      if ((paymentMethod === 'Tunai' || !paymentMethod) && change > 0) {
-        html += `<div class="thankyou-row"><span>Kembalian</span><span>${formatCurrency(change)}</span></div>`;
+      if ((paymentMethod === 'Tunai' || !paymentMethod) && safeNum(change) > 0) {
+        html += `<div class="thankyou-row"><span>Kembalian</span><span>${formatCurrency(safeNum(change))}</span></div>`;
       }
       dom.tyDetails.innerHTML = html;
 
       // AC3: minimal 5 detik sebelum kembali ke idle
       thankYouUntil = Date.now() + 5000;
+      lastCartPayload = null;
       showView('thankYou');
     };
 
@@ -414,6 +437,20 @@
     // Heartbeat: jika kasir tidak mengirim pesan dalam 8 detik,
     // anggap disconnected. Setiap pesan masuk me-reset timer.
     const HEARTBEAT_TIMEOUT = 8000;
+
+    const stopReadyRetry = () => {
+      if (readyRetryTimer) {
+        clearInterval(readyRetryTimer);
+        readyRetryTimer = null;
+      }
+    };
+
+    const markStateReceived = () => {
+      if (!hasReceivedState) {
+        hasReceivedState = true;
+        stopReadyRetry();
+      }
+    };
 
     const resetHeartbeat = () => {
       kasirAlive = true;
@@ -435,25 +472,43 @@
 
         switch (msg.type) {
           case 'cart-update':
+            markStateReceived();
             renderCart(msg.payload);
             break;
 
           case 'payment-complete':
+            markStateReceived();
             renderThankYou(msg.payload);
             break;
 
           case 'idle':
+            markStateReceived();
+            lastCartPayload = null;
             showView('idle');
             break;
 
           case 'heartbeat':
-            // heartbeat sudah di-reset di atas
+            // F1: setelah disconnect, heartbeat harus restore UI (bukan macet)
+            if (currentView === 'disconnected') {
+              if (lastCartPayload) renderCart(lastCartPayload);
+              else showView('idle');
+            }
             break;
         }
       };
 
-      // Minta kasir kirim state awal
-      channel.postMessage({ type: 'customer-display-ready' });
+      // F2: minta state awal + retry tiap 2s sampai kasir merespons
+      const postReady = () => {
+        if (channel) channel.postMessage({ type: 'customer-display-ready' });
+      };
+      postReady();
+      readyRetryTimer = setInterval(() => {
+        if (hasReceivedState) {
+          stopReadyRetry();
+          return;
+        }
+        postReady();
+      }, 2000);
 
       // Mulai heartbeat check
       resetHeartbeat();
