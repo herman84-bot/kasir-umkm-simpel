@@ -2,16 +2,27 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // Inlined CORS helper — shared file not reliably bundled by deploy API.
 // Fungsi sensitif: preview *.vercel.app TIDAK diizinkan, hanya domain produksi.
-const allowlist = (Deno.env.get('ALLOWED_ORIGIN') ?? '')
+// Domain produksi aplikasi ini — SELALU diizinkan tanpa bergantung env var, supaya
+// fitur tidak patah kalau secret ALLOWED_ORIGIN lupa diset atau salah isi.
+const DEFAULT_ORIGINS = [
+  'https://www.simpelkasir.my.id',
+  'https://simpelkasir.my.id',
+  'https://kasir-umkm-simpel.vercel.app',
+];
+
+// ALLOWED_ORIGIN berisi daftar origin dipisah koma yang MENAMBAH default di atas.
+const envList = (Deno.env.get('ALLOWED_ORIGIN') ?? '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
+const wildcard = envList.includes('*');
+const allowlist = [...DEFAULT_ORIGINS, ...envList.filter((o) => o !== '*')];
 
 const normalizeOrigin = (origin: string): string =>
   origin.trim().toLowerCase().replace(/\/+$/, '');
 
 const isOriginAllowed = (req: Request): boolean => {
-  if (!allowlist.length) return true;
+  if (wildcard) return true;
   const requestOrigin = req.headers.get('origin');
   if (!requestOrigin) return true;
   const normalized = normalizeOrigin(requestOrigin);
@@ -25,7 +36,7 @@ const corsHeadersFor = (req: Request): Record<string, string> => {
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
   };
-  if (!allowlist.length) {
+  if (wildcard) {
     headers['Access-Control-Allow-Origin'] = '*';
     return headers;
   }
