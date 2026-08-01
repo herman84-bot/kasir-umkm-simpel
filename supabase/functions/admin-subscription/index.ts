@@ -1,27 +1,53 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-// Inlined CORS headers — shared file not reliably bundled by deploy API
-const origin = Deno.env.get('ALLOWED_ORIGIN') ?? '*';
-const corsHeaders = {
-  'Access-Control-Allow-Origin': origin,
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+// Inlined CORS helper — shared file not reliably bundled by deploy API.
+// Fungsi sensitif: preview *.vercel.app TIDAK diizinkan, hanya domain produksi.
+const allowlist = (Deno.env.get('ALLOWED_ORIGIN') ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const normalizeOrigin = (origin: string): string =>
+  origin.trim().toLowerCase().replace(/\/+$/, '');
+
+const isOriginAllowed = (req: Request): boolean => {
+  if (!allowlist.length) return true;
+  const requestOrigin = req.headers.get('origin');
+  if (!requestOrigin) return true;
+  const normalized = normalizeOrigin(requestOrigin);
+  return allowlist.some((o) => normalizeOrigin(o) === normalized);
+};
+
+const corsHeadersFor = (req: Request): Record<string, string> => {
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin',
+  };
+  if (!allowlist.length) {
+    headers['Access-Control-Allow-Origin'] = '*';
+    return headers;
+  }
+  const requestOrigin = req.headers.get('origin');
+  if (requestOrigin && isOriginAllowed(req)) {
+    headers['Access-Control-Allow-Origin'] = requestOrigin;
+  }
+  return headers;
 };
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // Explicit origin guard — only runs when ALLOWED_ORIGIN env var is set
-  if (origin !== '*') {
-    const requestOrigin = req.headers.get('origin');
-    if (requestOrigin && requestOrigin !== origin) {
-      return new Response(
-        JSON.stringify({ error: 'Forbidden' }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } },
-      );
-    }
+  if (!isOriginAllowed(req)) {
+    return new Response(
+      JSON.stringify({ error: 'Forbidden' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
   }
 
   try {
@@ -172,11 +198,17 @@ Deno.serve(async (req) => {
         );
       }
 
-      await supabaseAdmin.from('admin_action_logs').insert({
-        admin_email: callerEmail, target_store_id: storeId, action: `activate_${pkg}`,
-        old_value: { [column]: storeRow?.[column as keyof typeof storeRow] ?? null },
-        new_value: { [column]: until },
-      });
+      // Audit log best-effort — kegagalan log tidak boleh membatalkan operasi
+      try {
+        const { error: logErr } = await supabaseAdmin.from('admin_action_logs').insert({
+          admin_email: callerEmail, target_store_id: storeId, action: `activate_${pkg}`,
+          old_value: { [column]: storeRow?.[column as keyof typeof storeRow] ?? null },
+          new_value: { [column]: until },
+        });
+        if (logErr) console.error('admin_action_logs insert error:', logErr);
+      } catch (logEx) {
+        console.error('admin_action_logs insert exception:', logEx);
+      }
 
       return new Response(
         JSON.stringify({ success: true }),
@@ -207,11 +239,17 @@ Deno.serve(async (req) => {
         );
       }
 
-      await supabaseAdmin.from('admin_action_logs').insert({
-        admin_email: callerEmail, target_store_id: storeId, action: 'revoke',
-        old_value: { premium_until: storeRow?.premium_until ?? null, business_until: storeRow?.business_until ?? null },
-        new_value: { premium_until: null, business_until: null },
-      });
+      // Audit log best-effort — kegagalan log tidak boleh membatalkan operasi
+      try {
+        const { error: logErr } = await supabaseAdmin.from('admin_action_logs').insert({
+          admin_email: callerEmail, target_store_id: storeId, action: 'revoke',
+          old_value: { premium_until: storeRow?.premium_until ?? null, business_until: storeRow?.business_until ?? null },
+          new_value: { premium_until: null, business_until: null },
+        });
+        if (logErr) console.error('admin_action_logs insert error:', logErr);
+      } catch (logEx) {
+        console.error('admin_action_logs insert exception:', logEx);
+      }
 
       return new Response(
         JSON.stringify({ success: true }),

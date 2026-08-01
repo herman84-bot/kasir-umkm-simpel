@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders, allowedOrigin } from '../_shared/cors.ts';
+import { corsHeadersFor } from '../_shared/cors.ts';
 
 const systemPrompt =
   'Kamu adalah Aisyah, asisten virtual aplikasi Kasir UMKM Simpel. ' +
@@ -21,6 +21,8 @@ const systemPrompt =
   'Jawab dengan ringkas, jelas, dan langsung ke inti.';
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req, { allowVercelPreview: true });
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
