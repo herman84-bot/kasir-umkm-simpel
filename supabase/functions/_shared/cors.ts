@@ -1,9 +1,18 @@
-// ALLOWED_ORIGIN berisi daftar origin dipisah koma (deployment multi-domain).
-// Kosong/unset → fallback '*' supaya deploy baru tidak langsung patah.
-const allowlist = (Deno.env.get('ALLOWED_ORIGIN') ?? '')
+// Domain produksi aplikasi ini — SELALU diizinkan tanpa bergantung env var, supaya
+// fitur tidak patah kalau secret ALLOWED_ORIGIN lupa diset atau salah isi.
+const DEFAULT_ORIGINS = [
+  'https://www.simpelkasir.my.id',
+  'https://simpelkasir.my.id',
+  'https://kasir-umkm-simpel.vercel.app',
+];
+
+// ALLOWED_ORIGIN berisi daftar origin dipisah koma yang MENAMBAH default di atas.
+const envList = (Deno.env.get('ALLOWED_ORIGIN') ?? '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
+const wildcard = envList.includes('*');
+const allowlist = [...DEFAULT_ORIGINS, ...envList.filter((o) => o !== '*')];
 
 const normalizeOrigin = (origin: string): string =>
   origin.trim().toLowerCase().replace(/\/+$/, '');
@@ -32,7 +41,7 @@ export function corsHeadersFor(req: Request, options: CorsOptions = {}): Record<
     'Vary': 'Origin',
   };
 
-  if (!allowlist.length) {
+  if (wildcard) {
     headers['Access-Control-Allow-Origin'] = '*';
     return headers;
   }
@@ -51,7 +60,7 @@ export function corsHeadersFor(req: Request, options: CorsOptions = {}): Record<
 }
 
 export function isOriginAllowed(req: Request, options: CorsOptions = {}): boolean {
-  if (!allowlist.length) return true;
+  if (wildcard) return true;
   const requestOrigin = req.headers.get('origin');
   if (!requestOrigin) return true;
   const normalized = normalizeOrigin(requestOrigin);
