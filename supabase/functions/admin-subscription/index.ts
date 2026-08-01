@@ -31,7 +31,9 @@ const corsHeadersFor = (req: Request): Record<string, string> => {
   }
   const requestOrigin = req.headers.get('origin');
   if (requestOrigin && isOriginAllowed(req)) {
-    headers['Access-Control-Allow-Origin'] = requestOrigin;
+    // Reflect bentuk ternormalisasi bila entry allowlist ditulis dengan trailing slash / huruf besar
+    const normalized = normalizeOrigin(requestOrigin);
+    headers['Access-Control-Allow-Origin'] = requestOrigin === normalized ? requestOrigin : normalized;
   }
   return headers;
 };

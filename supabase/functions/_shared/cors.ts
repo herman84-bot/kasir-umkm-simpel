@@ -8,9 +8,13 @@ const allowlist = (Deno.env.get('ALLOWED_ORIGIN') ?? '')
 const normalizeOrigin = (origin: string): string =>
   origin.trim().toLowerCase().replace(/\/+$/, '');
 
+// Hanya deployment Vercel proyek ini (production + preview), wajib https
+const VERCEL_PREVIEW_HOST = /^kasir-umkm-simpel(-[a-z0-9-]+)?\.vercel\.app$/;
+
 const isVercelPreviewOrigin = (origin: string): boolean => {
   try {
-    return new URL(origin).hostname.endsWith('.vercel.app');
+    const url = new URL(origin);
+    return url.protocol === 'https:' && VERCEL_PREVIEW_HOST.test(url.hostname);
   } catch (_) {
     return false;
   }
@@ -40,7 +44,9 @@ export function corsHeadersFor(req: Request, options: CorsOptions = {}): Record<
   const matched = allowlist.some((o) => normalizeOrigin(o) === normalized) ||
     (options.allowVercelPreview === true && isVercelPreviewOrigin(requestOrigin));
 
-  if (matched) headers['Access-Control-Allow-Origin'] = requestOrigin;
+  // Reflect bentuk yang benar-benar dicocokkan supaya ACAO selalu sama persis dengan
+  // origin browser meski entry allowlist ditulis dengan trailing slash / huruf besar
+  if (matched) headers['Access-Control-Allow-Origin'] = requestOrigin === normalized ? requestOrigin : normalized;
   return headers;
 }
 
