@@ -5988,6 +5988,19 @@ ${txRows}
       </table>`;
   };
 
+  // Bangun pesan error lengkap (HTTP status + body) agar kegagalan CORS/403 terdiagnosis
+  const superAdminErrorDetail = async (error) => {
+    let detail = error?.message || 'kesalahan tidak dikenal';
+    try {
+      if (error?.context && typeof error.context.json === 'function') {
+        const errBody = await error.context.json();
+        detail = errBody?.error || detail;
+      }
+    } catch (_) {}
+    const httpStatus = error?.context?.status ?? error?.status ?? null;
+    return httpStatus ? `${detail} (HTTP ${httpStatus})` : detail;
+  };
+
   const superAdminLoadStores = async () => {
     const wrapper = document.getElementById('superAdminTableWrapper');
     const sel = document.getElementById('superAdminStoreSelect');
@@ -6090,7 +6103,9 @@ ${txRows}
           body: { action: 'activate', store_id: storeId, package: pkg, until }
         });
         if (error || !data?.success) {
-          superAdminShowMsg('error', 'Gagal mengaktifkan: ' + (data?.error || error?.message || 'kesalahan tidak dikenal'));
+          console.error('[SuperAdmin] activate error:', error, data);
+          const detail = error ? await superAdminErrorDetail(error) : (data?.error || 'kesalahan tidak dikenal');
+          superAdminShowMsg('error', 'Gagal mengaktifkan: ' + detail);
         } else {
           superAdminShowMsg('ok', 'Langganan berhasil diaktifkan.');
           // AC9: invalidasi cache langganan agar status baru langsung terlihat
@@ -6098,7 +6113,8 @@ ${txRows}
           await superAdminLoadStores();
         }
       } catch (e) {
-        superAdminShowMsg('error', 'Terjadi kesalahan koneksi.');
+        console.error('[SuperAdmin] activate exception:', e);
+        superAdminShowMsg('error', `Gagal mengaktifkan: ${e?.message || 'kesalahan koneksi'}`);
       } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = iconText('check', 'Aktifkan'); }
       }
@@ -6181,14 +6197,17 @@ ${txRows}
           body: { action: 'revoke', store_id: storeId }
         });
         if (error || !data?.success) {
-          superAdminShowMsg('error', 'Gagal merevokasi: ' + (data?.error || error?.message || 'kesalahan tidak dikenal'));
+          console.error('[SuperAdmin] revoke error:', error, data);
+          const detail = error ? await superAdminErrorDetail(error) : (data?.error || 'kesalahan tidak dikenal');
+          superAdminShowMsg('error', 'Gagal merevokasi: ' + detail);
         } else {
           superAdminShowMsg('ok', 'Langganan berhasil direvokasi.');
           invalidateSubscriptionCache();
           await superAdminLoadStores();
         }
       } catch (e) {
-        superAdminShowMsg('error', 'Terjadi kesalahan koneksi.');
+        console.error('[SuperAdmin] revoke exception:', e);
+        superAdminShowMsg('error', `Gagal merevokasi: ${e?.message || 'kesalahan koneksi'}`);
       } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = iconText('trash', 'Revokasi'); }
       }

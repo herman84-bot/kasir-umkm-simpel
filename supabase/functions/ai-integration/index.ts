@@ -1,11 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+import { corsHeadersFor } from '../_shared/cors.ts';
 
 // Reuse same system prompt as Aisyah for now (can be customized later)
 const systemPrompt =
   'Kamu adalah asisten AI untuk aplikasi Kasir UMKM Simpel. Jawab dalam Bahasa Indonesia yang ramah dan singkat.';
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }

@@ -9,29 +9,27 @@
 // =====================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeadersFor } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
-  if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+  // Fungsi sensitif: preview *.vercel.app tidak diizinkan
+  const corsHeaders = corsHeadersFor(req);
+
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+  if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405, headers: corsHeaders });
 
   const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader) return new Response("Unauthorized", { status: 401 });
+  if (!authHeader) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
 
   // Verifikasi JWT: buat client user-scoped dan panggil getUser()
   const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
     global: { headers: { Authorization: authHeader } },
   });
   const { data: { user }, error: authError } = await userClient.auth.getUser();
-  if (authError || !user?.id) return new Response("Unauthorized", { status: 401 });
+  if (authError || !user?.id) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
 
   const uid = user.id;
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -43,13 +41,13 @@ Deno.serve(async (req) => {
   const { error: deleteError } = await admin.auth.admin.deleteUser(uid);
   if (deleteError) {
     if (deleteError.message?.toLowerCase().includes("not found")) {
-      return new Response("User not found", { status: 403 });
+      return new Response("User not found", { status: 403, headers: corsHeaders });
     }
-    return new Response("Delete failed: " + deleteError.message, { status: 500 });
+    return new Response("Delete failed: " + deleteError.message, { status: 500, headers: corsHeaders });
   }
 
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
-    headers: { "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
