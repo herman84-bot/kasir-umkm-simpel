@@ -777,6 +777,8 @@ const App = (() => {
     app.style.display = 'flex';
   };
 
+  const MAX_CASH_AMOUNT = 100000000;
+
   const showAppToast = (text, type = 'info') => {
     let toast = document.getElementById('appGlobalToast');
     if (!toast) {
@@ -2034,6 +2036,8 @@ const App = (() => {
       dom.scannerNotFound.classList.remove('hidden');
       dom.scannerResult.classList.add('hidden');
       dom.scannerNotFoundCode.textContent = `Kode "${trimmed}" tidak cocok dengan produk manapun.`;
+      // #barcodeInput sekarang hidden dan tidak dibaca UI, tetap ditulis demi
+      // kompatibilitas jalur scan lama yang masih membaca nilainya
       dom.barcodeInput.value = trimmed;
       state.searchQuery = trimmed;
       dom.searchInput.value = trimmed;
@@ -2581,7 +2585,8 @@ const App = (() => {
     dom.cartSubtotal.textContent = formatCurrency(totals.subtotal);
     dom.cartTax.textContent = formatCurrency(totals.tax);
     dom.cartTotal.textContent = formatCurrency(totals.total);
-    if (dom.payBarCount) dom.payBarCount.textContent = `${items.length} item`;
+    // Metode ikut ditampilkan supaya kasir tahu mode aktif tanpa harus scroll ke atas
+    if (dom.payBarCount) dom.payBarCount.textContent = `${items.length} item · ${state.paymentMethod}`;
     if (dom.payBarTotal) dom.payBarTotal.textContent = formatCurrency(totals.total);
     // Uang kurang ditampilkan sebagai "Kurang", bukan kembalian negatif
     const shortfall = Math.max(0, totals.total - totals.cash);
@@ -2989,7 +2994,11 @@ const App = (() => {
       showPaymentConfirmModal('Split Payment', totals.total, cashier.name);
     } else if (state.paymentMethod === 'Tunai') {
       if (totals.cash < totals.total) {
-        alert('Jumlah tunai belum cukup. Mohon masukkan nominal yang sesuai.');
+        // Input tunai ada di kartu yang di-scroll, bisa di luar layar saat Bayar ditekan
+        // dari bar tetap — arahkan kasir ke tempat pengisiannya.
+        dom.cashInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        dom.cashInput.focus();
+        showAppToast(`Uang tunai kurang ${formatCurrency(totals.total - totals.cash)}. Isi jumlah uang pelanggan, atau tekan Uang Pas.`, 'error');
         return;
       }
       // Cash: proceed directly without modal, confirmed_by/confirmed_at stay null
@@ -4401,7 +4410,9 @@ ${txRows}
         } else if (preset === 'reset') {
           state.cashAmount = 0;
         } else {
-          state.cashAmount = (Number(state.cashAmount) || 0) + (Number(preset) || 0);
+          // Batas atas menjaga nominal tetap masuk akal walau tombol ditekan berulang kali
+          const accumulated = (Number(state.cashAmount) || 0) + (Number(preset) || 0);
+          state.cashAmount = Number.isFinite(accumulated) ? Math.min(accumulated, MAX_CASH_AMOUNT) : 0;
         }
         dom.cashInput.value = state.cashAmount;
         renderCart();

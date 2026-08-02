@@ -823,12 +823,12 @@
               </div>
               <div class="flex flex-col gap-2">
                 <div class="flex gap-2">
-                  <input id="searchInput" type="search" placeholder="Cari nama, kode, atau scan barcode..." class="flex-1 min-w-0 rounded-full border border-hairline px-4 py-2.5 text-sm focus:border-ink focus:border-2 focus:ring-0" />
+                  <input id="searchInput" type="search" placeholder="Cari nama, kode, atau scan barcode..." class="flex-1 min-w-0 rounded-full border border-hairline px-4 py-2.5 text-sm min-h-[44px] focus:border-ink focus:border-2 focus:ring-0" />
                   <!-- Dipertahankan sebagai hidden agar jalur scan lama yang menulis ke sini tetap aman -->
                   <input id="barcodeInput" type="hidden" value="" />
-                  <button id="scanButton" type="button" class="btn-icon shrink-0 rounded-full bg-ink px-4 py-2.5 text-white text-sm hover:bg-primary-active transition"><svg class="icon" aria-hidden="true"><use href="#i-scan"/></svg>Scan</button>
+                  <button id="scanButton" type="button" class="btn-icon shrink-0 rounded-full bg-ink px-4 py-2.5 text-white text-sm min-h-[44px] hover:bg-primary-active transition"><svg class="icon" aria-hidden="true"><use href="#i-scan"/></svg>Scan</button>
                 </div>
-                <select id="categoryFilter" class="w-full rounded-full border border-hairline px-4 py-2.5 bg-white text-sm">
+                <select id="categoryFilter" class="w-full rounded-full border border-hairline px-4 py-2.5 bg-white text-sm min-h-[44px]">
                   <option value="All">Semua Kategori</option>
                   <option value="Makanan">Makanan</option>
                   <option value="Minuman">Minuman</option>
@@ -882,11 +882,11 @@
                   <input id="cashInput" type="number" min="0" value="0" inputmode="numeric" class="mt-1 w-full rounded-lg border border-hairline px-3 py-2.5 text-sm min-h-[44px]" />
                 </label>
                 <div id="quickCashRow" class="mt-2">
-                  <button type="button" data-quickcash="20000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp20.000</button>
-                  <button type="button" data-quickcash="50000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp50.000</button>
-                  <button type="button" data-quickcash="100000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp100.000</button>
-                  <button type="button" data-quickcash="exact" class="quickcash-btn quickcash-exact rounded-lg border border-primary bg-primary-light px-1 py-2 text-xs font-semibold text-primary transition min-h-[44px]">Uang Pas</button>
-                  <button type="button" data-quickcash="reset" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Hapus</button>
+                  <button type="button" data-quickcash="20000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-sm font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp20.000</button>
+                  <button type="button" data-quickcash="50000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-sm font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp50.000</button>
+                  <button type="button" data-quickcash="100000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-sm font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp100.000</button>
+                  <button type="button" data-quickcash="exact" class="quickcash-btn quickcash-exact rounded-lg border border-primary bg-primary-light px-1 py-2 text-sm font-semibold text-primary transition min-h-[44px]">Uang Pas</button>
+                  <button type="button" data-quickcash="reset" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-sm font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Reset Uang</button>
                 </div>
                 <div class="flex items-center justify-between text-body text-sm mt-2">
                   <span id="cashChangeLabel">Kembalian</span><span id="cashChange">Rp0</span>
@@ -911,9 +911,9 @@
             </div>
             <div class="kasir-pay-actions">
               <div class="kasir-pay-summary flex items-center justify-between rounded-lg bg-surface-soft px-3 py-2">
-                <span id="payBarCount" class="text-body text-xs">0 item</span>
+                <span id="payBarCount" class="text-body text-sm">0 item</span>
                 <span class="text-right">
-                  <span class="text-body text-xs">Total</span>
+                  <span class="text-body text-sm">Total</span>
                   <span id="payBarTotal" class="text-lg font-bold text-ink">Rp0</span>
                 </span>
               </div>
