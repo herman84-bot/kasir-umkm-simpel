@@ -217,7 +217,13 @@
       flex-direction: column;
       min-width: 0;
     }
-    /* Mobile: aksi bayar fixed — selalu terlihat di atas bottom nav */
+    /* Isian pembayaran ikut alur normal kartu keranjang supaya bar fixed tetap ramping */
+    .kasir-pay-fields {
+      margin-top: 0.75rem;
+    }
+    /* Mobile: aksi bayar fixed — selalu terlihat di atas bottom nav.
+       Isinya sengaja dibatasi ringkasan + tombol Bayar (± 117px) agar bar + bottom nav
+       tidak memakan lebih dari 40% tinggi layar 667px. */
     .kasir-pay-actions {
       position: fixed;
       left: 0;
@@ -230,14 +236,20 @@
       border-top: 1px solid #E7E2DB;
       box-shadow: 0 -8px 24px rgba(38, 35, 31, 0.1);
     }
-    /* Tambahan ruang khusus bar bayar fixed; sisa ruang (nav + safe area)
-       sudah disediakan oleh padding bawah main.app-main. */
+    .kasir-pay-actions > * + * {
+      margin-top: 0.5rem;
+    }
+    .kasir-print-action {
+      margin-top: 0.5rem;
+    }
+    /* Tambahan ruang khusus bar bayar fixed (117px) + jarak aman 8px; sisa ruang
+       (nav + safe area) sudah disediakan oleh padding bawah main.app-main. */
     #kasir.screen {
-      padding-bottom: 176px;
+      padding-bottom: 128px;
     }
     @media (min-width: 768px) {
       #kasir.screen {
-        padding-bottom: 312px;
+        padding-bottom: 264px;
       }
     }
     @media (min-width: 1024px) {
@@ -261,8 +273,11 @@
         box-shadow: none;
         border-top: none;
         padding: 0;
-        margin-top: 0.75rem;
+        margin-top: 0.5rem;
         background: transparent;
+      }
+      .kasir-pay-fields {
+        margin-top: 1.25rem;
       }
       #kasir.screen {
         padding-bottom: 0;
@@ -303,8 +318,20 @@
     }
     #quickCashRow {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 0.5rem;
+    }
+    /* "Uang Pas" perilakunya beda (dihitung dari total, bukan nominal tetap) — dipisah barisnya */
+    .quickcash-exact {
+      grid-column: span 2;
+    }
+    .quickcash-btn:active {
+      background: #F5F2ED;
+      transform: scale(0.97);
+    }
+    .cash-short {
+      color: #B45309;
+      font-weight: 600;
     }
     .pay-methods {
       display: grid;
@@ -318,7 +345,7 @@
     }
     /* Bar mobile lebih pendek: cetak struk di desktop saja */
     @media (max-width: 1023px) {
-      .kasir-pay-actions #printButton {
+      .kasir-print-action {
         display: none;
       }
     }
@@ -839,11 +866,7 @@
                 <span>Total Akhir</span><span id="cartTotal">Rp0</span>
               </div>
             </div>
-            <div class="kasir-pay-actions space-y-2">
-              <div class="kasir-pay-summary flex items-center justify-between rounded-lg bg-surface-soft px-3 py-2">
-                <span id="payBarCount" class="text-body text-xs">0 item</span>
-                <span class="text-sm font-semibold">Total <span id="payBarTotal">Rp0</span></span>
-              </div>
+            <div class="kasir-pay-fields space-y-2">
               <div>
                 <span class="text-body text-xs font-medium block mb-2">Metode Pembayaran</span>
                 <div class="pay-methods">
@@ -859,13 +882,14 @@
                   <input id="cashInput" type="number" min="0" value="0" inputmode="numeric" class="mt-1 w-full rounded-lg border border-hairline px-3 py-2.5 text-sm min-h-[44px]" />
                 </label>
                 <div id="quickCashRow" class="mt-2">
-                  <button type="button" data-quickcash="exact" class="rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Uang Pas</button>
-                  <button type="button" data-quickcash="20000" class="rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">20rb</button>
-                  <button type="button" data-quickcash="50000" class="rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">50rb</button>
-                  <button type="button" data-quickcash="100000" class="rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">100rb</button>
+                  <button type="button" data-quickcash="20000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp20.000</button>
+                  <button type="button" data-quickcash="50000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp50.000</button>
+                  <button type="button" data-quickcash="100000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp100.000</button>
+                  <button type="button" data-quickcash="exact" class="quickcash-btn quickcash-exact rounded-lg border border-primary bg-primary-light px-1 py-2 text-xs font-semibold text-primary transition min-h-[44px]">Uang Pas</button>
+                  <button type="button" data-quickcash="reset" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Hapus</button>
                 </div>
                 <div class="flex items-center justify-between text-body text-sm mt-2">
-                  <span>Kembalian</span><span id="cashChange">Rp0</span>
+                  <span id="cashChangeLabel">Kembalian</span><span id="cashChange">Rp0</span>
                 </div>
               </div>
               <div id="splitInputWrapper" class="hidden space-y-2">
@@ -884,9 +908,18 @@
                   <span id="splitRemaining" class="font-semibold text-ink">Rp0</span>
                 </div>
               </div>
-              <button id="payButton" class="w-full rounded-lg bg-primary px-4 py-3 text-white font-semibold hover:bg-primary-active transition min-h-[48px]">Bayar & Simpan Transaksi</button>
-              <button id="printButton" class="w-full rounded-lg border border-hairline bg-white px-4 py-2.5 text-body font-semibold hover:bg-surface-soft transition min-h-[44px]">Cetak Struk</button>
             </div>
+            <div class="kasir-pay-actions">
+              <div class="kasir-pay-summary flex items-center justify-between rounded-lg bg-surface-soft px-3 py-2">
+                <span id="payBarCount" class="text-body text-xs">0 item</span>
+                <span class="text-right">
+                  <span class="text-body text-xs">Total</span>
+                  <span id="payBarTotal" class="text-lg font-bold text-ink">Rp0</span>
+                </span>
+              </div>
+              <button id="payButton" class="w-full rounded-lg bg-primary px-4 py-3 text-white font-semibold hover:bg-primary-active transition min-h-[48px]">Bayar &amp; Simpan Transaksi</button>
+            </div>
+            <button id="printButton" class="kasir-print-action w-full rounded-lg border border-hairline bg-white px-4 py-2.5 text-body font-semibold hover:bg-surface-soft transition min-h-[44px]">Cetak Struk</button>
           </div>
         </div>
       </section>
