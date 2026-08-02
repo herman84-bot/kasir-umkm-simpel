@@ -233,11 +233,11 @@
     /* Tambahan ruang khusus bar bayar fixed; sisa ruang (nav + safe area)
        sudah disediakan oleh padding bawah main.app-main. */
     #kasir.screen {
-      padding-bottom: 85px;
+      padding-bottom: 176px;
     }
     @media (min-width: 768px) {
       #kasir.screen {
-        padding-bottom: 221px;
+        padding-bottom: 312px;
       }
     }
     @media (min-width: 1024px) {
@@ -266,6 +266,10 @@
       }
       #kasir.screen {
         padding-bottom: 0;
+      }
+      /* Desktop sudah punya keranjang sticky dengan Total Akhir — jangan duplikasi */
+      .kasir-pay-summary {
+        display: none;
       }
     }
     .kasir-product-grid {
@@ -296,6 +300,11 @@
       #cartList {
         max-height: min(28vh, 240px);
       }
+    }
+    #quickCashRow {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.5rem;
     }
     .pay-methods {
       display: grid;
@@ -334,6 +343,7 @@
       #receiptContent { position: absolute; left: 0; top: 0; width: 100%; }
       .no-print { display: none !important; }
       .kasir-pay-actions { position: static !important; box-shadow: none !important; border: none !important; }
+      .kasir-pay-summary { display: none !important; }
     }
 
   </style>
@@ -784,11 +794,14 @@
                 <h3 class="text-xl font-semibold">Cari Produk</h3>
                 <p class="text-body text-sm">Klik produk untuk menambah ke keranjang.</p>
               </div>
-              <div class="flex flex-wrap gap-2">
-                <input id="searchInput" type="search" placeholder="Cari nama atau kode..." class="flex-1 min-w-[140px] rounded-full border border-hairline px-4 py-2.5 text-sm focus:border-ink focus:border-2 focus:ring-0" />
-                <input id="barcodeInput" type="text" placeholder="Scan kode" class="flex-1 min-w-[120px] rounded-full border border-hairline px-4 py-2.5 text-sm focus:border-ink focus:border-2 focus:ring-0" />
-                <button id="scanButton" type="button" class="btn-icon rounded-full bg-ink px-4 py-2.5 text-white text-sm hover:bg-primary-active transition"><svg class="icon" aria-hidden="true"><use href="#i-scan"/></svg>Scan</button>
-                <select id="categoryFilter" class="rounded-full border border-hairline px-4 py-2.5 bg-white text-sm">
+              <div class="flex flex-col gap-2">
+                <div class="flex gap-2">
+                  <input id="searchInput" type="search" placeholder="Cari nama, kode, atau scan barcode..." class="flex-1 min-w-0 rounded-full border border-hairline px-4 py-2.5 text-sm focus:border-ink focus:border-2 focus:ring-0" />
+                  <!-- Dipertahankan sebagai hidden agar jalur scan lama yang menulis ke sini tetap aman -->
+                  <input id="barcodeInput" type="hidden" value="" />
+                  <button id="scanButton" type="button" class="btn-icon shrink-0 rounded-full bg-ink px-4 py-2.5 text-white text-sm hover:bg-primary-active transition"><svg class="icon" aria-hidden="true"><use href="#i-scan"/></svg>Scan</button>
+                </div>
+                <select id="categoryFilter" class="w-full rounded-full border border-hairline px-4 py-2.5 bg-white text-sm">
                   <option value="All">Semua Kategori</option>
                   <option value="Makanan">Makanan</option>
                   <option value="Minuman">Minuman</option>
@@ -827,6 +840,10 @@
               </div>
             </div>
             <div class="kasir-pay-actions space-y-2">
+              <div class="kasir-pay-summary flex items-center justify-between rounded-lg bg-surface-soft px-3 py-2">
+                <span id="payBarCount" class="text-body text-xs">0 item</span>
+                <span class="text-sm font-semibold">Total <span id="payBarTotal">Rp0</span></span>
+              </div>
               <div>
                 <span class="text-body text-xs font-medium block mb-2">Metode Pembayaran</span>
                 <div class="pay-methods">
@@ -841,6 +858,12 @@
                   <span class="text-body text-xs">Tunai Dibayarkan</span>
                   <input id="cashInput" type="number" min="0" value="0" inputmode="numeric" class="mt-1 w-full rounded-lg border border-hairline px-3 py-2.5 text-sm min-h-[44px]" />
                 </label>
+                <div id="quickCashRow" class="mt-2">
+                  <button type="button" data-quickcash="exact" class="rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Uang Pas</button>
+                  <button type="button" data-quickcash="20000" class="rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">20rb</button>
+                  <button type="button" data-quickcash="50000" class="rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">50rb</button>
+                  <button type="button" data-quickcash="100000" class="rounded-lg border border-hairline bg-white px-1 py-2 text-xs font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">100rb</button>
+                </div>
                 <div class="flex items-center justify-between text-body text-sm mt-2">
                   <span>Kembalian</span><span id="cashChange">Rp0</span>
                 </div>

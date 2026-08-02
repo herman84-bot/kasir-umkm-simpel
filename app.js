@@ -959,6 +959,9 @@ const App = (() => {
     cartSubtotal: document.getElementById('cartSubtotal'),
     cartTax: document.getElementById('cartTax'),
     cartTotal: document.getElementById('cartTotal'),
+    payBarCount: document.getElementById('payBarCount'),
+    payBarTotal: document.getElementById('payBarTotal'),
+    quickCashRow: document.getElementById('quickCashRow'),
     discountPercent: document.getElementById('discountPercent'),
     discountNominal: document.getElementById('discountNominal'),
     cashInput: document.getElementById('cashInput'),
@@ -2577,6 +2580,8 @@ const App = (() => {
     dom.cartSubtotal.textContent = formatCurrency(totals.subtotal);
     dom.cartTax.textContent = formatCurrency(totals.tax);
     dom.cartTotal.textContent = formatCurrency(totals.total);
+    if (dom.payBarCount) dom.payBarCount.textContent = `${items.length} item`;
+    if (dom.payBarTotal) dom.payBarTotal.textContent = formatCurrency(totals.total);
     dom.cashChange.textContent = formatCurrency(totals.change);
     // Jangan timpa input yang sedang diketik user
     const active = document.activeElement;
@@ -4380,6 +4385,17 @@ ${txRows}
       renderCart();
     });
 
+    if (dom.quickCashRow) {
+      dom.quickCashRow.addEventListener('click', event => {
+        const button = event.target.closest('[data-quickcash]');
+        if (!button) return;
+        const preset = button.dataset.quickcash;
+        state.cashAmount = preset === 'exact' ? calculateCart().total : Number(preset) || 0;
+        dom.cashInput.value = state.cashAmount;
+        renderCart();
+      });
+    }
+
     dom.cashierSelect.addEventListener('change', event => {
       const targetId = event.target.value;
       if (targetId === state.selectedCashierId) return;
@@ -4446,16 +4462,19 @@ ${txRows}
     dom.manualBarcodeInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') handleScannedCode(dom.manualBarcodeInput.value);
     });
-    dom.barcodeInput.addEventListener('keydown', e => {
+    dom.searchInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
-        const code = dom.barcodeInput.value.trim();
+        e.preventDefault();
+        const code = dom.searchInput.value.trim();
         if (!code) return;
         const product = state.products.find(p =>
           p.barcode === code || p.code === code || p.id === code
         );
         if (product) {
           addToCart(product.id);
-          dom.barcodeInput.value = '';
+          dom.searchInput.value = '';
+          state.searchQuery = '';
+          renderProducts();
         } else {
           state.searchQuery = code;
           dom.searchInput.value = code;
