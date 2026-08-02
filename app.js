@@ -777,6 +777,8 @@ const App = (() => {
     app.style.display = 'flex';
   };
 
+  const MAX_CASH_AMOUNT = 100000000;
+
   const showAppToast = (text, type = 'info') => {
     let toast = document.getElementById('appGlobalToast');
     if (!toast) {
@@ -959,10 +961,15 @@ const App = (() => {
     cartSubtotal: document.getElementById('cartSubtotal'),
     cartTax: document.getElementById('cartTax'),
     cartTotal: document.getElementById('cartTotal'),
+    payBarCount: document.getElementById('payBarCount'),
+    payBarTotal: document.getElementById('payBarTotal'),
+    quickCashRow: document.getElementById('quickCashRow'),
+    quickCashExact: document.querySelector('[data-quickcash="exact"]'),
     discountPercent: document.getElementById('discountPercent'),
     discountNominal: document.getElementById('discountNominal'),
     cashInput: document.getElementById('cashInput'),
     cashChange: document.getElementById('cashChange'),
+    cashChangeLabel: document.getElementById('cashChangeLabel'),
     payButton: document.getElementById('payButton'),
     printButton: document.getElementById('printButton'),
     inventoryTable: document.getElementById('inventoryTable'),
@@ -2030,6 +2037,8 @@ const App = (() => {
       dom.scannerNotFound.classList.remove('hidden');
       dom.scannerResult.classList.add('hidden');
       dom.scannerNotFoundCode.textContent = `Kode "${trimmed}" tidak cocok dengan produk manapun.`;
+      // #barcodeInput sekarang hidden dan tidak dibaca UI, tetap ditulis demi
+      // kompatibilitas jalur scan lama yang masih membaca nilainya
       dom.barcodeInput.value = trimmed;
       state.searchQuery = trimmed;
       dom.searchInput.value = trimmed;
@@ -2546,12 +2555,12 @@ const App = (() => {
             <h4 class="font-semibold text-ink">${esc(item.name)}</h4>
             <p class="text-muted text-sm">${formatCurrency(item.price)} x ${esc(item.qty)}</p>
           </div>
-          <button data-remove="${esc(item.id)}" class="rounded-full bg-rose-100 px-3 py-2 text-rose-700">Hapus</button>
+          <button data-remove="${esc(item.id)}" class="inline-flex items-center rounded-full bg-rose-100 px-3 py-2 text-rose-700 min-h-[44px]">Hapus</button>
         </div>
         <div class="mt-3 flex items-center gap-2 text-sm text-body">
-          <button data-decrease="${esc(item.id)}" class="rounded-lg border border-hairline bg-white px-3 py-2">−</button>
+          <button data-decrease="${esc(item.id)}" class="inline-flex items-center justify-center rounded-lg border border-hairline bg-white px-3 py-2 min-h-[44px] min-w-[44px]">−</button>
           <span class="font-semibold">${esc(item.qty)}</span>
-          <button data-increase="${esc(item.id)}" class="rounded-lg border border-hairline bg-white px-3 py-2">+</button>
+          <button data-increase="${esc(item.id)}" class="inline-flex items-center justify-center rounded-lg border border-hairline bg-white px-3 py-2 min-h-[44px] min-w-[44px]">+</button>
           <span class="ml-auto font-semibold text-ink">${formatCurrency(item.price * item.qty)}</span>
         </div>
       </div>
@@ -2577,7 +2586,15 @@ const App = (() => {
     dom.cartSubtotal.textContent = formatCurrency(totals.subtotal);
     dom.cartTax.textContent = formatCurrency(totals.tax);
     dom.cartTotal.textContent = formatCurrency(totals.total);
-    dom.cashChange.textContent = formatCurrency(totals.change);
+    // Metode ikut ditampilkan supaya kasir tahu mode aktif tanpa harus scroll ke atas
+    if (dom.payBarCount) dom.payBarCount.textContent = `${items.length} item · ${state.paymentMethod}`;
+    if (dom.quickCashExact) dom.quickCashExact.disabled = items.length === 0;
+    if (dom.payBarTotal) dom.payBarTotal.textContent = formatCurrency(totals.total);
+    // Uang kurang ditampilkan sebagai "Kurang", bukan kembalian negatif
+    const shortfall = Math.max(0, totals.total - totals.cash);
+    if (dom.cashChangeLabel) dom.cashChangeLabel.textContent = shortfall > 0 ? 'Kurang' : 'Kembalian';
+    dom.cashChange.textContent = formatCurrency(shortfall > 0 ? shortfall : totals.change);
+    dom.cashChange.classList.toggle('cash-short', shortfall > 0);
     // Jangan timpa input yang sedang diketik user
     const active = document.activeElement;
     if (active !== dom.discountPercent) dom.discountPercent.value = state.discountPercent;
@@ -2979,7 +2996,11 @@ const App = (() => {
       showPaymentConfirmModal('Split Payment', totals.total, cashier.name);
     } else if (state.paymentMethod === 'Tunai') {
       if (totals.cash < totals.total) {
-        alert('Jumlah tunai belum cukup. Mohon masukkan nominal yang sesuai.');
+        // Input tunai ada di kartu yang di-scroll, bisa di luar layar saat Bayar ditekan
+        // dari bar tetap — arahkan kasir ke tempat pengisiannya.
+        dom.cashInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        dom.cashInput.focus();
+        showAppToast(`Uang tunai kurang ${formatCurrency(totals.total - totals.cash)}. Isi jumlah uang pelanggan, atau tekan Uang Pas.`, 'error');
         return;
       }
       // Cash: proceed directly without modal, confirmed_by/confirmed_at stay null
@@ -4019,7 +4040,7 @@ ${txRows}
     state.paymentMethod = method;
     document.querySelectorAll('.paymethod-btn').forEach(btn => {
       const active = btn.dataset.paymethod === method;
-      btn.className = `paymethod-btn flex-1 rounded-lg border-2 px-2 py-2.5 text-xs sm:px-3 sm:py-3 sm:text-sm font-semibold transition ${active ? 'border-primary bg-primary-light text-primary' : 'border-hairline bg-white text-body hover:border-hairline'}`;
+      btn.className = `paymethod-btn ${btn.querySelector('svg') ? 'btn-icon' : ''} rounded-lg border-2 px-2 py-2 text-xs font-semibold transition min-h-[44px] ${active ? 'border-primary bg-primary-light text-primary' : 'border-hairline bg-white text-body hover:border-hairline'}`;
     });
     const splitWrapper = document.getElementById('splitInputWrapper');
     if (dom.cashInputWrapper) {
@@ -4380,6 +4401,26 @@ ${txRows}
       renderCart();
     });
 
+    if (dom.quickCashRow) {
+      dom.quickCashRow.addEventListener('click', event => {
+        const button = event.target.closest('[data-quickcash]');
+        if (!button) return;
+        const preset = button.dataset.quickcash;
+        // Nominal bersifat akumulatif (tap 50rb lalu 20rb = 70.000); "Uang Pas" dan "Reset Uang" menimpa
+        if (preset === 'exact') {
+          state.cashAmount = calculateCart().total;
+        } else if (preset === 'reset') {
+          state.cashAmount = 0;
+        } else {
+          // Batas atas menjaga nominal tetap masuk akal walau tombol ditekan berulang kali
+          const accumulated = (Number(state.cashAmount) || 0) + (Number(preset) || 0);
+          state.cashAmount = Number.isFinite(accumulated) ? Math.min(accumulated, MAX_CASH_AMOUNT) : 0;
+        }
+        dom.cashInput.value = state.cashAmount;
+        renderCart();
+      });
+    }
+
     dom.cashierSelect.addEventListener('change', event => {
       const targetId = event.target.value;
       if (targetId === state.selectedCashierId) return;
@@ -4426,7 +4467,19 @@ ${txRows}
     dom.exportInventory.addEventListener('click', () => exportInventoryCSV());
     dom.exportHistory.addEventListener('click', () => exportHistoryCSV());
 
-    dom.payButton.addEventListener('click', handlePayment);
+    // Guard anti dobel-transaksi: tombol dikunci selama proses (sinyal lemah bisa bikin user tap berulang)
+    dom.payButton.addEventListener('click', async () => {
+      if (dom.payButton.disabled) return;
+      const label = dom.payButton.textContent;
+      dom.payButton.disabled = true;
+      dom.payButton.textContent = 'Menyimpan...';
+      try {
+        await handlePayment();
+      } finally {
+        dom.payButton.disabled = false;
+        dom.payButton.textContent = label;
+      }
+    });
     dom.printButton.addEventListener('click', openReceipt);
     dom.closeReceipt.addEventListener('click', closeReceipt);
     dom.closeReceiptBottom.addEventListener('click', closeReceipt);
@@ -4446,16 +4499,19 @@ ${txRows}
     dom.manualBarcodeInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') handleScannedCode(dom.manualBarcodeInput.value);
     });
-    dom.barcodeInput.addEventListener('keydown', e => {
+    dom.searchInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
-        const code = dom.barcodeInput.value.trim();
+        e.preventDefault();
+        const code = dom.searchInput.value.trim();
         if (!code) return;
         const product = state.products.find(p =>
           p.barcode === code || p.code === code || p.id === code
         );
         if (product) {
           addToCart(product.id);
-          dom.barcodeInput.value = '';
+          dom.searchInput.value = '';
+          state.searchQuery = '';
+          renderProducts();
         } else {
           state.searchQuery = code;
           dom.searchInput.value = code;
@@ -4498,13 +4554,22 @@ ${txRows}
     dom.paymentConfirmCancel.addEventListener('click', hidePaymentConfirmModal);
     dom.closePaymentConfirmModal.addEventListener('click', hidePaymentConfirmModal);
     dom.paymentConfirmOk.addEventListener('click', async () => {
-      hidePaymentConfirmModal();
-      const cartItems = getCartItems();
-      const totals = calculateCart();
-      const cashier = getSelectedCashier();
-      const confirmedBy = cashier.name;
-      const confirmedAt = new Date().toISOString();
-      await _executePayment(cartItems, totals, confirmedBy, confirmedAt);
+      if (dom.paymentConfirmOk.disabled) return;
+      const label = dom.paymentConfirmOk.textContent;
+      dom.paymentConfirmOk.disabled = true;
+      dom.paymentConfirmOk.textContent = 'Menyimpan...';
+      try {
+        hidePaymentConfirmModal();
+        const cartItems = getCartItems();
+        const totals = calculateCart();
+        const cashier = getSelectedCashier();
+        const confirmedBy = cashier.name;
+        const confirmedAt = new Date().toISOString();
+        await _executePayment(cartItems, totals, confirmedBy, confirmedAt);
+      } finally {
+        dom.paymentConfirmOk.disabled = false;
+        dom.paymentConfirmOk.textContent = label;
+      }
     });
 
     document.addEventListener('click', event => {
