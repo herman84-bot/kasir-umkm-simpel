@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Kasir UMKM Simpel — Aplikasi Kasir Gratis untuk Warung &amp; Toko</title>
   <meta name="description" content="Aplikasi kasir gratis untuk warung dan toko UMKM Indonesia. Solusi POS mudah dan kasir online gratis: kelola penjualan, stok, dan laporan dengan cepat." />
   <meta name="keywords" content="aplikasi kasir gratis, kasir UMKM, aplikasi POS mudah, kasir online gratis, aplikasi kasir untuk warung, kasir toko UMKM, point of sale, stok, inventory, umkm" />
@@ -26,7 +26,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" />
-  <link rel="stylesheet" href="tailwind.css?v=5" />
+  <link rel="stylesheet" href="tailwind.css?v=6" />
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -171,6 +171,34 @@
       }
     }
 
+    /* Ruang bawah aman untuk SEMUA layar scrollable.
+       Ditulis sebagai CSS kustom (bukan utility Tailwind) supaya tidak hilang
+       kalau tailwind.css di-build ulang tanpa kelas yang dipakai di sini.
+       56px = tinggi bottom nav, 80px = ruang FAB chat. */
+    main.app-main {
+      padding-bottom: calc(56px + 80px + env(safe-area-inset-bottom, 0px));
+    }
+    #bottomNav {
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    #helpChatFab {
+      bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    }
+    #helpChatPanel {
+      bottom: calc(136px + env(safe-area-inset-bottom, 0px));
+    }
+    @media (min-width: 768px) {
+      main.app-main {
+        padding-bottom: 1.25rem;
+      }
+      #helpChatFab {
+        bottom: 1.5rem;
+      }
+      #helpChatPanel {
+        bottom: 6rem;
+      }
+    }
+
     /* Layout: full-width main + keranjang padat; mobile: bar bayar fixed di atas bottom nav */
     .content-shell {
       width: 100%;
@@ -202,9 +230,15 @@
       border-top: 1px solid #E7E2DB;
       box-shadow: 0 -8px 24px rgba(38, 35, 31, 0.1);
     }
-    /* ruang agar konten tidak ketutup bar bayar + bottom nav (mobile) */
+    /* Tambahan ruang khusus bar bayar fixed; sisa ruang (nav + safe area)
+       sudah disediakan oleh padding bawah main.app-main. */
     #kasir.screen {
-      padding-bottom: calc(165px + 56px + env(safe-area-inset-bottom, 0px));
+      padding-bottom: 85px;
+    }
+    @media (min-width: 768px) {
+      #kasir.screen {
+        padding-bottom: 221px;
+      }
     }
     @media (min-width: 1024px) {
       .kasir-layout {
@@ -616,7 +650,7 @@
       </button>
     </nav>
 
-    <main class="flex-1 min-w-0 relative overflow-x-hidden p-3 md:p-5 pb-24 md:pb-5">
+    <main class="app-main flex-1 min-w-0 relative overflow-x-hidden p-3 md:p-5">
       <div class="content-shell">
       <header class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-3">
@@ -2057,8 +2091,8 @@
   </div>
 
   <!-- Chat Bantuan -->
-  <button id="helpChatFab" class="hidden fixed bottom-20 md:bottom-6 right-4 z-[90] h-14 w-14 rounded-full bg-gradient-to-br from-primary-active to-primary shadow-sm hover:scale-110 transition-transform flex items-center justify-center no-print text-white" title="Tanya Aisyah"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-message"/></svg></button>
-  <div id="helpChatPanel" class="hidden fixed bottom-36 md:bottom-24 right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm h-[28rem] max-h-[calc(100vh-10rem)] rounded-xl bg-white border border-hairline shadow-sm flex flex-col overflow-hidden no-print">
+  <button id="helpChatFab" class="hidden fixed right-4 z-[90] h-14 w-14 rounded-full bg-gradient-to-br from-primary-active to-primary shadow-sm hover:scale-110 transition-transform flex items-center justify-center no-print text-white" title="Tanya Aisyah"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-message"/></svg></button>
+  <div id="helpChatPanel" class="hidden fixed right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm h-[28rem] max-h-[calc(100vh-10rem)] rounded-xl bg-white border border-hairline shadow-sm flex flex-col overflow-hidden no-print">
     <div class="bg-gradient-to-r from-ink to-ink text-white px-5 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <span class="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white"><svg class="icon" aria-hidden="true"><use href="#i-message"/></svg></span>
