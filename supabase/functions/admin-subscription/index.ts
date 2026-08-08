@@ -4,7 +4,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // SEMUA respons (termasuk 401/403). Dipakai verifikasi remote: kalau header
 // ini muncul, berarti yang live sudah versi terbaru (tanpa guard "toko
 // terakhir") dan bukan copy lama yang masih terpasang di sebagian deploy.
-const EF_VERSION = 'v2';
+// v3 = T5 (404 store tidak ada) + T7 (admin check user_id).
+const EF_VERSION = 'v3';
 
 // Inlined CORS helper — shared file not reliably bundled by deploy API.
 // Fungsi sensitif: preview *.vercel.app TIDAK diizinkan, hanya domain produksi.
