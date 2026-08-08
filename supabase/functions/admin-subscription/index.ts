@@ -1,5 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// Penanda versi yang ter-deploy — dikirim sebagai header `x-ef-version` di
+// SEMUA respons (termasuk 401/403). Dipakai verifikasi remote: kalau header
+// ini muncul, berarti yang live sudah versi terbaru (tanpa guard "toko
+// terakhir") dan bukan copy lama yang masih terpasang di sebagian deploy.
+const EF_VERSION = 'v2';
+
 // Inlined CORS helper — shared file not reliably bundled by deploy API.
 // Fungsi sensitif: preview *.vercel.app TIDAK diizinkan, hanya domain produksi.
 // Domain produksi aplikasi ini — SELALU diizinkan tanpa bergantung env var, supaya
@@ -35,6 +41,7 @@ const corsHeadersFor = (req: Request): Record<string, string> => {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
+    'x-ef-version': EF_VERSION,
   };
   if (wildcard) {
     headers['Access-Control-Allow-Origin'] = '*';

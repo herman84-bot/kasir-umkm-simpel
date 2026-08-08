@@ -13,8 +13,8 @@ const ASSETS = [
   'manifest.json',
   'icons/icon-192.png',
   'icons/icon-512.png',
-  'https://cdn.jsdelivr.net/npm/chart.js',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+  'https://cdn.jsdelivr.net/npm/chart.js@4.5.1',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2',
   'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js',
   'https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js',
   'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'

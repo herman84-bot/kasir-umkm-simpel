@@ -114,11 +114,19 @@ const App = (() => {
   };
   // ─────────────────────────────────────────────────────────────────────────
 
+  // Hash SRI (sha384) untuk library CDN yang di-load dinamis — browser menolak
+  // file yang tidak cocok hash, melindungi dari CDN yang dikompromikan.
+  const CDN_SRI = {
+    'https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js': 'sha384-sl2LNalPRD3qrS3TKmINXWwRcQKf9cUlNZGd8pqjlpzwbzgMsFgE+133u4kM32IR',
+    'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js': 'sha384-hStSInNIZ8ljtOVrmrgf7zdHMapaLBWoSnPTtF0nzsybp4+LuhDz6sHuEVpWIX8o'
+  };
+
   // Muat script eksternal sekali (no-op jika sudah ada); dipakai untuk lazy-load CDN
   const loadScript = url => new Promise((resolve, reject) => {
     if (document.querySelector(`script[src="${url}"]`)) { resolve(); return; }
     const s = document.createElement('script');
     s.src = url;
+    if (CDN_SRI[url]) { s.integrity = CDN_SRI[url]; s.crossOrigin = 'anonymous'; }
     s.onload = resolve;
     s.onerror = reject;
     document.head.appendChild(s);
@@ -691,7 +699,8 @@ const App = (() => {
     if (error) return { error: terjemahAuthError(error.message) };
     if (!data.user) return { error: 'Gagal membuat akun.' };
 
-    // Pastikan ada sesi aktif (email confirmation harus dimatikan di Supabase)
+    // Pastikan ada sesi aktif. Email confirmation aktif di Supabase: jika belum
+    // dikonfirmasi, signUp tidak memberi sesi → minta user cek email (needConfirm).
     let session = data.session;
     if (!session) {
       const res = await db.auth.signInWithPassword({ email, password });
