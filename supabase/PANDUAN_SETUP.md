@@ -48,3 +48,40 @@ Script ini:
   di dalam toko yang sudah terautentikasi, bukan batas keamanan antar-toko. Aman untuk UMKM.
 - Data demo lama (tanpa `store_id`) akan otomatis tersembunyi. Lihat bagian OPSIONAL
   di akhir `01_multi_tenant_setup.sql` jika ingin menghapusnya.
+
+## Fitur Panel Super Admin — Aktivitas Toko & Hapus Toko (WAJIB)
+
+Panel Super Admin (Pengaturan → 🛡 Admin Panel) kini menampilkan **Aktivitas** tiap toko
+(hijau = ada transaksi, merah = belum ada transaksi sama sekali) dan tombol **Hapus** toko.
+
+Agar kedua fitur ini berfungsi, lakukan 2 langkah berikut **sekali saja**:
+
+### 1. Jalankan migration `17_super_admin_aktivitas_hapus.sql`
+
+Supabase → SQL Editor → RUN `supabase/17_super_admin_aktivitas_hapus.sql`.
+
+Script ini (idempotent):
+- Menambah kolom `total_transactions` & `last_transaction_at` ke hasil RPC
+  `list_all_stores_for_admin` (dihitung dari transaksi yang TIDAK dibatalkan/void).
+- Mengubah FK `admin_action_logs.target_store_id` menjadi `ON DELETE SET NULL`
+  sehingga log audit "admin menghapus toko X" tetap tersimpan setelah toko dihapus.
+
+Pastikan migration 11–13 (super admin + uid fix) sudah dijalankan sebelumnya.
+
+### 2. Deploy ulang Edge Function `admin-subscription`
+
+Aksi **hapus toko** dieksekusi lewat Edge Function `admin-subscription` (action
+`delete_store`) dengan service-role — bukan dari client. Deploy ulang:
+
+```bash
+supabase functions deploy admin-subscription
+```
+
+Alur hapus toko (server-side, teraudit):
+1. Verifikasi pemanggil terdaftar di tabel `admin_users`.
+2. Menolak menghapus toko milik akun admin sendiri.
+3. Catat audit di `admin_action_logs` (tetap tersimpan walau toko dihapus).
+4. Hapus toko dengan aman multi-cabang: kalau pemilik masih punya toko/cabang lain,
+   hanya baris toko ini yang dihapus (akun pemilik tetap aktif). Kalau ini satu-satunya
+   toko miliknya, akun pemilik ikut dihapus → otomatis menghapus toko + SEMUA datanya
+   (produk, transaksi, kasbon, dll.) lewat FK `ON DELETE CASCADE`.

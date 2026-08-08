@@ -4,7 +4,9 @@
   "scripts": {
     "build": "npm run build:css",
     "build:css": "tailwindcss -c tailwind.config.js -i tailwind.input.css -o tailwind.css --minify",
-    "watch:css": "tailwindcss -c tailwind.config.js -i tailwind.input.css -o tailwind.css --watch"
+    "watch:css": "tailwindcss -c tailwind.config.js -i tailwind.input.css -o tailwind.css --watch",
+    "dev": "npx serve -l tcp://0.0.0.0:${PORT:-4173} .",
+    "test": "node verify-sidebar.js && node verify-superadmin.js"
   },
   "devDependencies": {
     "jsdom": "^25.0.0",

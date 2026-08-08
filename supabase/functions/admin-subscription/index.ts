@@ -128,6 +128,29 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Aktivitas transaksi per toko (tanpa transaksi yang dibatalkan/void).
+      // Konsisten dengan RPC list_all_stores_for_admin (migration 17):
+      // status != 'void' DAN status NULL ikut dihitung (IS DISTINCT FROM 'void').
+      let activityMap: Record<string, { total: number; last_at: string | null }> = {};
+      const { data: txs, error: txsErr } = await supabaseAdmin
+        .from('transactions')
+        .select('store_id, created_at')
+        .or('status.is.null,status.neq.void')
+        .limit(100000);
+      if (txsErr) {
+        console.error('list_stores: gagal memuat aktivitas transaksi:', txsErr.message);
+      } else {
+        activityMap = {};
+        for (const t of (txs ?? [])) {
+          const sid = (t as Record<string, unknown>).store_id as string;
+          if (!sid) continue;
+          const entry = activityMap[sid] ?? (activityMap[sid] = { total: 0, last_at: null });
+          entry.total += 1;
+          const createdAt = (t as Record<string, unknown>).created_at as string | null;
+          if (createdAt && (!entry.last_at || createdAt > entry.last_at)) entry.last_at = createdAt;
+        }
+      }
+
       const ownerIds: string[] = [...new Set((stores ?? [])
         .map((s: Record<string, unknown>) => s.owner_id as string)
         .filter(Boolean)
@@ -155,7 +178,14 @@ Deno.serve(async (req) => {
         if (bizMs && bizMs > now)          status = 'Bisnis';
         else if (premMs && premMs > now)   status = 'Premium';
         else if (trialMs && trialMs > now) status = 'Trial';
-        return { ...s, owner_email: emailMap[s.owner_id as string] ?? null, subscription_status: status };
+        const activity = activityMap[s.id as string] ?? { total: 0, last_at: null };
+        return {
+          ...s,
+          owner_email: emailMap[s.owner_id as string] ?? null,
+          subscription_status: status,
+          total_transactions: activity.total,
+          last_transaction_at: activity.last_at,
+        };
       });
 
       return new Response(
@@ -262,6 +292,107 @@ Deno.serve(async (req) => {
         if (logErr) console.error('admin_action_logs insert error:', logErr);
       } catch (logEx) {
         console.error('admin_action_logs insert exception:', logEx);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    if (action === 'delete_store') {
+      const storeId: string = body.store_id ?? '';
+      if (!storeId) {
+        return new Response(
+          JSON.stringify({ error: 'store_id wajib diisi' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      const { data: storeRow, error: storeErr } = await supabaseAdmin
+        .from('stores')
+        .select('id, name, owner_id')
+        .eq('id', storeId)
+        .maybeSingle();
+      if (storeErr) {
+        console.error('delete_store fetch error:', storeErr);
+        return new Response(
+          JSON.stringify({ error: 'Gagal mengambil data toko' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      if (!storeRow) {
+        return new Response(
+          JSON.stringify({ error: 'Toko tidak ditemukan' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      // Keamanan: admin tidak boleh menghapus toko milik akun sendiri
+      if (storeRow.owner_id === user.id) {
+        return new Response(
+          JSON.stringify({ error: 'Tidak bisa menghapus toko milik akun Anda sendiri' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      // Audit log SEBELUM hapus — dengan FK ON DELETE SET NULL (migration 17),
+      // baris ini tetap tersimpan walau toko ikut terhapus.
+      try {
+        const { error: logErr } = await supabaseAdmin.from('admin_action_logs').insert({
+          admin_email: callerEmail, target_store_id: storeId, action: 'delete_store',
+          old_value: { name: storeRow.name, owner_id: storeRow.owner_id },
+          new_value: null,
+        });
+        if (logErr) console.error('admin_action_logs insert error:', logErr);
+      } catch (logEx) {
+        console.error('admin_action_logs insert exception:', logEx);
+      }
+
+      // Hapus toko dengan aman terhadap MULTI-CABANG (migration 06: 1 pemilik
+      // boleh punya banyak toko). deleteUser() menghapus akun pemilik → FK
+      // stores.owner_id ON DELETE CASCADE menghapus SEMUA toko/cabang miliknya —
+      // lebih luas dari yang diminta. Aturan:
+      //   - Pemilik masih punya toko lain → hapus HANYA baris toko ini
+      //     (data anak ikut terhapus via FK ON DELETE CASCADE dari stores).
+      //   - Ini toko terakhir milik pemilik → hapus akun pemilik
+      //     (cascade menghapus toko + SEMUA datanya).
+      let deleteErrMsg: string | null = null;
+      let deleteStoreOnly = !storeRow.owner_id; // tanpa owner → hapus baris saja
+      if (storeRow.owner_id) {
+        const { data: otherStores, error: otherErr } = await supabaseAdmin
+          .from('stores')
+          .select('id')
+          .eq('owner_id', storeRow.owner_id)
+          .neq('id', storeId)
+          .limit(1);
+        if (otherErr) {
+          deleteErrMsg = otherErr.message;
+        } else {
+          deleteStoreOnly = (otherStores ?? []).length > 0;
+        }
+      }
+
+      if (deleteStoreOnly) {
+        const { error: storeDelErr } = await supabaseAdmin
+          .from('stores').delete().eq('id', storeId);
+        if (storeDelErr) deleteErrMsg = storeDelErr.message;
+      } else if (storeRow.owner_id) {
+        const { error: userDelErr } = await supabaseAdmin.auth.admin.deleteUser(storeRow.owner_id);
+        if (userDelErr) {
+          // User mungkin sudah terhapus sebelumnya → hapus baris toko langsung
+          const { error: storeDelErr } = await supabaseAdmin
+            .from('stores').delete().eq('id', storeId);
+          if (storeDelErr) deleteErrMsg = storeDelErr.message;
+        }
+      }
+
+      if (deleteErrMsg) {
+        console.error('delete_store delete error:', deleteErrMsg);
+        return new Response(
+          JSON.stringify({ error: 'Gagal menghapus toko: ' + deleteErrMsg }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
       }
 
       return new Response(

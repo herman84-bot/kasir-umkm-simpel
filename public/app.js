@@ -6008,6 +6008,103 @@ ${txRows}
     return esc(new Date(v).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }));
   };
 
+  // Label aktivitas toko: HIJAU = ada transaksi, MERAH = tidak ada sama sekali.
+  // Field total_transactions/last_transaction_at datang dari RPC
+  // list_all_stores_for_admin (migration 17) atau Edge Function
+  // admin-subscription (action list_stores).
+  const superAdminActivityLabel = store => {
+    const total = store.total_transactions;
+    if (total == null) {
+      return '<span class="text-muted-soft text-xs">—</span>';
+    }
+    if (Number(total) > 0) {
+      const lastTxt = store.last_transaction_at
+        ? 'Terakhir ' + new Date(store.last_transaction_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+        : '';
+      return `<div class="flex flex-col gap-1">
+        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold w-fit">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>Aktif
+        </span>
+        <span class="text-xs text-muted">${esc(Number(total).toLocaleString('id-ID'))} transaksi${lastTxt ? ' · ' + esc(lastTxt) : ''}</span>
+      </div>`;
+    }
+    return `<div class="flex flex-col gap-1">
+      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-xs font-semibold w-fit">
+        <span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>Tidak Aktif
+      </span>
+      <span class="text-xs text-muted-soft">Belum ada transaksi</span>
+    </div>`;
+  };
+
+  // Tombol hapus per baris — data-del-store/data-del-name dipakai modal konfirmasi
+  const superAdminDeleteBtn = store => `
+    <button type="button" data-del-store="${esc(store.id)}" data-del-name="${esc(store.name || 'Toko')}"
+      class="superAdminDeleteBtn inline-flex items-center gap-1 rounded-lg border border-rose-200 text-rose-600 px-3 py-2 text-xs font-semibold hover:bg-rose-50 transition">
+      <svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg>Hapus
+    </button>`;
+
+  // ── Hapus toko (super admin) ────────────────────────────────────────────
+  let _superAdminDeleteTarget = null;
+
+  const superAdminOpenDeleteModal = (storeId, storeName) => {
+    _superAdminDeleteTarget = { id: storeId, name: storeName };
+    const modal = document.getElementById('superAdminDeleteModal');
+    if (!modal) return;
+    const nameEl = document.getElementById('superAdminDeleteStoreName');
+    const input = document.getElementById('superAdminDeleteInput');
+    const confirmBtn = document.getElementById('superAdminDeleteConfirmBtn');
+    const err = document.getElementById('superAdminDeleteError');
+    if (nameEl) nameEl.textContent = storeName;
+    if (input) { input.value = ''; input.disabled = false; }
+    if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Hapus Toko Permanen'; }
+    if (err) { err.classList.add('hidden'); err.textContent = ''; }
+    modal.classList.remove('hidden');
+  };
+
+  const superAdminCloseDeleteModal = () => {
+    const modal = document.getElementById('superAdminDeleteModal');
+    if (modal) modal.classList.add('hidden');
+    _superAdminDeleteTarget = null;
+  };
+
+  const superAdminUpdateDeleteConfirm = () => {
+    const confirmBtn = document.getElementById('superAdminDeleteConfirmBtn');
+    const input = document.getElementById('superAdminDeleteInput');
+    const target = _superAdminDeleteTarget;
+    if (confirmBtn && input && target) {
+      confirmBtn.disabled = input.value.trim() !== target.name;
+    }
+  };
+
+  const superAdminDeleteStore = async () => {
+    const target = _superAdminDeleteTarget;
+    if (!target || !db) return;
+    const confirmBtn = document.getElementById('superAdminDeleteConfirmBtn');
+    const err = document.getElementById('superAdminDeleteError');
+    if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Menghapus...'; }
+    if (err) { err.classList.add('hidden'); err.textContent = ''; }
+    try {
+      const { data, error } = await db.functions.invoke('admin-subscription', {
+        body: { action: 'delete_store', store_id: target.id }
+      });
+      if (error || !data?.success) {
+        const detail = error ? await superAdminErrorDetail(error) : (data?.error || 'kesalahan tidak dikenal');
+        throw new Error(detail);
+      }
+      superAdminCloseDeleteModal();
+      superAdminShowMsg('ok', 'Toko "' + target.name + '" berhasil dihapus.');
+      await superAdminLoadStores();
+    } catch (e) {
+      console.error('[SuperAdmin] delete_store exception:', e);
+      if (err) {
+        err.textContent = 'Gagal menghapus toko: ' + (e?.message || 'kesalahan koneksi');
+        err.classList.remove('hidden');
+      }
+      if (confirmBtn) { confirmBtn.textContent = 'Hapus Toko Permanen'; superAdminUpdateDeleteConfirm(); }
+    }
+  };
+
+
   // Render tabel toko dan isi dropdown pilih toko
   const superAdminRenderTable = (stores) => {
     const wrapper = document.getElementById('superAdminTableWrapper');
@@ -6035,7 +6132,9 @@ ${txRows}
             <th class="py-2 pr-4 font-medium">Trial</th>
             <th class="py-2 pr-4 font-medium">Premium s/d</th>
             <th class="py-2 pr-4 font-medium">Bisnis s/d</th>
-            <th class="py-2 font-medium">Status</th>
+            <th class="py-2 pr-4 font-medium">Status</th>
+            <th class="py-2 pr-4 font-medium">Aktivitas</th>
+            <th class="py-2 font-medium">Aksi</th>
           </tr>
         </thead>
         <tbody>
@@ -6047,7 +6146,9 @@ ${txRows}
               <td class="py-2 pr-4">${superAdminFmtDate(s.trial_ends_at)}</td>
               <td class="py-2 pr-4">${superAdminFmtDate(s.premium_until)}</td>
               <td class="py-2 pr-4">${superAdminFmtDate(s.business_until)}</td>
-              <td class="py-2">${superAdminStatusLabel(s)}</td>
+              <td class="py-2 pr-4">${superAdminStatusLabel(s)}</td>
+              <td class="py-2 pr-4">${superAdminActivityLabel(s)}</td>
+              <td class="py-2">${superAdminDeleteBtn(s)}</td>
             </tr>`).join('')}
         </tbody>
       </table>`;
@@ -6277,6 +6378,16 @@ ${txRows}
         if (btn) { btn.disabled = false; btn.innerHTML = iconText('trash', 'Revokasi'); }
       }
     });
+    // Hapus toko — delegasi klik tombol di tabel
+    document.getElementById('superAdminTableWrapper')?.addEventListener('click', e => {
+      const btn = e.target.closest('.superAdminDeleteBtn');
+      if (btn) superAdminOpenDeleteModal(btn.dataset.delStore, btn.dataset.delName || 'Toko');
+    });
+    document.getElementById('superAdminDeleteConfirmBtn')?.addEventListener('click', superAdminDeleteStore);
+    document.getElementById('superAdminDeleteCancelBtn')?.addEventListener('click', superAdminCloseDeleteModal);
+    document.getElementById('superAdminDeleteCloseBtn')?.addEventListener('click', superAdminCloseDeleteModal);
+    document.getElementById('superAdminDeleteInput')?.addEventListener('input', superAdminUpdateDeleteConfirm);
+
   };
   // ── End Super Admin Module ───────────────────────────────────────────────
 

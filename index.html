@@ -1352,6 +1352,40 @@
     </main>
   </div>
 
+  <!-- Modal Konfirmasi Hapus Toko (Super Admin) -->
+  <div id="superAdminDeleteModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+      <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
+        <div class="flex items-center justify-between border-b border-hairline p-5">
+          <h4 class="text-lg font-semibold">Hapus Toko</h4>
+          <button id="superAdminDeleteCloseBtn" type="button" class="rounded-lg p-2 text-muted hover:bg-surface-soft hover:text-body transition" aria-label="Tutup">✕</button>
+        </div>
+        <div class="p-5 space-y-4">
+          <p class="text-body text-sm leading-relaxed">
+            Anda akan menghapus toko <b id="superAdminDeleteStoreName" class="text-ink"></b> beserta
+            <b>SEMUA</b> produk, transaksi, kasbon, dan data lainnya. Akun pemilik ikut dihapus
+            hanya jika ini satu-satunya toko/cabang miliknya.
+            Tindakan ini <b class="text-rose-600">tidak bisa dibatalkan</b>.
+          </p>
+          <label class="block">
+            <span class="text-body text-sm font-medium">Ketik nama toko untuk konfirmasi:</span>
+            <input id="superAdminDeleteInput" type="text" autocomplete="off"
+              class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+              placeholder="Ketik nama toko di sini" />
+          </label>
+          <div id="superAdminDeleteError" class="hidden rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+          <div class="flex gap-3 pt-1">
+            <button id="superAdminDeleteCancelBtn" type="button"
+              class="flex-1 rounded-lg border border-hairline px-5 py-3 text-body font-semibold hover:bg-surface-soft transition">Batal</button>
+            <button id="superAdminDeleteConfirmBtn" type="button" disabled
+              class="flex-1 rounded-lg bg-rose-600 px-5 py-3 text-white font-semibold hover:bg-rose-700 transition disabled:opacity-40 disabled:cursor-not-allowed">Hapus Toko Permanen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
   <!-- Modal Tambah/Edit Kasir -->
   <div id="cashierModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
     <div class="flex min-h-full w-full items-center justify-center p-4">
