@@ -97,11 +97,13 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    const callerEmail = user.email ?? '';
+    // T7: verifikasi admin via user_id = auth.uid() — konsisten dengan RPC di
+    // database (migration 12/17). Sebelumnya pakai email dari JWT; sekarang
+    // identity diambil dari sesi yang sudah divalidasi auth.getUser() di atas.
     const { data: adminRow, error: adminErr } = await supabaseAdmin
       .from('admin_users')
-      .select('id')
-      .eq('email', callerEmail)
+      .select('id, email')
+      .eq('user_id', user.id)
       .maybeSingle();
 
     if (adminErr || !adminRow) {
@@ -110,6 +112,10 @@ Deno.serve(async (req) => {
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
+
+    // Email untuk audit log diambil dari baris admin_users di DB (bukan JWT),
+    // supaya log aksi tidak bisa dipalsukan lewat klaim JWT.
+    const callerEmail = adminRow.email || user.email || '';
 
     const body = await req.json().catch(() => ({}));
     const action: string = body.action ?? '';
@@ -233,8 +239,23 @@ Deno.serve(async (req) => {
       }
       until = parsedUntil.toISOString();
 
-      const { data: storeRow } = await supabaseAdmin
-        .from('stores').select('premium_until, business_until').eq('id', storeId).single();
+      // T5: verifikasi store benar-benar ada — sebelumnya update 0 baris tetap
+      // membalas success (silent success). Sekarang toko tidak ada → 404.
+      const { data: storeRow, error: storeFetchErr } = await supabaseAdmin
+        .from('stores').select('id, premium_until, business_until').eq('id', storeId).maybeSingle();
+      if (storeFetchErr) {
+        console.error('activate store fetch error:', storeFetchErr);
+        return new Response(
+          JSON.stringify({ error: 'Gagal mengambil data toko' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      if (!storeRow) {
+        return new Response(
+          JSON.stringify({ error: 'Toko tidak ditemukan' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
 
       const column = pkg === 'premium' ? 'premium_until' : 'business_until';
       const { error: updateErr } = await supabaseAdmin
@@ -275,8 +296,22 @@ Deno.serve(async (req) => {
         );
       }
 
-      const { data: storeRow } = await supabaseAdmin
-        .from('stores').select('premium_until, business_until').eq('id', storeId).single();
+      // T5: verifikasi store benar-benar ada (lihat komentar di action activate).
+      const { data: storeRow, error: storeFetchErr } = await supabaseAdmin
+        .from('stores').select('id, premium_until, business_until').eq('id', storeId).maybeSingle();
+      if (storeFetchErr) {
+        console.error('revoke store fetch error:', storeFetchErr);
+        return new Response(
+          JSON.stringify({ error: 'Gagal mengambil data toko' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      if (!storeRow) {
+        return new Response(
+          JSON.stringify({ error: 'Toko tidak ditemukan' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
 
       const { error: updateErr } = await supabaseAdmin
         .from('stores').update({ premium_until: null, business_until: null }).eq('id', storeId);

@@ -86,17 +86,15 @@ File `00_full_setup_project_baru.sql` berkomentar *"Jangan lupa matikan Confirm 
 Melemahkan pertahanan XSS: browser tidak bisa memblokir script inline/menyisipkan. Tradeoff wajar untuk app vanilla + Tailwind CDN, tapi berarti keamanan XSS bergantung 100% pada disiplin `esc()`.
 → Tidak wajib diubah sekarang. Catatan: jangan pernah menghapus escaping karena "CSP sudah ada".
 
-**T5. `activate` / `revoke` → silent success saat store tidak ada**
-Update 0 baris tidak dianggap error, fungsi tetap balas `success: true` padahal tidak terjadi apa-apa.
-→ Cek `data` hasil update / cek keberadaan store dulu (seperti di `delete_store`), balas 404 jika tidak ada.
+**T5. `activate` / `revoke` → silent success saat store tidak ada — ✅ SUDAH DIPERBAIKI (8 Agu 2026)**
+Kedua action kini memverifikasi keberadaan store dulu (`.maybeSingle()`), balas `404 Toko tidak ditemukan` bila tidak ada — pola sama dengan `delete_store`.
 
 **T6. Data bisnis sensitif di localStorage**
 `pos_debts`, `qris_payload`, `qris_image`, `pending_subs_order`, plus sesi `sb-*` tersimpan plaintext. Terbaca oleh script apa pun di origin — jadi T2 (CDN) dan T4 (CSP) secara tidak langsung ikut membocorkan ini bila dieksploitasi.
 → Tradeoff offline-POS; minimal catat risiko ini. Enkripsi opsional (mis. WebCrypto dengan passphrase) hanya untuk data paling sensitif.
 
-**T7. Admin check Edge Function berbasis email, RPC berbasis `user_id`**
-`admin_users.email = callerEmail` di Edge Function vs `user_id = auth.uid()` di RPC. Tidak konsisten; jika user mengganti email, EF bisa menolak admin sah (atau sebaliknya jika ada duplikat historis).
-→ Samakan: cek via `admin_users.user_id = user.id` di Edge Function juga.
+**T7. Admin check Edge Function berbasis email, RPC berbasis `user_id` — ✅ SUDAH DIPERBAIKI (8 Agu 2026)**
+Edge Function kini memverifikasi via `admin_users.user_id = user.id` (identitas dari sesi yang divalidasi `auth.getUser()`) — konsisten dengan RPC database (migration 12/17). Bonus: email audit log diambil dari baris `admin_users` di DB, bukan klaim JWT, jadi tidak bisa dipalsukan.
 
 **T8. `access-control-allow-origin: *` di response HTML produksi**
 Header ACAO `*` pada dokumen HTML statis. Tidak berbahaya (tanpa credentials), tapi tidak perlu.
