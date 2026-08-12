@@ -749,6 +749,106 @@ const App = (() => {
     return 'Terjadi kesalahan. Coba lagi, atau hubungi tim kami jika masalah berlanjut.';
   };
 
+  // ── Lamp gate (animasi lampu tarik, sekali per perangkat) ────────────────
+  const LAMP_FLAG = 'lamp_lit_v1';
+  let lampGateChecked = false;
+  let lampGateActive = false;
+  let lampWatchdog = null;
+
+  const hasRecoverySignalForLamp = () => {
+    try {
+      if (localStorage.getItem('pw_recovery_uid')) return true;
+    } catch (e) { return true; }
+    const authParams = (location.hash || '') + (location.search || '');
+    return /type=recovery|error_code=|[?&]code=/.test(authParams);
+  };
+
+  // Selalu bisa dipanggil: mengembalikan halaman login ke keadaan terang.
+  const endLampGate = (markLit) => {
+    lampGateActive = false;
+    clearTimeout(lampWatchdog);
+    document.getElementById('lampGate')?.classList.add('hidden');
+    document.getElementById('lampVeil')?.classList.add('hidden');
+    const card = document.getElementById('loginCard');
+    if (card) {
+      card.removeAttribute('aria-hidden');
+      card.removeAttribute('inert');
+      card.style.opacity = '';
+      card.style.transform = '';
+    }
+    if (markLit) {
+      try { localStorage.setItem(LAMP_FLAG, '1'); } catch (e) { /* storage penuh/diblokir */ }
+    }
+  };
+
+  const runLampAnimation = () => {
+    const gsap = window.gsap;
+    const card = document.getElementById('loginCard');
+    const timeline = gsap.timeline({ onComplete: () => endLampGate(true) });
+    timeline
+      .to('#lampGate .lamp-pull', { y: 10, duration: 0.18, ease: 'power2.out' }, 0)
+      .to('#lampGate .lamp-pull', { y: 0, duration: 0.6, ease: 'elastic.out(1, 0.35)' }, 0.18)
+      .set('#lampGate .lamp-inner', { opacity: 1 }, 0.18)
+      .set('#lampGate .lamp-inner', { opacity: 0.25 }, 0.24)
+      .set('#lampGate .lamp-inner', { opacity: 1 }, 0.29)
+      .set('#lampGate .lamp-inner', { opacity: 0.25 }, 0.35)
+      .to('#lampGate .lamp-inner', { opacity: 1, duration: 0.15 }, 0.4)
+      .to('#lampGate .lamp-cone', { opacity: 0.35, duration: 0.15 }, 0.4)
+      .to('#lampVeil', { opacity: 0, duration: 0.6, ease: 'power2.inOut' }, 0.4)
+      .fromTo(card, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power2.out' }, 0.55);
+  };
+
+  const startLampGate = () => {
+    try {
+      const gate = document.getElementById('lampGate');
+      const veil = document.getElementById('lampVeil');
+      const card = document.getElementById('loginCard');
+      const button = document.getElementById('lampPull');
+      if (!gate || !veil || !card || !button) return;
+      if (!window.gsap) return;
+      if (passwordRecoveryMode || hasRecoverySignalForLamp()) return;
+      if (localStorage.getItem(LAMP_FLAG)) return;
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+      lampGateActive = true;
+      gate.classList.remove('hidden');
+      veil.classList.remove('hidden');
+      veil.style.opacity = '1';
+      card.style.opacity = '0';
+      card.setAttribute('aria-hidden', 'true');
+      card.setAttribute('inert', '');
+      button.focus();
+      // Seluruh layar gelap ikut menyalakan lampu: kalau tombol lampu tidak
+      // terjangkau (CSS gagal muat / tertutup elemen lain), user tetap punya
+      // jalan keluar dan tidak terkunci di depan form yang inert.
+      const lightUp = () => {
+        if (!lampGateActive) return;
+        lampGateActive = false;
+        try {
+          window.gsap.killTweensOf('#lampGate .lamp-pull');
+          window.gsap.set('#lampGate .lamp-pull', { rotation: 0 });
+        } catch (e) { /* lanjut ke animasi utama */ }
+        // Watchdog: animasi yang macet tidak boleh mengunci form login.
+        lampWatchdog = setTimeout(() => endLampGate(false), 2500);
+        try { runLampAnimation(); } catch (e) { endLampGate(false); }
+      };
+      gate.addEventListener('click', lightUp);
+      veil.addEventListener('click', lightUp);
+      // Afordansi diam: ayunan halus beberapa kali lalu berhenti sendiri.
+      window.gsap.to('#lampGate .lamp-pull', {
+        rotation: 3,
+        transformOrigin: 'top center',
+        duration: 1.1,
+        ease: 'sine.inOut',
+        yoyo: true,
+        repeat: 3,
+        onComplete: () => { try { window.gsap.set('#lampGate .lamp-pull', { rotation: 0 }); } catch (e) { /* gate sudah selesai */ } }
+      });
+    } catch (e) {
+      endLampGate(false);
+    }
+  };
+
   const showLoginPage = () => {
     const lp = document.getElementById('loginPage');
     lp.classList.remove('hidden');
@@ -757,6 +857,13 @@ const App = (() => {
     document.getElementById('appContainer').style.display = 'none';
     document.getElementById('helpChatFab')?.classList.add('hidden');
     document.getElementById('helpChatPanel')?.classList.add('hidden');
+    // Gate hanya dievaluasi sekali per pemuatan halaman, dan jalur lain
+    // (dashboard, recovery, link kedaluwarsa) sudah melucutinya lebih dulu —
+    // jadi logout/batal recovery tidak pernah memunculkan animasi.
+    if (!lampGateChecked) {
+      lampGateChecked = true;
+      startLampGate();
+    }
   };
 
   const showNewPasswordForm = () => {
@@ -764,6 +871,10 @@ const App = (() => {
     // final (form recovery) DULU, baru overlay loading di-fade di ATASNYA.
     // Kalau overlay dilepas duluan, ada frame di mana overlay transparan
     // tapi konten di baliknya masih login form biasa (belum newPasswordForm).
+    // Gate lampu dimatikan SEBELUM showLoginPage(): user recovery tidak boleh
+    // melihat halaman gelap walau satu frame pun.
+    lampGateChecked = true;
+    endLampGate(false);
     showLoginPage();
     document.getElementById('loginForm2')?.classList.add('hidden');
     document.getElementById('registerForm')?.classList.add('hidden');
@@ -6489,10 +6600,20 @@ ${txRows}
       if (passwordRecoveryMode) {
         showNewPasswordForm();
       } else {
+        // Sesi aktif langsung masuk dashboard: gate lampu dilucuti supaya
+        // logout di sesi ini tidak tiba-tiba menampilkan layar gelap.
+        lampGateChecked = true;
         await enterAppAfterAuth();
         hideLoadingOverlay();
       }
     } else {
+      if (linkExpired) {
+        // Sinyal recovery sudah dibersihkan dari URL sebelum titik ini, jadi
+        // gate harus dimatikan eksplisit agar pesan kedaluwarsa langsung
+        // terbaca tanpa tertutup layar gelap.
+        lampGateChecked = true;
+        endLampGate(false);
+      }
       hideLoadingOverlay();
       showLoginPage();
       if (linkExpired) {

@@ -30,6 +30,8 @@
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2" integrity="sha384-B2duOBIryCXbX4eDE4BdJwtNkQMRQde3o6IsjfPW28E6aH1CYE96hHeZRG3zY56O" crossorigin="anonymous"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
+  <!-- GSAP di-vendor lokal (same-origin). Bila file belum ada, aplikasi tetap normal: animasi lampu dilewati. -->
+  <script defer src="vendor/gsap.min.js"></script>
   <style>
     html, body {
       overflow-x: hidden;
@@ -373,6 +375,85 @@
       .kasir-pay-summary { display: none !important; }
     }
 
+    /* Lamp gate halaman login */
+    #lampVeil {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(160deg, #1B1815 0%, #26231F 100%);
+      z-index: 1;
+    }
+    #lampGate {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.25rem;
+      cursor: pointer;
+    }
+    #lampGate.hidden { display: none; }
+    #lampPull {
+      background: none;
+      border: 0;
+      padding: 12px 24px 24px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 44px;
+      min-height: 44px;
+    }
+    #lampPull:focus-visible {
+      outline: 2px solid #E3A868;
+      outline-offset: 6px;
+      border-radius: 12px;
+    }
+    .lamp-hanger {
+      width: 2px;
+      height: 72px;
+      background: #8A7F72;
+    }
+    .lamp-head {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .lamp-cone {
+      width: 210px;
+      height: 190px;
+      margin-top: -2px;
+      background: radial-gradient(120% 100% at 50% 0%, rgba(227, 168, 104, 0.55) 0%, rgba(227, 168, 104, 0.18) 45%, rgba(227, 168, 104, 0) 78%);
+      clip-path: polygon(34% 0%, 66% 0%, 100% 100%, 0% 100%);
+      opacity: 0;
+    }
+    .lamp-pull {
+      position: absolute;
+      top: 26px;
+      left: calc(50% + 46px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .lamp-pull-line {
+      width: 2px;
+      height: 54px;
+      background: #8A7F72;
+    }
+    .lamp-bead {
+      width: 13px;
+      height: 13px;
+      border-radius: 9999px;
+      background: #8A7F72;
+      margin-top: -1px;
+    }
+    .lamp-inner { opacity: 0.25; }
+    .lamp-hint {
+      color: #A8A29E;
+      font-size: 0.875rem;
+    }
   </style>
   <script type="application/ld+json">
   {
@@ -469,7 +550,25 @@
 
   <!-- Login / Register Page -->
   <div id="loginPage" class="fixed inset-0 z-[99] hidden items-center justify-center bg-gradient-to-br from-accent-gold via-primary to-primary-active overflow-y-auto py-8">
-    <div class="w-full max-w-md px-6">
+    <div id="lampVeil" class="hidden"></div>
+    <div id="lampGate" class="hidden">
+      <button type="button" id="lampPull" aria-label="Nyalakan lampu untuk masuk">
+        <span class="lamp-hanger"></span>
+        <span class="lamp-head">
+          <svg width="128" height="74" viewBox="0 0 128 74" aria-hidden="true" focusable="false">
+            <path d="M2 70 A62 62 0 0 1 126 70 Z" fill="#F5F2EB"></path>
+            <ellipse class="lamp-inner" cx="64" cy="70" rx="62" ry="7" fill="#E3A868"></ellipse>
+          </svg>
+          <span class="lamp-cone"></span>
+          <span class="lamp-pull">
+            <span class="lamp-pull-line"></span>
+            <span class="lamp-bead"></span>
+          </span>
+        </span>
+      </button>
+      <p class="lamp-hint">Ketuk lampunya untuk mulai</p>
+    </div>
+    <div id="loginCard" class="w-full max-w-md px-6">
       <div class="text-center mb-6">
         <div class="text-6xl mb-3 drop-shadow-md">🛒</div>
         <h1 class="text-3xl font-bold text-white drop-shadow-md">Kasir UMKM Simpel</h1>
@@ -2202,6 +2301,6 @@
   </div>
 
 
-  <script src="app.js?v=17" defer></script>
+  <script src="app.js?v=18" defer></script>
 </body>
 </html>
