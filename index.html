@@ -553,7 +553,12 @@
   </div>
 
   <!-- Login / Register Page -->
-  <div id="loginPage" class="fixed inset-0 z-[99] flex items-center justify-center bg-gradient-to-br from-accent-gold via-primary to-primary-active overflow-y-auto py-8">
+  <!-- background:#1B1815 INLINE = safety net anti-flash: gradient terang (kelas
+       bg-gradient-*) tidak pernah terlihat sebelum JS eksplisit me-reveal, karena
+       style inline menimpa kelas. JS menghapusnya (style.background = '') saat
+       lampu ditarik (lightUp) atau saat gate dilewati (endLampGate) — baru saat
+       itu gradient/login terang muncul, bertahap di balik veil yang memudar. -->
+  <div id="loginPage" class="fixed inset-0 z-[99] flex items-center justify-center bg-gradient-to-br from-accent-gold via-primary to-primary-active overflow-y-auto py-8" style="background:#1B1815">
     <!-- lampVeil default TERLIHAT (bukan hidden): layar login sejak awal sudah gelap
          sejak PAINT PERTAMA (di-raster saat halaman load, di balik loading overlay),
          jadi tidak ada satu frame pun yang memperlihatkan gradient/card login sebelum

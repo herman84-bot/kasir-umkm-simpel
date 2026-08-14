@@ -769,6 +769,10 @@ const App = (() => {
     lampGateActive = false;
     clearTimeout(lampWatchdog);
     document.getElementById('lampGate')?.classList.add('hidden');
+    // Lepas background gelap inline (safety net anti-flash) BERSAMA mulai
+    // pudarnya veil — gradient terang muncul bertahap, tidak pernah mendadak.
+    const loginPageEl = document.getElementById('loginPage');
+    if (loginPageEl) loginPageEl.style.background = '';
     // Veil FADE-OUT halus, bukan hilang instan: kalau veil di-display:none
     // mendadak saat overlay loading masih memudar, login terang langsung
     // terekspos dan terlihat seperti flash/glitch sepersekian detik.
@@ -838,6 +842,10 @@ const App = (() => {
       const lightUp = () => {
         if (!lampGateActive) return;
         lampGateActive = false;
+        // Lampu ditarik → saatnya reveal: lepas background gelap inline agar
+        // gradient login muncul di balik veil yang memudar (lihat endLampGate).
+        const loginPageEl = document.getElementById('loginPage');
+        if (loginPageEl) loginPageEl.style.background = '';
         try {
           window.gsap.killTweensOf('#lampGate .lamp-pull');
           window.gsap.set('#lampGate .lamp-pull', { rotation: 0 });
