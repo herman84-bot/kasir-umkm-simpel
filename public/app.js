@@ -864,6 +864,11 @@ const App = (() => {
       lampGateChecked = true;
       startLampGate();
     }
+    // lampVeil sekarang DEFAULT terlihat di HTML (anti-flicker: layar gelap sejak
+    // paint pertama). Kalau gate tidak aktif di jalur ini (sudah pernah dilihat /
+    // reduced-motion / recovery / gsap gagal), wajib menyalakan layar terang
+    // secara eksplisit — kalau tidak, halaman login terkunci gelap.
+    if (!lampGateActive) endLampGate(false);
   };
 
   const showNewPasswordForm = () => {
