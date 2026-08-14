@@ -754,6 +754,7 @@ const App = (() => {
   let lampGateChecked = false;
   let lampGateActive = false;
   let lampWatchdog = null;
+  let veilHideTimer = null;
 
   const hasRecoverySignalForLamp = () => {
     try {
@@ -768,7 +769,16 @@ const App = (() => {
     lampGateActive = false;
     clearTimeout(lampWatchdog);
     document.getElementById('lampGate')?.classList.add('hidden');
-    document.getElementById('lampVeil')?.classList.add('hidden');
+    // Veil FADE-OUT halus, bukan hilang instan: kalau veil di-display:none
+    // mendadak saat overlay loading masih memudar, login terang langsung
+    // terekspos dan terlihat seperti flash/glitch sepersekian detik.
+    clearTimeout(veilHideTimer);
+    const veil = document.getElementById('lampVeil');
+    if (veil) {
+      veil.style.transition = 'opacity 0.4s ease';
+      veil.style.opacity = '0';
+      veilHideTimer = setTimeout(() => veil.classList.add('hidden'), 420);
+    }
     const card = document.getElementById('loginCard');
     if (card) {
       card.removeAttribute('aria-hidden');
