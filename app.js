@@ -812,6 +812,10 @@ const App = (() => {
 
       lampGateActive = true;
       gate.classList.remove('hidden');
+      // Fade-in halus: CSS #lampGate default opacity 0 + transition 0.4s;
+      // naikkan ke 1 pada frame berikutnya biar lampu muncul lembut, bukan pop.
+      gate.style.opacity = '0';
+      requestAnimationFrame(() => { gate.style.opacity = '1'; });
       veil.classList.remove('hidden');
       veil.style.opacity = '1';
       card.style.opacity = '0';
@@ -835,6 +839,7 @@ const App = (() => {
       gate.addEventListener('click', lightUp);
       veil.addEventListener('click', lightUp);
       // Afordansi diam: ayunan halus beberapa kali lalu berhenti sendiri.
+      // delay 0.35s: lampu muncul dulu (fade-in 0.4s), baru mulai berayun.
       window.gsap.to('#lampGate .lamp-pull', {
         rotation: 3,
         transformOrigin: 'top center',
@@ -842,6 +847,7 @@ const App = (() => {
         ease: 'sine.inOut',
         yoyo: true,
         repeat: 3,
+        delay: 0.35,
         onComplete: () => { try { window.gsap.set('#lampGate .lamp-pull', { rotation: 0 }); } catch (e) { /* gate sudah selesai */ } }
       });
     } catch (e) {

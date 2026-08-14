@@ -392,6 +392,10 @@
       justify-content: center;
       gap: 1.25rem;
       cursor: pointer;
+      /* Mulai tak terlihat; JS menaikkan ke opacity 1 pada frame berikutnya
+         sehingga lampu FADE-IN halus (bukan pop instan) saat gate dibuka. */
+      opacity: 0;
+      transition: opacity 0.4s ease;
     }
     #lampGate.hidden { display: none; }
     #lampPull {
