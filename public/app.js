@@ -324,7 +324,7 @@ const App = (() => {
     if (!localStorage.getItem('pending_subs_order')) return;
     if (await checkPakasirOrderStatus()) {
       hideSubsOverlay();
-      alert('Pembayaran berhasil! 🎉 Langganan Anda sudah aktif.');
+      alert('Pembayaran berhasil! Langganan Anda sudah aktif.');
       return;
     }
     let tries = 0;
@@ -333,7 +333,7 @@ const App = (() => {
       if (await checkPakasirOrderStatus()) {
         clearInterval(timer);
         hideSubsOverlay();
-        alert('Pembayaran berhasil! 🎉 Langganan Anda sudah aktif.');
+        alert('Pembayaran berhasil! Langganan Anda sudah aktif.');
       } else if (tries >= 20) clearInterval(timer);
     }, 3000);
   };
@@ -2770,7 +2770,7 @@ const App = (() => {
       return `
         <tr class="${rowClass}">
           <td class="p-3 font-semibold">${esc(product.code)}</td>
-          <td class="p-3">${esc(product.name)}${isLowStock ? ' <span class="text-rose-500 text-xs font-bold">⚠ Stok Rendah</span>' : ''}</td>
+          <td class="p-3">${esc(product.name)}${isLowStock ? ' <span class="text-rose-500 text-xs font-bold">' + icon('alert', 'icon icon-sm') + ' Stok Rendah</span>' : ''}</td>
           <td class="p-3 text-xs text-muted font-mono">${esc(product.barcode || '-')}</td>
           <td class="p-3">${esc(product.category)}</td>
           <td class="p-3">${formatCurrency(product.price)}</td>
@@ -2826,8 +2826,8 @@ const App = (() => {
             ${isVoided ? `
               <span class="inline-block rounded-full bg-rose-100 text-rose-700 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider">VOID</span>
             ` : `
-              ${isToday ? `<button data-void="${esc(tx.id)}" class="rounded-lg bg-rose-50 border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-100 transition whitespace-nowrap">🚫 Void</button>` : ''}
-              ${canReturn ? `<button data-return="${esc(tx.id)}" class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-100 transition whitespace-nowrap">↩️ Retur</button>` : ''}
+              ${isToday ? `<button data-void="${esc(tx.id)}" class="btn-icon rounded-lg bg-rose-50 border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-100 transition whitespace-nowrap">${icon('ban', 'icon icon-sm')} Void</button>` : ''}
+              ${canReturn ? `<button data-return="${esc(tx.id)}" class="btn-icon rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-100 transition whitespace-nowrap">${icon('undo', 'icon icon-sm')} Retur</button>` : ''}
             `}
           </td>
         </tr>
@@ -4890,12 +4890,12 @@ ${txRows}
         const serverResult = db ? await fetchSubscriptionFromServer() : null;
         active = serverResult !== null ? serverResult.premiumActive : false;
       }
-      btn.textContent = '🔄 Sudah bayar — cek status';
+      btn.innerHTML = iconText('refresh', 'Sudah bayar — cek status');
       if (active) {
         hideSubsOverlay();
         const banner = document.getElementById('subsBanner');
         if (banner) { banner.classList.add('hidden'); document.body.style.paddingTop = ''; }
-        alert('Langganan aktif! 🎉 Semua fitur sudah terbuka.');
+        alert('Langganan aktif! Semua fitur sudah terbuka.');
       } else {
         alert('Pembayaran belum terdeteksi. Jika baru saja membayar, tunggu beberapa detik lalu coba lagi.');
       }
@@ -5183,7 +5183,7 @@ ${txRows}
   let _activeScreenId = 'dashboard';
 
   const renderAll = () => {
-    dom.todayDate.textContent = '📅 ' + new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    dom.todayDate.innerHTML = iconText('calendar', new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }), 'icon icon-sm');
     renderStoreSwitcher();
     renderCashierSelect();
     dom.reportRangeSelect.value = state.reportRange;
@@ -5244,6 +5244,53 @@ ${txRows}
       .catch(err => console.warn('Gagal daftar service worker:', err));
   };
 
+  // Modal setup toko — pengganti prompt() browser saat onboarding pertama.
+  // Kembali: {name, owner, pin} bila disubmit, null bila dibatalkan.
+  const promptStoreSetup = () => new Promise((resolve) => {
+    const modal = document.getElementById('storeSetupModal');
+    const form = document.getElementById('storeSetupForm');
+    const nameEl = document.getElementById('storeSetupName');
+    const ownerEl = document.getElementById('storeSetupOwner');
+    const pinEl = document.getElementById('storeSetupPin');
+    if (!modal || !form || !nameEl || !ownerEl || !pinEl) {
+      resolve(null);
+      return;
+    }
+    form.reset();
+    nameEl.focus();
+    modal.classList.remove('hidden');
+    const cleanup = () => {
+      modal.classList.add('hidden');
+      form.removeEventListener('submit', onSubmit);
+      document.removeEventListener('keydown', onKey);
+      modal.removeEventListener('click', onBackdrop);
+    };
+    const onSubmit = (e) => {
+      e.preventDefault();
+      const name = nameEl.value.trim();
+      const owner = ownerEl.value.trim();
+      const pin = pinEl.value.trim();
+      if (!name || !owner || !pin) return;
+      cleanup();
+      resolve({ name, owner, pin });
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        cleanup();
+        resolve(null);
+      }
+    };
+    const onBackdrop = (e) => {
+      if (e.target === modal) {
+        cleanup();
+        resolve(null);
+      }
+    };
+    form.addEventListener('submit', onSubmit);
+    document.addEventListener('keydown', onKey);
+    modal.addEventListener('click', onBackdrop);
+  });
+
   // Dipanggil setelah login/daftar berhasil ATAU saat sesi masih aktif
   const enterAppAfterAuth = async () => {
     // Mode recovery: pemegang link reset TIDAK boleh masuk dashboard
@@ -5261,18 +5308,11 @@ ${txRows}
     // Pengaman: user terautentikasi tapi belum punya toko (mis. lewat konfirmasi email)
     // Super admin dibebaskan dari kewajiban memiliki toko
     if (db && state.authUser && !state.storeId && !_isSuperAdmin) {
-      let storeName = prompt('Selamat datang! Masukkan nama toko Anda untuk memulai:');
-      if (storeName === null) return;
-      storeName = storeName.trim() || 'Toko Saya';
-      const ownerName = prompt('Nama Anda (pemilik):') || 'Pemilik';
-      
-      let pin = prompt('Masukkan PIN untuk login kasir/admin:', '');
-      if (pin === null) return;
-      pin = pin.trim();
-      if (!pin) {
-        alert('PIN wajib diisi! Pendaftaran toko dibatalkan.');
-        return;
-      }
+      const setup = await promptStoreSetup();
+      if (!setup) return;
+      const storeName = setup.name;
+      const ownerName = setup.owner;
+      const pin = setup.pin;
       
       const { data: store, error } = await db.from('stores')
         .insert({ owner_id: state.authUser.id, name: storeName }).select().single();
@@ -5463,7 +5503,7 @@ ${txRows}
              <input type="text" class="w-full rounded-xl border border-hairline bg-surface-soft px-2 py-1.5 text-sm text-muted" readonly value="0">
         </div>
         <div class="w-[10%] flex justify-end">
-             <button type="button" class="rounded-xl bg-rose-100 text-rose-600 px-3 py-1.5 hover:bg-rose-200 transition font-bold" onclick="removeDebtItemRow('${rowId}')">✕</button>
+             <button type="button" class="rounded-xl bg-rose-100 text-rose-600 px-3 py-1.5 hover:bg-rose-200 transition font-bold" onclick="removeDebtItemRow('${rowId}')">${icon('x', 'icon icon-sm')}</button>
         </div>
     `;
     container.appendChild(div);
