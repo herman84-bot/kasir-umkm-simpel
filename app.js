@@ -692,6 +692,25 @@ const App = (() => {
     return { user: data.user };
   };
 
+  // Masuk dengan Google (OAuth redirect). Sebelum redirect, tulis flag
+  // pending_oauth ke localStorage — callback Supabase kembali membawa
+  // ?code= (PKCE) yang TANPA flag ini akan disangka link reset password
+  // oleh guard keamanan isRecoveryLink di init(). Flag dibaca & dihapus
+  // di init() begitu callback tiba.
+  const handleGoogleLogin = async () => {
+    if (!db) return { error: 'Database tidak tersedia.' };
+    try { localStorage.setItem('pending_oauth', 'google'); } catch (e) { /* storage diblokir */ }
+    const { error } = await db.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + window.location.pathname }
+    });
+    if (error) {
+      try { localStorage.removeItem('pending_oauth'); } catch (e) { /* storage diblokir */ }
+      return { error: terjemahAuthError(error.message) };
+    }
+    return { redirecting: true };
+  };
+
   // Daftar toko baru: buat akun auth + store + admin cashier
   const handleRegister = async ({ storeName, ownerName, email, password, pin }) => {
     if (!db) return { error: 'Database tidak tersedia.' };
@@ -734,6 +753,7 @@ const App = (() => {
     if (m.includes('same as the old password') || m.includes('different from the old')) return 'Password baru tidak boleh sama dengan password lama.';
     if (m.includes('unable to validate email') || m.includes('invalid email')) return 'Format email tidak valid.';
     if (m.includes('email not confirmed')) return 'Email belum dikonfirmasi.';
+    if (m.includes('unsupported provider') || m.includes('provider is not enabled')) return 'Masuk Google belum diaktifkan di pengaturan Supabase. Hubungi admin aplikasi.';
     if (m.includes('failed to fetch') || m.includes('network')) return 'Koneksi bermasalah. Periksa internet lalu coba lagi.';
     // Jangan tampilkan pesan mentah dari server ke user (bisa memuat detail teknis)
     if (msg) logError('Auth error tanpa terjemahan', { pesan: String(msg).slice(0, 120) }, null);
@@ -4794,6 +4814,32 @@ ${txRows}
       await enterAppAfterAuth();
     });
 
+    // MASUK DENGAN GOOGLE (OAuth)
+    const googleLoginBtn = document.getElementById('googleLoginBtn');
+    const googleLoginLabel = document.getElementById('googleLoginLabel');
+    googleLoginBtn?.addEventListener('click', async () => {
+      clearAuthMsg();
+      const originalText = googleLoginLabel?.textContent || 'Masuk dengan Google';
+      if (googleLoginLabel) googleLoginLabel.textContent = 'Mengalihkan ke Google...';
+      googleLoginBtn.disabled = true;
+      // Watchdog: kalau permintaan redirect macet (network hang / provider
+      // tidak merespons), kembalikan tombol setelah 15 detik supaya user
+      // tidak terkunci di state loading selamanya.
+      const watchdog = setTimeout(() => {
+        if (googleLoginLabel) googleLoginLabel.textContent = originalText;
+        googleLoginBtn.disabled = false;
+      }, 15000);
+      const res = await handleGoogleLogin();
+      clearTimeout(watchdog);
+      if (res.error) {
+        if (googleLoginLabel) googleLoginLabel.textContent = originalText;
+        googleLoginBtn.disabled = false;
+        showAuthError(res.error);
+      }
+      // res.redirecting → browser sedang pindah ke halaman Google; tombol
+      // sengaja dibiarkan disabled sampai redirect selesai.
+    });
+
     // DAFTAR
     registerForm?.addEventListener('submit', async event => {
       event.preventDefault();
@@ -6608,15 +6654,49 @@ ${txRows}
     // sudah aktif dan menahan dashboard.
     const authHash = location.hash;
     const authQuery = new URLSearchParams(location.search);
+    // Callback OAuth (Google): URL kembali membawa ?code= (PKCE) — bentuknya
+    // SAMA dengan link reset password. Pembeda satu-satunya: flag pending_oauth
+    // yang kita tulis tepat sebelum signInWithOAuth(). Tanpa flag ini, ?code=
+    // TETAP diperlakukan sebagai recovery — guard keamanan di bawah tidak
+    // dilonggarkan (penyerang tidak bisa memalsukan callback OAuth).
+    let pendingOAuth = null;
+    try { pendingOAuth = localStorage.getItem('pending_oauth'); } catch (e) { /* storage diblokir */ }
+    const oauthHasCode = authQuery.has('code') || authHash.includes('access_token');
+    const oauthHasError = !!authQuery.get('error');
+    const isOAuthCallback = !!pendingOAuth && (oauthHasCode || oauthHasError);
+    if (pendingOAuth && !oauthHasCode && !oauthHasError) {
+      // Flag yatim dari percobaan OAuth yang batal/gagal (redirect tidak
+      // pernah terjadi). Wajib dibersihkan: kalau tidak, link reset password
+      // berikutnya (yang juga membawa ?code=) akan salah dianggap callback
+      // Google dan form recovery tidak akan muncul.
+      try { localStorage.removeItem('pending_oauth'); } catch (e) { /* storage diblokir */ }
+    }
+    let oauthErrorMessage = '';
+    if (isOAuthCallback) {
+      try { localStorage.removeItem('pending_oauth'); } catch (e) { /* storage diblokir */ }
+      if (oauthHasError) {
+        oauthErrorMessage = authQuery.get('error_description')
+          || (authQuery.get('error') === 'access_denied'
+            ? 'Login Google dibatalkan. Silakan coba lagi.'
+            : 'Login Google gagal. Silakan coba lagi.');
+        // Callback error tidak butuh SDK — bersihkan URL langsung agar
+        // reload tidak mengulang penanganan yang sama.
+        history.replaceState(null, '', location.pathname);
+      }
+      // oauthHasCode: URL TIDAK dibersihkan di sini — SDK harus membaca
+      // ?code= untuk menukarnya jadi sesi. Dibersihkan setelah sesi ada.
+    }
     // Defensif: kalau ada "code" param tapi tanpa penanda type=recovery
     // eksplisit, tetap jangan langsung dianggap aman — treat sebagai
     // recovery juga. Lebih baik false-positive (user login biasa diminta
     // buat password baru & dituntun keluar dari form itu) daripada
     // false-negative (pemegang link reset dapat akses penuh ke toko orang).
+    // Pengecualian SATU-SATUNYA: callback OAuth yang kita mulai sendiri
+    // (isOAuthCallback) — itu login, bukan recovery.
     const isRecoveryLink = authHash.includes('type=recovery')
       || authQuery.get('type') === 'recovery'
       || authQuery.has('code');
-    if (isRecoveryLink) {
+    if (isRecoveryLink && !isOAuthCallback) {
       passwordRecoveryMode = true;
     }
     // Sinyal lebih luas dari isRecoveryLink: apapun bentuknya, kalau URL
@@ -6654,7 +6734,7 @@ ${txRows}
     // Baru simpan uid recovery SETELAH sesi benar-benar terbentuk (bukan
     // sebelum tahu siapa usernya) — link recovery load ini berarti SDK sudah
     // selesai exchange code jadi sesi di titik ini.
-    if (isRecoveryLink && session?.user?.id) {
+    if (isRecoveryLink && !isOAuthCallback && session?.user?.id) {
       localStorage.setItem('pw_recovery_uid', session.user.id);
     }
     // Guard berbasis USER ID, bukan flag generik: HANYA aktif kalau ADA
@@ -6672,6 +6752,16 @@ ${txRows}
       showNewPasswordForm();
     } else if (session) {
       state.authUser = session.user;
+      if (isOAuthCallback) {
+        // Login Google berhasil — user membuktikan kepemilikan akun via
+        // Google OAuth. Bersihkan flag recovery yang mungkin nyangkut dari
+        // proses reset lama (sama seperti login manual) dan buang ?code= dari
+        // URL SETELAH SDK selesai menukarnya jadi sesi (reload berikutnya
+        // tidak akan mencoba exchange ulang code yang sudah kedaluwarsa).
+        passwordRecoveryMode = false;
+        try { localStorage.removeItem('pw_recovery_uid'); } catch (e) { /* storage diblokir */ }
+        history.replaceState(null, '', location.pathname);
+      }
       // Jendela tunggu kecil HANYA kalau URL menunjukkan kita baru datang
       // dari redirect auth (link recovery/PKCE) — supaya event
       // PASSWORD_RECOVERY yang sedang diproses SDK (round-trip jaringan)
@@ -6704,6 +6794,13 @@ ${txRows}
         if (authError2) {
           authError2.textContent = 'Link reset sudah kedaluwarsa. Kirim ulang dari menu Lupa Password.';
           authError2.classList.remove('hidden');
+        }
+      }
+      if (oauthErrorMessage) {
+        const authError3 = document.getElementById('authError');
+        if (authError3) {
+          authError3.textContent = oauthErrorMessage;
+          authError3.classList.remove('hidden');
         }
       }
     }
