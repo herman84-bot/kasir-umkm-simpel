@@ -15,7 +15,7 @@ Nama project: Kasir UMKM Simpel — aplikasi kasir (POS) & manajemen stok untuk 
 - Inventory: kelola stok barang, indikator stok hampir habis
 - Riwayat Transaksi: pencarian transaksi lama
 - Export Data: unduh laporan ke Excel/CSV
-- Dark mode & dukungan multi-kasir
+- Dukungan multi-kasir (PIN operator) & multi-cabang
 
 # Cara Kerja Yang Diwajibkan
 - SELALU berikan kode lengkap (full file replacement), JANGAN snippet/patch parsial.

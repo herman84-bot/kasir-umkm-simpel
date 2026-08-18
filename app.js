@@ -3464,6 +3464,8 @@ ${discountHtml}${taxHtml}
     applySuperAdminVisibility();
     const versionEl = document.getElementById('appVersionDisplay');
     if (versionEl) versionEl.textContent = APP_VERSION;
+    const aboutVersionEl = document.getElementById('aboutAppVersion');
+    if (aboutVersionEl) aboutVersionEl.textContent = APP_VERSION;
     if (_isSuperAdmin && !state.storeId) return;
     renderBranchList();
     const store = getStoreSettings();
@@ -4880,6 +4882,18 @@ ${txRows}
 
     // ── Langganan ──
     document.getElementById('subsBannerBtn')?.addEventListener('click', () => showUpgradeOverlay('premium'));
+
+    // ── Kotak "Cara kerja" kasir — dismissible, diingat di localStorage ──
+    const howBox = document.getElementById('cashierHowBox');
+    if (howBox) {
+      try {
+        if (localStorage.getItem('cashier_how_hidden') === '1') howBox.classList.add('hidden');
+      } catch (e) { /* storage diblokir — biarkan tampil */ }
+      document.getElementById('cashierHowClose')?.addEventListener('click', () => {
+        howBox.classList.add('hidden');
+        try { localStorage.setItem('cashier_how_hidden', '1'); } catch (e) { /* storage diblokir */ }
+      });
+    }
     document.getElementById('subsPayBtn')?.addEventListener('click', e => { e.preventDefault(); startPakasirPayment(); });
     document.getElementById('subsRecheckBtn')?.addEventListener('click', async () => {
       const btn = document.getElementById('subsRecheckBtn');

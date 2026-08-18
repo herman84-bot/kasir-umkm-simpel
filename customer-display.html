@@ -157,9 +157,18 @@
     .state-screen.active { display: flex; }
 
     .state-icon {
-      font-size: 3.5rem;
-      line-height: 1;
+      display: flex;
+      justify-content: center;
       margin-bottom: 0.5rem;
+    }
+    .state-icon svg {
+      width: 3.5rem;
+      height: 3.5rem;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
     .state-title {
       font-size: 1.5rem;
@@ -173,7 +182,7 @@
       line-height: 1.5;
     }
     @media (min-width: 768px) {
-      .state-icon { font-size: 4.5rem; }
+      .state-icon svg { width: 4.5rem; height: 4.5rem; }
       .state-title { font-size: 2rem; }
       .state-subtitle { font-size: 1.125rem; }
     }
@@ -268,14 +277,14 @@
 
     <!-- === VIEW: IDLE (menunggu transaksi) === -->
     <div id="viewIdle" class="state-screen active">
-      <div class="state-icon pulse-slow">🛒</div>
+      <div class="state-icon pulse-slow"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2.5 3h2l2.2 11.2a2 2 0 002 1.6H18a2 2 0 001.95-1.55L21 7H6.2"/></svg></div>
       <p class="state-title">Menunggu transaksi...</p>
       <p class="state-subtitle">Daftar belanja Anda akan muncul di layar ini secara otomatis.</p>
     </div>
 
     <!-- === VIEW: THANK YOU (pembayaran selesai) === -->
     <div id="viewThankYou" class="state-screen">
-      <div class="state-icon">✅</div>
+      <div class="state-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></div>
       <p class="state-title">Terima Kasih!</p>
       <div class="thankyou-card fade-in" id="thankYouCard">
         <p class="thankyou-store" id="tyStoreName"></p>
@@ -285,7 +294,7 @@
 
     <!-- === VIEW: DISCONNECTED (kasir offline) === -->
     <div id="viewDisconnected" class="state-screen">
-      <div class="state-icon pulse-slow">📡</div>
+      <div class="state-icon pulse-slow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 7.5a14 14 0 0119 0"/><path d="M5.5 11a9.5 9.5 0 0113 0"/><path d="M8.5 14.5a5 5 0 017 0"/><circle cx="12" cy="18" r="1"/></svg></div>
       <p class="state-title">Menunggu koneksi kasir...</p>
       <p class="state-subtitle">Layar ini akan otomatis terhubung saat tab kasir dibuka kembali.</p>
     </div>
