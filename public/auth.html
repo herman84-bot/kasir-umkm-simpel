@@ -1,0 +1,2386 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Kasir UMKM Simpel — Aplikasi Kasir Gratis untuk Warung &amp; Toko</title>
+  <meta name="description" content="Aplikasi kasir gratis untuk warung dan toko UMKM Indonesia. Solusi POS mudah dan kasir online gratis: kelola penjualan, stok, dan laporan dengan cepat." />
+  <meta name="keywords" content="aplikasi kasir gratis, kasir UMKM, aplikasi POS mudah, kasir online gratis, aplikasi kasir untuk warung, kasir toko UMKM, point of sale, stok, inventory, umkm" />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#CC6B49" />
+  <link rel="canonical" href="https://www.simpelkasir.my.id/" />
+  <meta property="og:title" content="Kasir UMKM Simpel — Aplikasi Kasir Gratis untuk Warung &amp; Toko" />
+  <meta property="og:description" content="Aplikasi kasir gratis dan kasir online gratis untuk UMKM. Solusi aplikasi POS mudah untuk mengelola penjualan, stok, dan laporan toko Anda." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.simpelkasir.my.id/" />
+  <meta property="og:site_name" content="Kasir UMKM Simpel" />
+  <meta property="og:locale" content="id_ID" />
+  <meta property="og:image" content="https://www.simpelkasir.my.id/icons/icon-192.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Kasir UMKM Simpel — Aplikasi Kasir Gratis untuk Warung &amp; Toko" />
+  <meta name="twitter:description" content="Aplikasi kasir gratis untuk warung dan kasir UMKM. Solusi aplikasi POS mudah dan kasir online gratis." />
+  <meta name="twitter:image" content="https://www.simpelkasir.my.id/icons/icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" />
+  <link rel="stylesheet" href="tailwind.css?v=7" />
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2" integrity="sha384-B2duOBIryCXbX4eDE4BdJwtNkQMRQde3o6IsjfPW28E6aH1CYE96hHeZRG3zY56O" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
+  <!-- GSAP di-vendor lokal (same-origin). Bila file belum ada, aplikasi tetap normal: animasi lampu dilewati. -->
+  <script defer src="vendor/gsap.min.js"></script>
+  <style>
+    html, body {
+      overflow-x: hidden;
+      max-width: 100%;
+    }
+    body {
+      font-family: 'Plus Jakarta Sans', ui-sans-serif, -apple-system, system-ui, Roboto, 'Segoe UI', sans-serif;
+    }
+    .print-hidden {
+      display: none;
+    }
+    /* Line icons — monochrome stroke, Claude/Lucide feel */
+    .icon-sprite {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .icon {
+      width: 1.15rem;
+      height: 1.15rem;
+      display: inline-block;
+      flex-shrink: 0;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      vertical-align: -0.15em;
+      pointer-events: none;
+    }
+    .icon-sm { width: 1rem; height: 1rem; }
+    .icon-lg { width: 1.35rem; height: 1.35rem; }
+    .menu-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      position: relative;
+      z-index: 1;
+    }
+    .menu-btn .icon {
+      opacity: 0.85;
+    }
+    .menu-btn:hover .icon,
+    .menu-btn.active .icon {
+      opacity: 1;
+    }
+    .bottom-nav-btn .icon {
+      width: 1.25rem;
+      height: 1.25rem;
+      opacity: 0.9;
+    }
+    .bottom-nav-btn:hover .icon,
+    .bottom-nav-btn.active .icon {
+      opacity: 1;
+    }
+    .btn-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+
+    /* Soft Paper Motion — tenang & mewah (CSS-first) */
+    :root {
+      --motion-fast: 140ms;
+      --motion-base: 220ms;
+      --motion-slow: 320ms;
+      --ease-paper: cubic-bezier(0.22, 1, 0.36, 1);
+      --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+    }
+    @keyframes paper-enter {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    /* Opacity-only: jangan pakai transform di .screen — merusak position:fixed di dalam section (bar bayar mobile) */
+    @keyframes screen-enter-fade {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes paper-fade {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes toast-enter {
+      from { opacity: 0; transform: translate(-50%, 10px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+    .screen-enter {
+      animation: screen-enter-fade var(--motion-slow) var(--ease-paper) both;
+    }
+    .cart-item-enter {
+      animation: paper-enter var(--motion-base) var(--ease-paper) both;
+    }
+    .menu-btn,
+    .bottom-nav-btn {
+      transition:
+        background-color var(--motion-base) var(--ease-paper),
+        color var(--motion-base) var(--ease-paper),
+        opacity var(--motion-base) var(--ease-paper),
+        transform var(--motion-fast) var(--ease-paper);
+    }
+    .menu-btn:active,
+    .bottom-nav-btn:active {
+      transform: scale(0.98);
+    }
+    .menu-btn .icon,
+    .bottom-nav-btn .icon {
+      transition: opacity var(--motion-base) var(--ease-paper);
+    }
+    /* Overlay/modal: fade scrim + soft rise panel */
+    .motion-overlay:not(.hidden) {
+      animation: paper-fade var(--motion-base) var(--ease-paper) both;
+    }
+    .motion-overlay:not(.hidden) > * {
+      animation: paper-enter var(--motion-slow) var(--ease-paper) both;
+    }
+    #appGlobalToast.toast-enter {
+      animation: toast-enter var(--motion-base) var(--ease-paper) both;
+    }
+    #appGlobalToast.toast-exit {
+      opacity: 0 !important;
+      transform: translate(-50%, 6px);
+      transition:
+        opacity var(--motion-base) var(--ease-exit),
+        transform var(--motion-base) var(--ease-exit);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      .menu-btn:active,
+      .bottom-nav-btn:active {
+        transform: none;
+      }
+    }
+
+    /* Ruang bawah aman untuk SEMUA layar scrollable.
+       Ditulis sebagai CSS kustom (bukan utility Tailwind) supaya tidak hilang
+       kalau tailwind.css di-build ulang tanpa kelas yang dipakai di sini.
+       56px = tinggi bottom nav, 80px = ruang FAB chat. */
+    main.app-main {
+      padding-bottom: calc(56px + 80px + env(safe-area-inset-bottom, 0px));
+    }
+    #bottomNav {
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    #helpChatFab {
+      bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    }
+    #helpChatPanel {
+      bottom: calc(136px + env(safe-area-inset-bottom, 0px));
+    }
+    @media (min-width: 768px) {
+      main.app-main {
+        padding-bottom: 1.25rem;
+      }
+      #helpChatFab {
+        bottom: 1.5rem;
+      }
+      #helpChatPanel {
+        bottom: 6rem;
+      }
+    }
+
+    /* Layout: full-width main + keranjang padat; mobile: bar bayar fixed di atas bottom nav */
+    .content-shell {
+      width: 100%;
+      max-width: none;
+      margin-left: 0;
+      margin-right: 0;
+    }
+    .kasir-layout {
+      display: grid;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+      width: 100%;
+    }
+    .kasir-cart-panel {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    /* Isian pembayaran ikut alur normal kartu keranjang supaya bar fixed tetap ramping */
+    .kasir-pay-fields {
+      margin-top: 0.75rem;
+    }
+    /* Mobile: aksi bayar fixed — selalu terlihat di atas bottom nav.
+       Isinya sengaja dibatasi ringkasan + tombol Bayar (± 117px) agar bar + bottom nav
+       tidak memakan lebih dari 40% tinggi layar 667px. */
+    .kasir-pay-actions {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+      z-index: 35;
+      margin: 0;
+      padding: 0.5rem 0.75rem;
+      background: #ffffff;
+      border-top: 1px solid #E7E2DB;
+      box-shadow: 0 -8px 24px rgba(38, 35, 31, 0.1);
+    }
+    .kasir-pay-actions > * + * {
+      margin-top: 0.5rem;
+    }
+    .kasir-print-action {
+      margin-top: 0.5rem;
+    }
+    /* Tambahan ruang khusus bar bayar fixed (117px) + jarak aman 8px; sisa ruang
+       (nav + safe area) sudah disediakan oleh padding bawah main.app-main. */
+    #kasir.screen {
+      padding-bottom: 128px;
+    }
+    @media (min-width: 768px) {
+      #kasir.screen {
+        padding-bottom: 264px;
+      }
+    }
+    @media (min-width: 1024px) {
+      .kasir-layout {
+        grid-template-columns: minmax(0, 1.4fr) minmax(340px, 0.9fr);
+        align-items: start;
+        gap: 1rem;
+      }
+      .kasir-cart-panel {
+        position: sticky;
+        top: 0.75rem;
+        max-height: calc(100dvh - 5.5rem);
+        overflow-y: auto;
+      }
+      .kasir-pay-actions {
+        position: static;
+        left: auto;
+        right: auto;
+        bottom: auto;
+        z-index: auto;
+        box-shadow: none;
+        border-top: none;
+        padding: 0;
+        margin-top: 0.5rem;
+        background: transparent;
+      }
+      .kasir-pay-fields {
+        margin-top: 1.25rem;
+      }
+      #kasir.screen {
+        padding-bottom: 0;
+      }
+      /* Desktop sudah punya keranjang sticky dengan Total Akhir — jangan duplikasi */
+      .kasir-pay-summary {
+        display: none;
+      }
+    }
+    .kasir-product-grid {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-height: min(38vh, 320px);
+      overflow-y: auto;
+      padding-right: 0.25rem;
+      -webkit-overflow-scrolling: touch;
+    }
+    @media (min-width: 1024px) {
+      .kasir-product-grid {
+        max-height: min(58vh, 560px);
+      }
+    }
+    @media (min-width: 1280px) {
+      .kasir-product-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+    #cartList {
+      max-height: min(18vh, 150px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    @media (min-width: 1024px) {
+      #cartList {
+        max-height: min(28vh, 240px);
+      }
+    }
+    #quickCashRow {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.5rem;
+    }
+    /* "Uang Pas" perilakunya beda (dihitung dari total, bukan nominal tetap) — dipisah barisnya */
+    .quickcash-exact {
+      grid-column: span 2;
+    }
+    .quickcash-btn:active {
+      background: #F5F2ED;
+      transform: scale(0.97);
+    }
+    .cash-short {
+      color: #B45309;
+      font-weight: 600;
+    }
+    .pay-methods {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5rem;
+    }
+    @media (min-width: 640px) {
+      .pay-methods {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+    /* Bar mobile lebih pendek: cetak struk di desktop saja */
+    @media (max-width: 1023px) {
+      .kasir-print-action {
+        display: none;
+      }
+    }
+    /* Modal: di mobile dari bawah, di tablet+ center */
+    .motion-overlay {
+      align-items: flex-end;
+    }
+    @media (min-width: 640px) {
+      .motion-overlay {
+        align-items: center;
+      }
+    }
+    .motion-overlay > * {
+      max-height: min(92dvh, 100%);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    @media print {
+      body * { visibility: hidden; }
+      #receiptContent, #receiptContent * { visibility: visible; }
+      #receiptContent { position: absolute; left: 0; top: 0; width: 100%; }
+      .no-print { display: none !important; }
+      .kasir-pay-actions { position: static !important; box-shadow: none !important; border: none !important; }
+      .kasir-pay-summary { display: none !important; }
+    }
+
+    /* Lamp gate halaman login */
+    #lampVeil {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(160deg, #1B1815 0%, #26231F 100%);
+      z-index: 1;
+    }
+    #lampGate {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.25rem;
+      cursor: pointer;
+      /* Mulai tak terlihat; JS menaikkan ke opacity 1 pada frame berikutnya
+         sehingga lampu FADE-IN halus (bukan pop instan) saat gate dibuka. */
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    #lampGate.hidden { display: none; }
+    #lampPull {
+      background: none;
+      border: 0;
+      padding: 12px 24px 24px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 44px;
+      min-height: 44px;
+    }
+    #lampPull:focus-visible {
+      outline: 2px solid #E3A868;
+      outline-offset: 6px;
+      border-radius: 12px;
+    }
+    .lamp-hanger {
+      width: 2px;
+      height: 72px;
+      background: #8A7F72;
+    }
+    .lamp-head {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .lamp-cone {
+      width: 210px;
+      height: 190px;
+      margin-top: -2px;
+      background: radial-gradient(120% 100% at 50% 0%, rgba(227, 168, 104, 0.55) 0%, rgba(227, 168, 104, 0.18) 45%, rgba(227, 168, 104, 0) 78%);
+      clip-path: polygon(34% 0%, 66% 0%, 100% 100%, 0% 100%);
+      opacity: 0;
+    }
+    .lamp-pull {
+      position: absolute;
+      top: 26px;
+      left: calc(50% + 46px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .lamp-pull-line {
+      width: 2px;
+      height: 54px;
+      background: #8A7F72;
+    }
+    .lamp-bead {
+      width: 13px;
+      height: 13px;
+      border-radius: 9999px;
+      background: #8A7F72;
+      margin-top: -1px;
+    }
+    .lamp-inner { opacity: 0.25; }
+    .lamp-hint {
+      color: #A8A29E;
+      font-size: 0.875rem;
+    }
+  </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Kasir UMKM Simpel",
+    "url": "https://www.simpelkasir.my.id/",
+    "description": "Aplikasi kasir gratis untuk warung dan toko UMKM Indonesia. Kelola penjualan, stok, dan laporan dengan mudah.",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": ["Web", "Android", "iOS"],
+    "offers": [
+      {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "IDR"
+      },
+      {
+        "@type": "Offer",
+        "price": "29000",
+        "priceCurrency": "IDR"
+      }
+    ],
+    "featureList": "Kasir cepat, Manajemen stok, Laporan penjualan, Pemindai barcode, Multi-outlet, Cetak struk"
+  }
+  </script>
+  <!-- Thermal Receipt Print Style (dipakai di window baru) -->
+  <style id="thermalStyle" type="text/plain">
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Courier New', Courier, monospace; font-size: 12px; width: 58mm; padding: 4mm; color: #000; background: #fff; }
+    .center { text-align: center; }
+    .bold { font-weight: bold; }
+    .big { font-size: 15px; font-weight: bold; }
+    .separator { border-top: 1px dashed #000; margin: 4px 0; }
+    .separator-solid { border-top: 1px solid #000; margin: 4px 0; }
+    .row { display: flex; justify-content: space-between; margin: 2px 0; }
+    .row-item { display: flex; justify-content: space-between; margin: 3px 0; gap: 4px; }
+    .item-name { flex: 1; word-break: break-word; }
+    .item-total { text-align: right; white-space: nowrap; }
+    .item-detail { color: #444; font-size: 11px; margin-left: 2px; }
+    .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 13px; margin: 3px 0; }
+    .footer { text-align: center; margin-top: 8px; font-size: 11px; }
+    @media print {
+      body { width: 58mm; }
+      @page { size: 58mm auto; margin: 0; }
+    }
+  </style>
+</head>
+<body class="bg-surface-soft text-ink">
+  <!-- Premium line-icon sprite (Lucide/Claude-style, monochrome stroke) -->
+  <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none">
+    <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1.5L8 22l2-1.5L12 22l2-1.5L16 22l2-1.5L20 22V2l-2 1.5L16 2l-2 1.5L12 2 10 3.5 8 2 6 3.5 4 2z"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+    <symbol id="i-package" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3.3 7.5L12 12l8.7-4.5M12 22V12"/></symbol>
+    <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><path d="M9 12h6M9 16h4"/></symbol>
+    <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2.5 3h2l2.2 11.2a2 2 0 002 1.6H18a2 2 0 001.95-1.55L21 7H6.2"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></symbol>
+    <symbol id="i-store" viewBox="0 0 24 24"><path d="M3 9l1-5h16l1 5"/><path d="M3 9v11a1 1 0 001 1h16a1 1 0 001-1V9"/><path d="M9 21V12h6v9"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></symbol>
+    <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/><path d="M7 12h10"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/></symbol>
+    <symbol id="i-crown" viewBox="0 0 24 24"><path d="M2 18h20l-2-10-5 4-3-7-3 7-5-4-2 10z"/><path d="M4 18h16v2H4z"/></symbol>
+    <symbol id="i-banknote" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></symbol>
+    <symbol id="i-smartphone" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></symbol>
+    <symbol id="i-credit" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-building" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6M9 10h.01M15 10h.01M9 14h.01M15 14h.01"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+    <symbol id="i-tv" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="M17 2l-5 5-5-5"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 00-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0012 2z"/></symbol>
+    <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3v-3zM18 18h3v3h-3z"/></symbol>
+    <symbol id="i-unlock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 017.8-1.2"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 11-7.78 7.78 5.5 5.5 0 017.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></symbol>
+    <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M4.9 4.9l14.2 14.2"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></symbol>
+    <symbol id="i-trending-up" viewBox="0 0 24 24"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></symbol>
+  </svg>
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-ink text-white transition-opacity duration-300">
+    <svg class="icon text-primary animate-pulse" style="width:2.5rem;height:2.5rem" aria-hidden="true"><use href="#i-cart"/></svg>
+    <h2 class="text-xl font-semibold mb-2">Kasir UMKM Simpel</h2>
+    <p id="loadingStatus" class="text-muted-soft text-sm">Menghubungkan ke database...</p>
+    <div class="mt-6 w-48 h-1.5 bg-ink rounded-full overflow-hidden">
+      <div id="loadingBar" class="h-full bg-primary rounded-full transition-all duration-500" style="width:10%"></div>
+    </div>
+  </div>
+
+  <!-- Login / Register Page -->
+  <!-- background:#1B1815 INLINE = safety net anti-flash: gradient terang (kelas
+       bg-gradient-*) tidak pernah terlihat sebelum JS eksplisit me-reveal, karena
+       style inline menimpa kelas. JS menghapusnya (style.background = '') saat
+       lampu ditarik (lightUp) atau saat gate dilewati (endLampGate) — baru saat
+       itu gradient/login terang muncul, bertahap di balik veil yang memudar. -->
+  <div id="loginPage" class="fixed inset-0 z-[99] flex items-center justify-center bg-gradient-to-br from-accent-gold via-primary to-primary-active overflow-y-auto py-8" style="background:#1B1815">
+    <!-- lampVeil default TERLIHAT (bukan hidden): layar login sejak awal sudah gelap
+         sejak PAINT PERTAMA (di-raster saat halaman load, di balik loading overlay),
+         jadi tidak ada satu frame pun yang memperlihatkan gradient/card login sebelum
+         lampu ditarik. JS menyalakan "terang" via endLampGate() hanya saat perlu. -->
+    <div id="lampVeil"></div>
+    <div id="lampGate" class="hidden">
+      <button type="button" id="lampPull" aria-label="Nyalakan lampu untuk masuk">
+        <span class="lamp-hanger"></span>
+        <span class="lamp-head">
+          <svg width="128" height="74" viewBox="0 0 128 74" aria-hidden="true" focusable="false">
+            <path d="M2 70 A62 62 0 0 1 126 70 Z" fill="#F5F2EB"></path>
+            <ellipse class="lamp-inner" cx="64" cy="70" rx="62" ry="7" fill="#E3A868"></ellipse>
+          </svg>
+          <span class="lamp-cone"></span>
+          <span class="lamp-pull">
+            <span class="lamp-pull-line"></span>
+            <span class="lamp-bead"></span>
+          </span>
+        </span>
+      </button>
+      <p class="lamp-hint">Ketuk lampunya untuk mulai</p>
+    </div>
+    <div id="loginCard" class="w-full max-w-md px-6" style="opacity:0">
+      <div class="text-center mb-6">
+        <svg class="icon text-muted-soft drop-shadow-md" style="width:3rem;height:3rem" aria-hidden="true"><use href="#i-cart"/></svg>
+        <h1 class="text-3xl font-bold text-white drop-shadow-md">Kasir UMKM Simpel</h1>
+        <p class="text-white/90 mt-2 font-medium drop-shadow-sm">Kasir, stok & laporan untuk warung Anda</p>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm p-8">
+        <!-- Tab switch -->
+        <div class="flex rounded-lg bg-surface-soft p-1 mb-6">
+          <button id="tabLogin" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition min-h-[44px]">Masuk</button>
+          <button id="tabRegister" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-body transition min-h-[44px]">Daftar Toko</button>
+        </div>
+
+        <div id="authError" class="hidden mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+        <div id="authSuccess" class="hidden mb-4 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700"></div>
+
+        <!-- FORM MASUK -->
+        <form id="loginForm2" class="space-y-4">
+          <label class="block">
+            <span class="text-body text-sm font-medium">Email</span>
+            <input id="loginEmail" type="email" required autocomplete="email"
+              class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+              placeholder="email@toko.com" />
+          </label>
+          <label class="block">
+            <span class="text-body text-sm font-medium">Password</span>
+            <div class="relative mt-2">
+              <input id="loginPass" type="password" required autocomplete="current-password"
+                class="w-full rounded-lg border border-hairline px-4 py-3 pr-12 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+                placeholder="Masukkan password" />
+              <button type="button" data-toggle="loginPass"
+                class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-muted-soft hover:text-body text-sm"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
+            </div>
+          </label>
+          <button type="submit" id="loginSubmitBtn"
+            class="w-full rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-body transition mt-2">
+            Masuk
+          </button>
+
+          <div class="relative my-6" role="separator">
+            <div class="absolute inset-0 flex items-center" aria-hidden="true"><div class="w-full border-t border-hairline"></div></div>
+            <div class="relative flex justify-center"><span class="bg-white px-4 text-sm text-muted">atau masuk dengan</span></div>
+          </div>
+          <button type="button" id="googleLoginBtn"
+            class="w-full flex items-center justify-center gap-3 rounded-lg border border-hairline bg-white px-5 py-3 font-semibold text-ink hover:bg-surface-soft transition min-h-[44px]">
+            <svg class="h-5 w-5 shrink-0" viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            <span id="googleLoginLabel">Masuk dengan Google</span>
+          </button>
+
+          <div class="text-center mt-2">
+            <button type="button" id="forgotPasswordBtn" class="text-sm text-primary hover:underline">Lupa Password?</button>
+          </div>
+          <div id="forgotPasswordForm" class="hidden mt-3 space-y-3 rounded-lg bg-primary-light border border-hairline p-4">
+            <p class="text-sm font-medium text-ink">Masukkan email untuk reset password:</p>
+            <input id="resetEmail" type="email" placeholder="email@toko.com"
+              class="w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none text-sm" />
+            <button type="button" id="sendResetBtn" class="w-full rounded-lg bg-primary px-4 py-2.5 text-white text-sm font-semibold hover:bg-primary-active transition min-h-[44px]">
+              Kirim Link Reset
+            </button>
+          </div>
+        </form>
+
+        <!-- FORM PASSWORD BARU (dari link reset password) -->
+        <form id="newPasswordForm" class="space-y-4 hidden">
+          <h2 class="text-lg font-semibold text-ink">Buat Password Baru</h2>
+          <p class="text-sm text-body">Masukkan password baru untuk akun Anda.</p>
+          <div id="newPassError" class="hidden rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+          <label class="block">
+            <span class="text-body text-sm font-medium">Password Baru (min. 8 karakter)</span>
+            <div class="relative mt-2">
+              <input id="newPass1" type="password" required minlength="8" autocomplete="new-password"
+                class="w-full rounded-lg border border-hairline px-4 py-3 pr-12 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+                placeholder="Buat password baru" />
+              <button type="button" data-toggle="newPass1"
+                class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-muted-soft hover:text-body text-sm"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
+            </div>
+          </label>
+          <label class="block">
+            <span class="text-body text-sm font-medium">Ulangi Password Baru</span>
+            <div class="relative mt-2">
+              <input id="newPass2" type="password" required minlength="8" autocomplete="new-password"
+                class="w-full rounded-lg border border-hairline px-4 py-3 pr-12 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+                placeholder="Ketik ulang password baru" />
+              <button type="button" data-toggle="newPass2"
+                class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-muted-soft hover:text-body text-sm"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
+            </div>
+          </label>
+          <button type="submit" id="newPassSubmitBtn"
+            class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition min-h-[44px] mt-2">
+            Simpan Password Baru
+          </button>
+          <button type="button" id="cancelRecoveryBtn"
+            class="w-full rounded-lg border border-hairline px-5 py-3 text-body font-semibold hover:bg-surface-soft transition min-h-[44px]">
+            Batal, kembali ke halaman masuk
+          </button>
+        </form>
+
+        <!-- FORM DAFTAR -->
+        <form id="registerForm" class="space-y-4 hidden">
+          <label class="block">
+            <span class="text-body text-sm font-medium">Nama Toko</span>
+            <input id="regStoreName" required
+              class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+              placeholder="contoh: Warung Barokah" />
+          </label>
+          <label class="block">
+            <span class="text-body text-sm font-medium">Nama Anda (Pemilik)</span>
+            <input id="regOwnerName" required
+              class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+              placeholder="contoh: Budi Santoso" />
+          </label>
+          <label class="block">
+            <span class="text-body text-sm font-medium">Email</span>
+            <input id="regEmail" type="email" required autocomplete="email"
+              class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+              placeholder="email@toko.com" />
+          </label>
+          <label class="block">
+            <span class="text-body text-sm font-medium">Password (min. 6 karakter)</span>
+            <div class="relative mt-2">
+              <input id="regPass" type="password" required minlength="6" autocomplete="new-password"
+                class="w-full rounded-lg border border-hairline px-4 py-3 pr-12 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+                placeholder="Buat password" />
+              <button type="button" data-toggle="regPass"
+                class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-muted-soft hover:text-body text-sm"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
+            </div>
+          </label>
+          <label class="block mt-4">
+            <span class="text-body text-sm font-medium">PIN Otorisasi Kasir Utama (Angka)</span>
+            <div class="relative mt-2">
+              <input id="regPin" type="password" required minlength="4" maxlength="6" inputmode="numeric"
+                class="w-full rounded-lg border border-hairline px-4 py-3 pr-12 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+                placeholder="Contoh: 123456" />
+              <button type="button" data-toggle="regPin"
+                class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-muted-soft hover:text-body text-sm"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
+            </div>
+          </label>
+          <button type="submit" id="registerSubmitBtn"
+            class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition mt-2">
+            Daftar & Buat Toko
+          </button>
+          <p class="text-xs text-muted-soft text-center">Dengan mendaftar, Anda otomatis menjadi Admin toko.</p>
+          <p class="text-xs text-center font-semibold text-primary">Gratis selamanya untuk fitur dasar + bonus Premium 30 hari pertama.</p>
+        </form>
+      </div>
+      <p class="text-center text-xs text-white/80 mt-5 drop-shadow-sm">Data toko Anda terisolasi &amp; aman.</p>
+    </div>
+  </div>
+
+  <div id="appContainer" class="hidden min-h-screen flex flex-col md:flex-row overflow-x-hidden">
+    <!-- Sidebar: hidden on mobile, visible on md+ -->
+    <aside id="mainSidebar" class="hidden md:flex md:w-72 bg-ink text-white px-5 py-6 shadow-lg flex-col transition-all duration-300 shrink-0">
+      <div class="mb-8">
+        <h1 class="text-2xl font-semibold">Kasir UMKM Simpel</h1>
+        <p class="text-muted-soft text-sm mt-1">Kasir, stok &amp; laporan warung</p>
+      </div>
+      <nav class="space-y-2 flex-1">
+        <button data-screen="dashboard" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-layout"/></svg>Dashboard</button>
+        <button data-screen="kasir" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>Kasir</button>
+        <button data-screen="inventory" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-package"/></svg>Inventory</button>
+        <button data-screen="opname" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-clipboard"/></svg>Stok Opname</button>
+        <button data-screen="pembelian" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-cart"/></svg>Pembelian</button>
+        <button data-screen="riwayat" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg>Riwayat</button>
+        <button data-screen="kasbon" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>Kasbon</button>
+        <button data-screen="kelolaKasir" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>Kelola Kasir</button>
+        <button data-screen="pengaturan" data-role="admin" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg>Pengaturan</button>
+        <button data-screen="tentang" class="menu-btn w-full text-left px-4 py-3 rounded-lg hover:bg-body transition"><svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>Tentang</button>
+      </nav>
+      <!-- User Info & Logout -->
+      <div class="mt-6 border-t border-ink pt-5">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-lg" id="userAvatar">K</div>
+          <div>
+            <p class="font-semibold text-sm" id="sidebarUserName">Kasir</p>
+            <span id="sidebarUserRole" class="text-xs px-2 py-0.5 rounded-full bg-ink text-muted-soft">kasir</span>
+          </div>
+        </div>
+        <button id="logoutButton" class="btn-icon w-full rounded-lg border border-muted px-4 py-2.5 text-sm text-muted-soft hover:bg-body transition text-left">
+          <svg class="icon" aria-hidden="true"><use href="#i-logout"/></svg>Keluar
+        </button>
+      </div>
+    </aside>
+
+    <!-- Gradient scroll indicator untuk mobile bottom nav agar user tahu bisa di-scroll -->
+    <div class="fixed bottom-0 right-0 z-50 w-12 h-[56px] md:hidden pointer-events-none bg-gradient-to-l from-ink to-transparent"></div>
+    <!-- Bottom Navigation Bar: visible on mobile only -->
+    <nav id="bottomNav" class="fixed bottom-0 left-0 right-0 z-40 bg-ink md:hidden flex items-stretch border-t border-ink overflow-x-auto scroll-smooth hide-scrollbar" style="-webkit-overflow-scrolling: touch; scrollbar-width: none;">
+      <button data-screen="dashboard" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
+        <svg class="icon" aria-hidden="true"><use href="#i-layout"/></svg>
+        <span class="text-[10px] mt-0.5 leading-tight">Dashboard</span>
+      </button>
+      <button data-screen="kasir" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
+        <svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>
+        <span class="text-[10px] mt-0.5 leading-tight">Kasir</span>
+      </button>
+      <button data-screen="inventory" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
+        <svg class="icon" aria-hidden="true"><use href="#i-package"/></svg>
+        <span class="text-[10px] mt-0.5 leading-tight">Inventory</span>
+      </button>
+      <button data-screen="opname" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
+        <svg class="icon" aria-hidden="true"><use href="#i-clipboard"/></svg>
+        <span class="text-[10px] mt-0.5 leading-tight">Opname</span>
+      </button>
+      <button data-screen="pembelian" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
+        <svg class="icon" aria-hidden="true"><use href="#i-cart"/></svg>
+        <span class="text-[10px] mt-0.5 leading-tight">Beli</span>
+      </button>
+      <button data-screen="riwayat" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
+        <svg class="icon" aria-hidden="true"><use href="#i-history"/></svg>
+        <span class="text-[10px] mt-0.5 leading-tight">Riwayat</span>
+      </button>
+      <button data-screen="kasbon" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
+        <svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>
+        <span class="text-[10px] mt-0.5 leading-tight">Kasbon</span>
+      </button>
+      <button data-screen="kelolaKasir" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
+        <svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>
+        <span class="text-[10px] mt-0.5 leading-tight">Kasir</span>
+      </button>
+      <button data-screen="pengaturan" data-role="admin" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
+        <svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg>
+        <span class="text-[10px] mt-0.5 leading-tight">Atur</span>
+      </button>
+      <button data-screen="tentang" class="bottom-nav-btn flex-shrink-0 w-20 flex flex-col items-center justify-center py-2 px-1 text-muted-soft hover:text-white transition min-h-[56px]">
+        <svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>
+        <span class="text-[10px] mt-0.5 leading-tight">Tentang</span>
+      </button>
+    </nav>
+
+    <main class="app-main flex-1 min-w-0 relative overflow-x-hidden p-3 md:p-5">
+      <div class="content-shell">
+      <header class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-center gap-3">
+          <button id="sidebarToggleBtn" class="hidden md:flex items-center gap-2 text-body bg-surface-soft hover:bg-hairline-soft px-4 py-2.5 rounded-xl font-medium transition shadow-sm border border-hairline" title="Toggle Sidebar">
+            <svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg>
+            <span>Menu</span>
+          </button>
+          <div>
+            <h2 class="text-2xl font-semibold" id="headerTitle">Aplikasi Kasir UMKM</h2>
+            <p class="text-muted text-sm mt-0.5" id="todayDate"></p>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 text-sm w-full sm:w-auto mt-2 sm:mt-0">
+          <div class="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-sm text-body w-full sm:w-auto overflow-hidden" id="storeSwitcherWrapper" style="display:none">
+            <span class="font-medium text-muted whitespace-nowrap btn-icon"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-store"/></svg>Cabang:</span>
+            <select id="storeSwitcher" class="flex-1 rounded-xl border border-hairline bg-white px-2 py-1.5 text-ink text-sm min-w-0 truncate"></select>
+          </div>
+          <div class="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-sm text-body" id="cashierSelectWrapper">
+            <span class="font-medium text-muted">Kasir:</span>
+            <select id="cashierSelect" class="rounded-xl border border-hairline bg-white px-2 py-1.5 text-ink text-sm max-w-[120px] sm:max-w-none"></select>
+          </div>
+          <button id="exportDataButton" class="btn-icon rounded-lg bg-white px-3 py-3 text-body shadow-sm hover:bg-surface-soft transition text-sm" title="Backup">
+            <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg><span class="hidden sm:inline">Backup</span>
+          </button>
+          <button id="importDataButton" class="btn-icon rounded-lg bg-white px-3 py-3 text-body shadow-sm hover:bg-surface-soft transition text-sm" title="Restore">
+            <svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg><span class="hidden sm:inline">Restore</span>
+          </button>
+        </div>
+      </header>
+
+      <section id="dashboard" class="screen">
+        <div id="dashboardPusat" class="hidden rounded-xl bg-white p-6 shadow-sm border border-hairline mb-6">
+          <div class="flex items-center gap-2 mb-4">
+            <h3 class="text-xl font-semibold btn-icon"><svg class="icon" aria-hidden="true"><use href="#i-building"/></svg>Dashboard Pusat</h3>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-primary-light text-primary">Semua Cabang</span>
+          </div>
+          <div class="overflow-x-auto" id="dashboardPusatBody"></div>
+        </div>
+        <div class="grid gap-4 xl:grid-cols-3 mb-6">
+          <article class="rounded-xl bg-gradient-to-br from-primary to-primary-active text-white p-6 shadow-sm">
+            <h3 class="text-sm uppercase tracking-[0.2em] opacity-90 flex items-center gap-2"><svg class="icon" aria-hidden="true"><use href="#i-banknote"/></svg>Penjualan Hari Ini</h3>
+            <p class="mt-4 text-4xl font-semibold" id="statSalesToday">Rp0</p>
+            <p class="mt-2 text-white/70">Total penjualan berhasil hari ini.</p>
+          </article>
+          <article class="rounded-xl bg-white p-6 shadow-sm border border-hairline">
+            <h3 class="text-sm uppercase tracking-[0.2em] text-muted flex items-center gap-2"><svg class="icon" aria-hidden="true"><use href="#i-package"/></svg>Produk Terjual</h3>
+            <p class="mt-4 text-4xl font-semibold text-ink" id="statProductsSold">0</p>
+            <p class="mt-2 text-body">Unit produk terjual hari ini.</p>
+          </article>
+          <article class="rounded-xl bg-white p-6 shadow-sm border border-hairline">
+            <h3 class="text-sm uppercase tracking-[0.2em] text-muted flex items-center gap-2"><svg class="icon" aria-hidden="true"><use href="#i-trending-up"/></svg>Estimasi Keuntungan Bersih</h3>
+            <p class="mt-4 text-4xl font-semibold text-ink" id="statProfit">Rp0</p>
+            <p class="mt-2 text-body">Laba hari ini (harga jual − modal − diskon).</p>
+          </article>
+        </div>
+        <div class="rounded-xl bg-white p-6 shadow-sm border border-hairline mb-6">
+          <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 class="text-xl font-semibold">Status Persediaan</h3>
+              <p class="text-body">Awas produk dengan stok rendah.</p>
+            </div>
+            <div class="rounded-xl bg-rose-50 px-4 py-3 text-rose-700 shadow-sm" id="lowStockAlert">Tidak ada stok kritis.</div>
+          </div>
+        </div>
+        <div class="rounded-xl bg-white p-6 shadow-sm border border-hairline mb-6">
+          <div class="grid gap-4 lg:grid-cols-3">
+            <div class="rounded-xl bg-surface-soft p-5 shadow-sm border border-hairline">
+              <p class="text-sm uppercase tracking-[0.2em] text-muted">Produk Terlaris</p>
+              <p class="mt-4 text-3xl font-semibold" id="topProduct">-</p>
+            </div>
+            <div class="rounded-xl bg-surface-soft p-5 shadow-sm border border-hairline">
+              <p class="text-sm uppercase tracking-[0.2em] text-muted">Kategori Terbaik</p>
+              <p class="mt-4 text-3xl font-semibold" id="topCategory">-</p>
+            </div>
+            <div class="rounded-xl bg-surface-soft p-5 shadow-sm border border-hairline">
+              <p class="text-sm uppercase tracking-[0.2em] text-muted">Persentase Laba</p>
+              <p class="mt-4 text-3xl font-semibold" id="profitMargin">-</p>
+            </div>
+          </div>
+        </div>
+        <div class="rounded-xl bg-white p-6 shadow-sm border border-hairline">
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+            <div>
+              <h3 class="text-xl font-semibold">Tren Penjualan 7 Hari Terakhir</h3>
+              <p class="text-body">Ringkasan transaksi harian dari data yang tersimpan.</p>
+            </div>
+          </div>
+          <div class="relative w-full h-56 md:h-64"><canvas id="salesChart"></canvas></div>
+        </div>
+        <div class="mt-6 rounded-xl bg-white p-6 shadow-sm border border-hairline">
+          <div class="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center mb-4">
+            <div>
+              <h3 class="text-xl font-semibold">Laporan Cepat</h3>
+              <p class="text-body">Pilih rentang harian atau mingguan untuk ringkasan penjualan.</p>
+            </div>
+            <div class="flex gap-2 items-center">
+              <select id="reportRangeSelect" class="rounded-lg border border-hairline bg-white px-4 py-3">
+                <option value="1">Hari Ini</option>
+                <option value="7" selected>7 Hari</option>
+                <option value="30">30 Hari</option>
+              </select>
+              <button id="exportPdfBtn" class="rounded-lg bg-rose-600 px-4 py-3 text-white font-semibold hover:bg-rose-700 transition text-sm whitespace-nowrap"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg> Export PDF</button>
+            </div>
+          </div>
+          <div class="grid gap-4 md:grid-cols-3">
+            <div class="rounded-xl bg-surface-soft p-5 shadow-sm border border-hairline">
+              <p class="text-sm uppercase tracking-[0.2em] text-muted">Total Penjualan</p>
+              <p class="mt-4 text-3xl font-semibold" id="reportSales">Rp0</p>
+            </div>
+            <div class="rounded-xl bg-surface-soft p-5 shadow-sm border border-hairline">
+              <p class="text-sm uppercase tracking-[0.2em] text-muted">Transaksi</p>
+              <p class="mt-4 text-3xl font-semibold" id="reportTransactions">0</p>
+            </div>
+            <div class="rounded-xl bg-surface-soft p-5 shadow-sm border border-hairline">
+              <p class="text-sm uppercase tracking-[0.2em] text-muted">Produk Terjual</p>
+              <p class="mt-4 text-3xl font-semibold" id="reportItemsSold">0</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="kasir" class="screen hidden">
+        <div class="flex items-center justify-between mb-4">
+          <div></div>
+          <button id="tutupKasirBtn" class="btn-icon rounded-lg bg-amber-600 px-4 py-2.5 text-white text-sm font-semibold hover:bg-amber-700 transition"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>Tutup Kasir</button>
+        </div>
+        <div class="kasir-layout">
+          <div class="kasir-products-panel rounded-xl bg-white p-4 md:p-5 shadow-sm border border-hairline min-w-0">
+            <div class="flex flex-col gap-3 mb-4">
+              <div>
+                <h3 class="text-xl font-semibold">Cari Produk</h3>
+                <p class="text-body text-sm">Klik produk untuk menambah ke keranjang.</p>
+              </div>
+              <div class="flex flex-col gap-2">
+                <div class="flex gap-2">
+                  <input id="searchInput" type="search" placeholder="Cari nama, kode, atau scan barcode..." class="flex-1 min-w-0 rounded-full border border-hairline px-4 py-2.5 text-sm min-h-[44px] focus:border-ink focus:border-2 focus:ring-0" />
+                  <!-- Dipertahankan sebagai hidden agar jalur scan lama yang menulis ke sini tetap aman -->
+                  <input id="barcodeInput" type="hidden" value="" />
+                  <button id="scanButton" type="button" class="btn-icon shrink-0 rounded-full bg-ink px-4 py-2.5 text-white text-sm min-h-[44px] hover:bg-primary-active transition"><svg class="icon" aria-hidden="true"><use href="#i-scan"/></svg>Scan</button>
+                </div>
+                <select id="categoryFilter" class="w-full rounded-full border border-hairline px-4 py-2.5 bg-white text-sm min-h-[44px]">
+                  <option value="All">Semua Kategori</option>
+                  <option value="Makanan">Makanan</option>
+                  <option value="Minuman">Minuman</option>
+                  <option value="Sembako">Sembako</option>
+                  <option value="ATK">ATK</option>
+                </select>
+              </div>
+            </div>
+            <div id="productGrid" class="kasir-product-grid"></div>
+          </div>
+          <div class="kasir-cart-panel rounded-xl bg-white p-4 md:p-5 shadow-sm border border-hairline flex flex-col min-w-0">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-lg font-semibold">Keranjang</h3>
+              <span id="cartCount" class="rounded-full bg-surface-soft px-3 py-1 text-body text-sm">0 item</span>
+            </div>
+            <div class="space-y-2 mb-3" id="cartList"></div>
+            <div class="rounded-xl bg-surface-soft p-3 space-y-3 mt-auto">
+              <div class="flex items-center justify-between text-sm text-body">
+                <span>Subtotal</span><span id="cartSubtotal">Rp0</span>
+              </div>
+              <div class="grid gap-2 grid-cols-2">
+                <label class="block">
+                  <span class="text-body text-xs">Diskon (%)</span>
+                  <input id="discountPercent" type="number" min="0" max="100" value="0" class="mt-1 w-full rounded-lg border border-hairline px-3 py-2 text-sm" />
+                </label>
+                <label class="block">
+                  <span class="text-body text-xs">Diskon (Rp)</span>
+                  <input id="discountNominal" type="number" min="0" value="0" class="mt-1 w-full rounded-lg border border-hairline px-3 py-2 text-sm" />
+                </label>
+              </div>
+              <div class="hidden items-center justify-between text-sm text-body">
+                <span>Pajak</span><span id="cartTax">Rp0</span>
+              </div>
+              <div class="flex items-center justify-between text-base font-semibold">
+                <span>Total Akhir</span><span id="cartTotal">Rp0</span>
+              </div>
+            </div>
+            <div class="kasir-pay-fields space-y-2">
+              <div>
+                <span class="text-body text-xs font-medium block mb-2">Metode Pembayaran</span>
+                <div class="pay-methods">
+                  <button type="button" data-paymethod="Tunai" class="paymethod-btn btn-icon rounded-lg border-2 border-primary bg-primary-light px-2 py-2 text-xs font-semibold text-primary transition min-h-[44px]"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-banknote"/></svg>Tunai</button>
+                  <button type="button" data-paymethod="QRIS" class="paymethod-btn btn-icon rounded-lg border-2 border-hairline bg-white px-2 py-2 text-xs font-semibold text-body transition hover:border-hairline min-h-[44px]"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-smartphone"/></svg>QRIS</button>
+                  <button type="button" data-paymethod="Transfer" class="paymethod-btn rounded-lg border-2 border-hairline bg-white px-2 py-2 text-xs font-semibold text-body transition hover:border-hairline min-h-[44px]">Transfer</button>
+                  <button type="button" data-paymethod="Split" class="paymethod-btn rounded-lg border-2 border-hairline bg-white px-2 py-2 text-xs font-semibold text-body transition hover:border-hairline min-h-[44px]">Split</button>
+                </div>
+              </div>
+              <div id="cashInputWrapper">
+                <label class="block">
+                  <span class="text-body text-xs">Tunai Dibayarkan</span>
+                  <input id="cashInput" type="number" min="0" value="0" inputmode="numeric" class="mt-1 w-full rounded-lg border border-hairline px-3 py-2.5 text-sm min-h-[44px]" />
+                </label>
+                <div id="quickCashRow" class="mt-2">
+                  <button type="button" data-quickcash="20000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-sm font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp20.000</button>
+                  <button type="button" data-quickcash="50000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-sm font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp50.000</button>
+                  <button type="button" data-quickcash="100000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-sm font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp100.000</button>
+                  <button type="button" data-quickcash="exact" class="quickcash-btn quickcash-exact rounded-lg border border-primary bg-primary-light px-1 py-2 text-sm font-semibold text-primary transition min-h-[44px] disabled:opacity-50">Uang Pas</button>
+                  <button type="button" data-quickcash="reset" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-sm font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Reset Uang</button>
+                </div>
+                <div class="flex items-center justify-between text-body text-sm mt-2">
+                  <span id="cashChangeLabel">Kembalian</span><span id="cashChange">Rp0</span>
+                </div>
+              </div>
+              <div id="splitInputWrapper" class="hidden space-y-2">
+                <div class="grid gap-2 grid-cols-2">
+                  <label class="block">
+                    <span class="text-body text-xs">Porsi Tunai</span>
+                    <input id="splitCashInput" type="number" min="0" value="0" inputmode="numeric" class="mt-1 w-full rounded-lg border border-hairline px-3 py-2.5 text-sm min-h-[44px]" />
+                  </label>
+                  <label class="block">
+                    <span class="text-body text-xs">Porsi Non-Tunai</span>
+                    <input id="splitNonCashInput" type="number" min="0" value="0" inputmode="numeric" class="mt-1 w-full rounded-lg border border-hairline px-3 py-2.5 text-sm min-h-[44px]" />
+                  </label>
+                </div>
+                <div class="flex items-center justify-between text-xs text-body">
+                  <span>Sisa Belum Dialokasikan</span>
+                  <span id="splitRemaining" class="font-semibold text-ink">Rp0</span>
+                </div>
+              </div>
+            </div>
+            <div class="kasir-pay-actions">
+              <div class="kasir-pay-summary flex items-center justify-between rounded-lg bg-surface-soft px-3 py-2">
+                <span id="payBarCount" class="text-body text-sm">0 item</span>
+                <span class="text-right">
+                  <span class="text-body text-sm">Total</span>
+                  <span id="payBarTotal" class="text-lg font-bold text-ink">Rp0</span>
+                </span>
+              </div>
+              <button id="payButton" class="w-full rounded-lg bg-primary px-4 py-3 text-white font-semibold hover:bg-primary-active transition min-h-[48px]">Bayar &amp; Simpan Transaksi</button>
+            </div>
+            <button id="printButton" class="kasir-print-action w-full rounded-lg border border-hairline bg-white px-4 py-2.5 text-body font-semibold hover:bg-surface-soft transition min-h-[44px]">Cetak Struk</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="inventory" class="screen hidden">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
+          <div>
+            <h3 class="text-2xl font-semibold">Manajemen Inventory</h3>
+            <p class="text-body">Tambah, edit, dan hapus produk dengan mudah.</p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <button id="exportInventory" class="rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">Export CSV</button>
+            <button id="addProductButton" class="rounded-lg bg-ink px-5 py-3 text-white hover:bg-primary-active transition">Tambah Produk</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto rounded-xl bg-white p-4 shadow-sm border border-hairline">
+          <table class="w-full text-left text-sm">
+            <thead class="border-b border-hairline text-muted">
+              <tr>
+                <th class="p-3">Kode</th>
+                <th class="p-3">Nama Produk</th>
+                <th class="p-3">Barcode</th>
+                <th class="p-3">Kategori</th>
+                <th class="p-3">Harga</th>
+                <th class="p-3">Stok</th>
+                <th class="p-3">Kedaluwarsa</th>
+                <th class="p-3">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="inventoryTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="opname" class="screen hidden">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
+          <div>
+            <h3 class="text-2xl font-semibold">Stok Opname</h3>
+            <p class="text-body">Pencocokan stok fisik harian/bulanan di toko dengan data di sistem.</p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <button id="applyOpnameButton" class="rounded-lg bg-primary px-5 py-3 text-white hover:bg-primary-active font-semibold transition hidden">Terapkan Hasil Opname</button>
+            <button id="startOpnameButton" class="rounded-lg bg-ink px-5 py-3 text-white hover:bg-primary-active transition">Mulai Stok Opname</button>
+          </div>
+        </div>
+        <div id="opnameSummary" class="hidden mb-6 rounded-xl bg-amber-50 border border-amber-200 p-5">
+            <p class="text-amber-800 font-semibold">Ringkasan Selisih:</p>
+            <p class="text-amber-700 mt-2">Total Kerugian Finansial: <span id="opnameTotalLoss" class="font-bold">Rp0</span></p>
+            <p class="text-amber-700">Produk Selisih: <span id="opnameItemCount" class="font-bold">0</span></p>
+        </div>
+        <div class="overflow-x-auto rounded-xl bg-white p-4 shadow-sm border border-hairline">
+          <table class="w-full text-left text-sm">
+            <thead class="border-b border-hairline text-muted">
+              <tr>
+                <th class="p-3">Produk</th>
+                <th class="p-3">Stok Sistem</th>
+                <th class="p-3">Jumlah Fisik</th>
+                <th class="p-3">Selisih</th>
+                <th class="p-3">Nilai Selisih (Kerugian)</th>
+              </tr>
+            </thead>
+            <tbody id="opnameTable">
+              <tr><td colspan="5" class="p-4 text-center text-muted">Klik "Mulai Stok Opname" untuk memuat data produk.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="pembelian" class="screen hidden">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
+          <div>
+            <h3 class="text-2xl font-semibold">Pembelian Supplier</h3>
+            <p class="text-body">Catat pembelian stok dan kelola invoice supplier.</p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <button id="addPurchaseButton" class="rounded-lg bg-ink px-5 py-3 text-white hover:bg-primary-active transition">Tambah Pembelian</button>
+            <button id="exportPurchase" class="rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">Export CSV</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto rounded-xl bg-white p-4 shadow-sm border border-hairline">
+          <table class="w-full text-left text-sm">
+            <thead class="border-b border-hairline text-muted">
+              <tr>
+                <th class="p-3">Tanggal</th>
+                <th class="p-3">Invoice</th>
+                <th class="p-3">Supplier</th>
+                <th class="p-3">Total Pembelian</th>
+                <th class="p-3">Produk</th>
+                <th class="p-3">Status</th>
+              </tr>
+            </thead>
+            <tbody id="purchaseTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="riwayat" class="screen hidden">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div>
+            <h3 class="text-2xl font-semibold">Riwayat Transaksi</h3>
+            <p class="text-body">Semua transaksi sukses tercatat otomatis.</p>
+          </div>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <input id="historySearchInput" type="search" placeholder="Cari transaksi..." class="rounded-full border border-hairline bg-white px-6 py-3 text-ink" />
+            <button id="exportHistory" class="rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">Export CSV</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto rounded-xl bg-white p-4 shadow-sm border border-hairline">
+          <table class="w-full text-left text-sm">
+            <thead class="border-b border-hairline text-muted">
+              <tr>
+                <th class="p-3">Waktu</th>
+                <th class="p-3">Invoice</th>
+                <th class="p-3">Kasir</th>
+                <th class="p-3">Total</th>
+                <th class="p-3">Produk</th>
+                <th class="p-3">Metode</th>
+                <th class="p-3">Tunai</th>
+                <th class="p-3">Kembalian</th>
+                <th class="p-3">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="historyTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Kasbon / Hutang Pelanggan -->
+      <section id="kasbon" class="screen hidden">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div>
+            <h3 class="text-2xl font-semibold btn-icon"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>Kasbon Pelanggan</h3>
+            <p class="text-body">Catat hutang pelanggan dan tandai saat lunas. <span class="text-amber-600 font-medium">Gratis: maks. 5 kasbon aktif — Premium: tanpa batas</span></p>
+          </div>
+          <button id="addDebtBtn" class="rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition whitespace-nowrap">+ Catat Kasbon</button>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-6">
+          <div class="rounded-xl bg-white border border-hairline shadow-sm p-5">
+            <p class="text-sm uppercase tracking-[0.2em] text-muted">Total Piutang</p>
+            <p class="mt-2 text-2xl font-bold text-rose-600" id="debtTotalAmount">Rp0</p>
+          </div>
+          <div class="rounded-xl bg-white border border-hairline shadow-sm p-5">
+            <p class="text-sm uppercase tracking-[0.2em] text-muted">Belum Lunas</p>
+            <p class="mt-2 text-2xl font-bold text-ink" id="debtActiveCount">0</p>
+          </div>
+        </div>
+        <input id="debtSearchInput" type="search" placeholder="Cari nama pelanggan..." class="mb-4 w-full sm:w-80 rounded-full border border-hairline bg-white px-6 py-3 text-ink focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" />
+        <div id="debtList" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"></div>
+      </section>
+
+      <!-- Pengaturan Toko (Admin Only) -->
+      <section id="pengaturan" class="screen hidden">
+        <div class="mb-6">
+          <h3 class="text-2xl font-semibold">Pengaturan Toko</h3>
+          <p class="text-body">Info toko akan tampil di struk cetak pelanggan.</p>
+        </div>
+
+        <!-- Multi-Cabang -->
+        <div id="branchSettingsSection" class="max-w-xl mb-6">
+          <div class="rounded-xl bg-white border border-hairline shadow-sm p-6">
+            <div class="flex items-center justify-between gap-3 mb-1">
+              <h4 class="text-lg font-semibold btn-icon"><svg class="icon" aria-hidden="true"><use href="#i-store"/></svg>Cabang Toko</h4>
+              <button id="addBranchBtn" class="rounded-lg bg-primary px-4 py-2 text-white text-sm font-semibold hover:bg-primary-active transition whitespace-nowrap">+ Tambah Cabang</button>
+            </div>
+            <p class="text-muted text-sm mb-4">Kelola banyak cabang dalam satu akun. Tiap cabang punya stok & transaksi sendiri; pemilik dapat memantau semua dari Dashboard Pusat. <span class="text-amber-600 font-medium">Paket Bisnis Rp50.000/bulan</span></p>
+            <div id="branchList" class="space-y-2"></div>
+          </div>
+        </div>
+
+        <div class="max-w-xl">
+          <div class="rounded-xl bg-white border border-hairline shadow-sm p-6 space-y-4">
+            <div id="storeFormFields">
+              <label class="block">
+                <span class="text-body font-medium text-sm">Nama Toko</span>
+                <input id="settingStoreName" maxlength="100" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" placeholder="contoh: Warung Barokah" />
+              </label>
+              <label class="block mt-4">
+                <span class="text-body font-medium text-sm">Alamat</span>
+                <input id="settingStoreAddress" maxlength="200" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" placeholder="contoh: Jl. Merdeka No. 10, Jakarta" />
+              </label>
+              <label class="block mt-4">
+                <span class="text-body font-medium text-sm">No. Telepon / WhatsApp</span>
+                <input id="settingStorePhone" maxlength="20" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" placeholder="contoh: 08123456789" />
+              </label>
+              <label class="block mt-4">
+                <span class="text-body font-medium text-sm">Pesan di struk (footer)</span>
+                <input id="settingStoreNote" maxlength="150" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" placeholder="contoh: Terima kasih, selamat datang kembali!" />
+              </label>
+              <label class="block mt-4">
+                <span class="text-body font-medium text-sm">Ukuran Kertas Struk</span>
+                <select id="settingPaperSize" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 bg-white focus:border-ink focus:border-2 focus:ring-0 focus:outline-none">
+                  <option value="58">58mm (Standar printer thermal kecil)</option>
+                  <option value="80">80mm (Printer thermal besar)</option>
+                </select>
+              </label>
+              <div class="border-t border-hairline-soft pt-4 mt-4">
+                <p class="font-semibold text-body text-sm mb-1 flex items-center gap-2"><svg class="icon" aria-hidden="true"><use href="#i-qr"/></svg>QRIS Statis</p>
+                <p class="text-xs text-muted mb-3">Upload gambar QRIS toko Anda. Akan muncul otomatis di layar saat kasir memilih metode bayar QRIS.</p>
+                <label class="block">
+                  <span class="text-body font-medium text-sm">Upload Gambar QRIS</span>
+                  <input type="file" id="qrisFileInput" accept="image/*" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none bg-white" />
+                </label>
+                <div id="qrisPreviewWrapper" class="mt-3 hidden">
+                  <p class="text-xs text-muted mb-2">Preview QRIS tersimpan:</p>
+                  <img id="qrisPreviewImg" src="" alt="QRIS" class="w-40 h-40 object-contain border border-hairline rounded-lg bg-white p-2" />
+                  <button type="button" id="qrisDeleteBtn" class="btn-icon mt-2 text-xs text-red-500 hover:text-red-700"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg>Hapus QRIS</button>
+                </div>
+              </div>
+              <button id="saveSettingsBtn" class="btn-icon mt-4 w-full rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-primary-active transition"><svg class="icon" aria-hidden="true"><use href="#i-save"/></svg>Simpan Pengaturan</button>
+              <div id="settingsSaved" class="hidden text-center text-green-600 text-sm font-medium mt-2 btn-icon justify-center"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-check"/></svg>Pengaturan berhasil disimpan!</div>
+            </div>
+            <button id="openSuperAdminBtn" data-role="superadmin" class="hidden w-full rounded-lg bg-violet-700 px-5 py-3 text-white font-semibold hover:bg-violet-800 transition"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg> Admin Panel</button>
+          </div>
+
+          <!-- Layar Pelanggan -->
+          <div class="mt-6 rounded-xl bg-white border border-hairline shadow-sm p-6">
+            <h4 class="text-lg font-semibold text-ink mb-1 flex items-center gap-2"><svg class="icon" aria-hidden="true"><use href="#i-tv"/></svg>Layar Pelanggan</h4>
+            <p class="text-muted text-sm mb-4">Buka layar kedua yang menghadap pelanggan untuk menampilkan daftar belanja dan total secara real-time.</p>
+            <button id="openCustomerDisplayBtn" class="rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition text-sm min-h-[44px]">Buka Layar Pelanggan</button>
+          </div>
+
+          <!-- Preview struk -->
+          <div id="struPreviewSection" class="mt-6 rounded-xl bg-white border border-hairline shadow-sm p-6">
+            <p class="text-sm font-medium text-muted mb-4">Preview Struk</p>
+            <div class="mx-auto bg-white border border-dashed border-hairline p-4 font-mono text-xs leading-relaxed" style="width:220px">
+              <p class="text-center font-bold text-sm" id="previewStoreName">NAMA TOKO</p>
+              <p class="text-center" id="previewStoreAddress">Alamat toko</p>
+              <p class="text-center" id="previewStorePhone">No. Telepon</p>
+              <div class="border-t border-dashed border-muted-soft my-2"></div>
+              <div class="flex justify-between"><span>Produk A</span><span>Rp10.000</span></div>
+              <div class="flex justify-between text-muted"><span class="ml-2">1 x 10.000</span></div>
+              <div class="border-t border-dashed border-muted-soft my-2"></div>
+              <div class="flex justify-between font-bold"><span>TOTAL</span><span>Rp10.000</span></div>
+              <div class="flex justify-between"><span>Tunai</span><span>Rp20.000</span></div>
+              <div class="flex justify-between"><span>Kembali</span><span>Rp10.000</span></div>
+              <div class="border-t border-dashed border-muted-soft my-2"></div>
+              <p class="text-center" id="previewStoreNote">Terima kasih!</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Informasi Aplikasi -->
+        <div class="mt-6 max-w-xl" data-role="admin">
+          <div class="rounded-xl bg-white border border-hairline shadow-sm p-6">
+            <h4 class="text-lg font-semibold text-ink mb-1">Informasi Aplikasi</h4>
+            <p class="text-muted text-sm mb-4">Versi aplikasi dan alat pemeliharaan cache.</p>
+            <div class="flex items-center gap-2 mb-4">
+              <span class="text-body text-sm">Versi:</span>
+              <span id="appVersionDisplay" class="font-mono font-semibold text-body text-sm">-</span>
+            </div>
+            <button id="clearCacheBtn" class="rounded-lg border border-hairline px-5 py-3 text-body font-semibold hover:bg-surface-soft transition text-sm">Bersihkan Cache Aplikasi</button>
+            <p class="text-xs text-muted-soft mt-2">Membersihkan cache lokal dan memuat ulang halaman. Gunakan jika aplikasi terasa lambat atau tidak terupdate.</p>
+          </div>
+        </div>
+
+        <!-- Hapus Akun -->
+        <div id="deleteAccountSection" class="mt-6 max-w-xl" data-role="admin">
+          <div class="rounded-xl bg-white border border-hairline shadow-sm p-6">
+            <h4 class="text-lg font-semibold text-ink mb-1 btn-icon"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>Tutup Akun</h4>
+            <p class="text-muted text-sm mb-4">Menutup akun akan menghapus seluruh data toko Anda secara permanen dan tidak dapat dibatalkan.</p>
+            <button id="deleteAccountBtn" class="rounded-lg border border-red-200 px-5 py-3 text-red-600 font-semibold hover:bg-rose-100 transition">Tutup Akun</button>
+          </div>
+        </div>
+
+        <!-- Akun & Logout (mobile only) -->
+        <div class="mt-6 max-w-xl md:hidden">
+          <div class="rounded-xl bg-white border border-hairline shadow-sm p-6 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-lg shrink-0" id="mobileUserAvatar">K</div>
+              <div class="min-w-0">
+                <p class="font-semibold text-sm text-ink truncate" id="mobileUserName">Kasir</p>
+                <span id="mobileUserRole" class="text-xs px-2 py-0.5 rounded-full bg-ink text-muted-soft">Kasir</span>
+              </div>
+            </div>
+            <button id="mobileLogoutButton" class="btn-icon shrink-0 rounded-lg border border-hairline px-4 py-2.5 min-h-[44px] text-sm font-medium text-body hover:bg-surface-soft transition">
+              <svg class="icon" aria-hidden="true"><use href="#i-logout"/></svg>Keluar
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Kelola Kasir (Admin Only) -->
+      <section id="kelolaKasir" class="screen hidden">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div>
+            <h3 class="text-2xl font-semibold">Kelola Kasir</h3>
+            <p class="text-body">Tambah, edit, atau hapus operator kasir toko.</p>
+          </div>
+          <button id="addCashierBtn" class="rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-primary-active transition">+ Tambah Kasir</button>
+        </div>
+
+        <!-- Stats ringkas -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+          <div class="rounded-xl bg-white border border-hairline shadow-sm p-5">
+            <p class="text-xs text-muted uppercase tracking-wide">Total Kasir</p>
+            <p class="text-3xl font-bold mt-1" id="statTotalCashier">0</p>
+          </div>
+          <div class="rounded-xl bg-white border border-hairline shadow-sm p-5">
+            <p class="text-xs text-muted uppercase tracking-wide">Admin</p>
+            <p class="text-3xl font-bold mt-1 text-primary" id="statTotalAdmin">0</p>
+          </div>
+          <div class="rounded-xl bg-white border border-hairline shadow-sm p-5">
+            <p class="text-xs text-muted uppercase tracking-wide">Kasir Biasa</p>
+            <p class="text-3xl font-bold mt-1 text-body" id="statTotalKasir">0</p>
+          </div>
+        </div>
+
+        <!-- Info cara kerja kasir (dismissible) -->
+        <div id="cashierHowBox" class="relative rounded-lg bg-primary-light border border-hairline px-4 py-3 pr-10 text-sm text-ink mb-4">
+          <svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg> <strong>Cara kerja:</strong> Pemilik toko login dengan <strong>email & password</strong> di halaman awal.
+          Kasir di bawah ini adalah <strong>operator</strong> yang dipilih lewat dropdown di halaman Kasir — tidak perlu login ulang, cukup pilih nama & masukkan PIN.
+          <button type="button" id="cashierHowClose" class="absolute right-2 top-2 rounded-full p-1.5 text-muted hover:bg-white/60 hover:text-ink transition" aria-label="Tutup petunjuk cara kerja">
+            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-x"/></svg>
+          </button>
+        </div>
+
+        <!-- Daftar kasir -->
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" id="cashierGrid"></div>
+      </section>
+
+      <!-- Tentang Aplikasi -->
+      <section id="tentang" class="screen hidden">
+        <div class="mb-6">
+          <h3 class="text-2xl font-semibold">Tentang Aplikasi</h3>
+          <p class="text-body">Informasi aplikasi dan kebijakan privasi.</p>
+        </div>
+        <div class="max-w-xl space-y-6">
+          <div class="rounded-xl bg-white border border-hairline shadow-sm p-6 text-center">
+            <svg class="icon text-primary" style="width:3.5rem;height:3.5rem" aria-hidden="true"><use href="#i-cart"/></svg>
+            <h2 class="text-2xl font-bold text-ink">Kasir UMKM Simpel</h2>
+            <span id="aboutAppVersion" class="inline-block mt-2 rounded-full bg-primary-light text-primary px-4 py-1 text-sm font-semibold">-</span>
+            <p class="mt-4 text-body">Aplikasi kasir lengkap untuk UMKM Indonesia. Point of Sale, Inventory, Laporan, dan lebih banyak fitur dalam satu aplikasi.</p>
+            <p class="mt-2 text-muted text-sm font-medium">Dikembangkan untuk UMKM Indonesia</p>
+            <div class="mt-4 flex flex-wrap justify-center gap-2">
+              <a href="/about" class="inline-block py-3 px-2 text-sm text-primary hover:underline">Tentang</a>
+              <a href="/features" class="inline-block py-3 px-2 text-sm text-primary hover:underline">Fitur</a>
+              <a href="/privacy" class="inline-block py-3 px-2 text-sm text-primary hover:underline">Privasi</a>
+            </div>
+          </div>
+          <div class="rounded-xl bg-white border border-hairline shadow-sm p-6 space-y-3">
+            <h4 class="font-semibold text-ink">Kebijakan Privasi</h4>
+            <p class="text-body text-sm">Data toko Anda disimpan secara aman di infrastruktur Supabase dengan enkripsi standar industri. Kami tidak menjual, menyewakan, atau membagikan data Anda kepada pihak ketiga dalam bentuk apapun.</p>
+            <p class="text-body text-sm">Setiap toko memiliki data yang terisolasi — pemilik toko lain tidak dapat melihat data Anda. Data hanya dapat diakses oleh akun pemilik toko yang bersangkutan.</p>
+            <p class="text-body text-sm">Dengan menggunakan aplikasi ini, Anda menyetujui bahwa data transaksi dan produk disimpan di cloud untuk keperluan sinkronisasi dan backup.</p>
+            <p class="text-body text-sm">Baca selengkapnya: <a href="/privacy" class="text-primary hover:underline">Kebijakan Privasi lengkap</a></p>
+          </div>
+          <div class="rounded-xl bg-white border border-hairline shadow-sm p-6 space-y-2">
+            <h4 class="font-semibold text-ink">Dukungan & Kontak</h4>
+            <a href="https://t.me/+veK2jeQuBkQwNzU1" target="_blank" rel="noopener noreferrer"
+              class="inline-flex items-center gap-2 rounded-lg bg-primary-light border border-hairline px-3 py-2.5 min-h-[44px] text-sm font-medium text-primary hover:bg-primary-light transition">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-primary shrink-0"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+              Telegram
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Super Admin Panel (tersembunyi dari navigasi publik) -->
+      <section id="screen-superadmin" class="screen hidden" data-role="superadmin">
+        <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 class="text-2xl font-semibold">Panel Super Admin</h3>
+            <p class="text-body">Manajemen langganan terpusat semua toko.</p>
+          </div>
+          <button id="superAdminRefreshBtn" class="rounded-lg bg-primary px-4 py-2.5 text-white text-sm font-semibold hover:bg-primary-active transition whitespace-nowrap"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg> Muat Ulang</button>
+        </div>
+
+        <!-- Form Aktivasi -->
+        <div class="max-w-2xl mb-6">
+          <div class="rounded-xl bg-white border border-hairline shadow-sm p-6 space-y-4">
+            <h4 class="text-lg font-semibold">Aktivasi / Revokasi Langganan</h4>
+            <div id="superAdminFormError" class="hidden rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+            <div id="superAdminFormSuccess" class="hidden rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700"></div>
+            <label class="block">
+              <span class="text-body font-medium text-sm">Toko (pilih dari daftar)</span>
+              <select id="superAdminStoreSelect" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 bg-white focus:border-ink focus:border-2 focus:ring-0 focus:outline-none">
+                <option value="">— Pilih toko —</option>
+              </select>
+            </label>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="block">
+                <span class="text-body font-medium text-sm">Paket</span>
+                <select id="superAdminPackage" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 bg-white focus:border-ink focus:border-2 focus:ring-0 focus:outline-none">
+                  <option value="premium">Premium</option>
+                  <option value="business">Bisnis</option>
+                </select>
+              </label>
+              <label class="block">
+                <span class="text-body font-medium text-sm">Durasi</span>
+                <select id="superAdminDuration" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 bg-white focus:border-ink focus:border-2 focus:ring-0 focus:outline-none">
+                  <option value="1">1 Bulan</option>
+                  <option value="3">3 Bulan</option>
+                  <option value="6">6 Bulan</option>
+                  <option value="12">12 Bulan</option>
+                  <option value="custom">Custom (pilih tanggal)</option>
+                </select>
+              </label>
+            </div>
+            <div id="superAdminCustomDateWrapper" class="hidden">
+              <label class="block">
+                <span class="text-body font-medium text-sm">Tanggal Berakhir</span>
+                <input type="date" id="superAdminCustomDate" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" />
+              </label>
+            </div>
+            <div class="flex gap-3 pt-2">
+              <button id="superAdminActivateBtn" class="btn-icon flex-1 rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>Aktifkan</button>
+              <button id="superAdminRevokeBtn" class="btn-icon flex-1 rounded-lg bg-rose-600 px-5 py-3 text-white font-semibold hover:bg-rose-700 transition"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>Revokasi</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabel semua toko -->
+        <div class="rounded-xl bg-white border border-hairline shadow-sm p-6 overflow-x-auto">
+          <h4 class="text-lg font-semibold mb-4">Daftar Semua Toko</h4>
+          <div id="superAdminTableWrapper">
+            <p class="text-muted-soft text-sm">Memuat data...</p>
+          </div>
+        </div>
+
+        <!-- Log Error Aplikasi -->
+        <div class="rounded-xl bg-white border border-hairline shadow-sm p-6">
+          <h4 class="text-lg font-semibold mb-1">Log Error Aplikasi</h4>
+          <p class="text-muted text-sm mb-4">Pantau error yang terjadi di sisi klien dari semua toko.</p>
+          <button id="superAdminLoadLogsBtn" class="rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition text-sm">Muat Log</button>
+          <div id="superAdminErrorLogsWrapper" class="mt-4"></div>
+          <div id="superAdminCopyLogsWrapper" class="hidden mt-3 flex items-center gap-3">
+            <button id="superAdminCopyLogsBtn" class="rounded-lg border border-hairline px-4 py-3 text-body text-sm font-medium hover:bg-surface-soft transition">Salin Semua (JSON)</button>
+            <span id="superAdminCopiedMsg" class="hidden text-emerald-600 text-sm font-medium">Tersalin!</span>
+          </div>
+        </div>
+      </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal Konfirmasi Hapus Toko (Super Admin) -->
+  <div id="superAdminDeleteModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+      <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
+        <div class="flex items-center justify-between border-b border-hairline p-5">
+          <h4 class="text-lg font-semibold">Hapus Toko</h4>
+          <button id="superAdminDeleteCloseBtn" type="button" class="rounded-lg p-2 text-muted hover:bg-surface-soft hover:text-body transition" aria-label="Tutup"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="p-5 space-y-4">
+          <p class="text-body text-sm leading-relaxed">
+            Anda akan menghapus toko <b id="superAdminDeleteStoreName" class="text-ink"></b> beserta
+            <b>SEMUA</b> produk, transaksi, kasbon, dan data lainnya. Akun pemilik ikut dihapus
+            hanya jika ini satu-satunya toko/cabang miliknya.
+            Tindakan ini <b class="text-rose-600">tidak bisa dibatalkan</b>.
+          </p>
+          <label class="block">
+            <span class="text-body text-sm font-medium">Ketik nama toko untuk konfirmasi:</span>
+            <input id="superAdminDeleteInput" type="text" autocomplete="off"
+              class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+              placeholder="Ketik nama toko di sini" />
+          </label>
+          <div id="superAdminDeleteError" class="hidden rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+          <div class="flex gap-3 pt-1">
+            <button id="superAdminDeleteCancelBtn" type="button"
+              class="flex-1 rounded-lg border border-hairline px-5 py-3 text-body font-semibold hover:bg-surface-soft transition">Batal</button>
+            <button id="superAdminDeleteConfirmBtn" type="button" disabled
+              class="flex-1 rounded-lg bg-rose-600 px-5 py-3 text-white font-semibold hover:bg-rose-700 transition disabled:opacity-40 disabled:cursor-not-allowed">Hapus Toko Permanen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Modal Tambah/Edit Kasir -->
+  <div id="cashierModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
+      <div class="flex items-center justify-between border-b border-hairline p-5">
+        <div>
+          <h3 class="text-xl font-semibold" id="cashierModalTitle">Tambah Kasir</h3>
+          <p class="text-muted text-sm">Isi data akun kasir dengan benar.</p>
+        </div>
+        <button id="closeCashierModal" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft text-xl leading-none">×</button>
+      </div>
+      <form id="cashierForm" class="p-6 space-y-4">
+        <input type="hidden" id="cashierFormId" />
+        <label class="block">
+          <span class="text-body font-medium text-sm">Nama Kasir</span>
+          <input id="cashierFormName" required maxlength="60"
+            class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+            placeholder="contoh: Budi Santoso" />
+        </label>
+        <label class="block">
+          <span class="text-body font-medium text-sm">PIN Kasir</span>
+          <div class="relative mt-2">
+            <input id="cashierFormPassword" type="password" inputmode="numeric" maxlength="8"
+              class="w-full rounded-lg border border-hairline px-4 py-3 pr-12 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+              placeholder="contoh: 1234" />
+            <button type="button" id="toggleCashierPassword"
+              class="absolute right-4 top-1/2 -translate-y-1/2 text-muted-soft hover:text-body text-sm"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
+          </div>
+          <p class="text-xs text-muted-soft mt-1">PIN dipakai kasir untuk ganti operator di halaman Kasir. Bukan untuk login ke aplikasi.</p>
+          <p id="cashierPasswordHint" class="text-xs text-muted-soft mt-1 hidden">Kosongkan jika tidak ingin mengubah PIN.</p>
+        </label>
+        <label class="block">
+          <span class="text-body font-medium text-sm">Role / Jabatan</span>
+          <select id="cashierFormRole" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 bg-white focus:border-ink focus:border-2 focus:ring-0 focus:outline-none">
+            <option value="kasir">Kasir — akses kasir & riwayat</option>
+            <option value="admin">Admin — akses penuh semua fitur</option>
+          </select>
+        </label>
+        <div id="cashierFormError" class="hidden rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+        <div class="flex gap-3 pt-2">
+          <button type="submit" class="flex-1 rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-primary-active transition">Simpan</button>
+          <button type="button" id="cancelCashierModal" class="flex-1 rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">Batal</button>
+        </div>
+      </form>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal Konfirmasi Pembayaran QRIS/Transfer -->
+  <div id="paymentConfirmModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
+      <div class="flex items-center justify-between border-b border-hairline p-5">
+        <div>
+          <h3 class="text-xl font-semibold">Konfirmasi Pembayaran</h3>
+          <p class="text-muted text-sm">Pastikan pembayaran sudah diterima sebelum melanjutkan.</p>
+        </div>
+        <button id="closePaymentConfirmModal" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft text-xl leading-none">×</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="rounded-lg bg-surface-soft border border-hairline p-4 space-y-2">
+          <div class="flex justify-between text-sm">
+            <span class="text-muted">Metode Pembayaran</span>
+            <span id="paymentConfirmMethod" class="font-semibold text-ink"></span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-muted">Total Tagihan</span>
+            <span id="paymentConfirmTotal" class="font-bold text-lg text-ink"></span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-muted">Kasir</span>
+            <span id="paymentConfirmCashier" class="font-semibold text-ink"></span>
+          </div>
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button id="paymentConfirmOk" class="flex-1 rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-primary-active transition">Ya, Konfirmasi Pembayaran</button>
+          <button id="paymentConfirmCancel" class="flex-1 rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">Batal</button>
+        </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div id="loginModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
+      <div class="border-b border-hairline p-5">
+        <h3 class="text-xl font-semibold">Ganti Operator Kasir</h3>
+        <p class="text-body">Pilih kasir yang akan bertugas sekarang.</p>
+      </div>
+      <form id="loginForm" class="space-y-4 p-6">
+        <label class="block"><span class="text-body">Nama Kasir</span><input id="loginName" required class="mt-2 w-full rounded-lg border border-hairline px-4 py-3" placeholder="contoh: Budi" /></label>
+        <label class="block"><span class="text-body">PIN Kasir</span><input id="loginPassword" type="password" inputmode="numeric" maxlength="8" required class="mt-2 w-full rounded-lg border border-hairline px-4 py-3" placeholder="masukkan PIN" /></label>
+        <div class="flex gap-3">
+          <button type="submit" class="flex-1 rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-primary-active transition">Masuk</button>
+          <button type="button" id="loginCancel" class="flex-1 rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">Batal</button>
+        </div>
+      </form>
+    </div>
+    </div>
+  </div>
+
+  <div id="scannerModal" class="fixed inset-0 z-[100] hidden motion-overlay items-center justify-center bg-black/70 px-4 py-6">
+    <div class="w-full max-w-3xl rounded-xl bg-white shadow-sm overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-hairline p-5">
+        <div>
+          <h3 class="text-xl font-semibold">Scan Barcode</h3>
+          <p id="scannerSubtitle" class="text-body">Gunakan kamera untuk scan kode produk.</p>
+        </div>
+        <button id="closeScanner" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft">×</button>
+      </div>
+      <div class="p-6 overflow-y-auto flex-1">
+        <div id="scannerArea" class="relative h-64 md:h-80 rounded-xl border-2 border-dashed border-hairline bg-ink overflow-hidden">
+          <video id="scannerVideo" class="absolute inset-0 w-full h-full object-cover hidden" playsinline muted></video>
+          <div id="scannerScanLine" class="absolute left-0 right-0 h-0.5 bg-red-500 shadow-[0_0_8px_red] hidden z-20" style="top:50%"></div>
+          <div id="scannerPlaceholder" class="absolute inset-0 flex items-center justify-center text-muted-soft pointer-events-none z-10">
+            <div class="text-center">
+              <svg class="icon icon-lg mx-auto mb-2 text-muted" style="width:2.5rem;height:2.5rem" aria-hidden="true"><use href="#i-camera"/></svg>
+              <p class="text-sm">Tekan "Mulai Scan" untuk membuka kamera</p>
+            </div>
+          </div>
+        </div>
+        <div id="scannerResult" class="hidden mt-4 rounded-lg bg-green-50 border border-green-200 p-4">
+          <p class="text-green-700 font-semibold text-sm btn-icon"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-check"/></svg>Produk Ditemukan</p>
+          <p id="scannerResultName" class="text-green-800 font-bold mt-1"></p>
+          <p id="scannerResultCode" class="text-green-600 text-sm"></p>
+        </div>
+        <div id="scannerNotFound" class="hidden mt-4 rounded-lg bg-red-50 border border-red-200 p-4">
+          <p class="text-red-700 font-semibold text-sm btn-icon"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-x"/></svg>Produk Tidak Ditemukan</p>
+          <p id="scannerNotFoundCode" class="text-red-600 text-sm mt-1"></p>
+        </div>
+        <div class="mt-4 flex flex-wrap items-center gap-3">
+          <button id="startScanner" class="rounded-lg bg-primary px-5 py-3 text-white hover:bg-primary-active transition">▶ Mulai Scan</button>
+          <button id="stopScanner" class="rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">⏹ Hentikan</button>
+          <div class="flex-1 text-right">
+            <span id="scannerStatus" class="text-sm text-muted italic">Siap memindai.</span>
+          </div>
+        </div>
+        <div class="mt-3">
+          <label class="block text-sm text-body mb-1">Atau ketik kode barcode manual:</label>
+          <div class="flex gap-2">
+            <input id="manualBarcodeInput" type="text" placeholder="Masukkan kode barcode..." class="flex-1 rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0" />
+            <button id="manualBarcodeSubmit" type="button" class="rounded-lg bg-ink px-4 py-3 text-white hover:bg-body transition">Cari</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="purchaseModal" class="fixed inset-0 z-50 hidden motion-overlay items-center justify-center bg-black/40 px-4 py-6">
+    <div class="w-full max-w-3xl rounded-xl bg-white shadow-sm overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-hairline p-5 flex-shrink-0">
+        <div>
+          <h3 class="text-xl font-semibold">Tambah Pembelian</h3>
+          <p class="text-body">Catat barang masuk dari supplier.</p>
+        </div>
+        <button id="closePurchaseModal" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft">×</button>
+      </div>
+      <div class="p-6 space-y-4 overflow-y-auto flex-1">
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block"><span class="text-body">Supplier</span><input id="purchaseSupplier" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3" /></label>
+          <label class="block"><span class="text-body">ID Invoice</span><input id="purchaseInvoice" value="" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3" placeholder="INV-001" /></label>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-3">
+          <label class="block"><span class="text-body">Pilih Produk</span><select id="purchaseProduct" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 bg-white"></select></label>
+          <label class="block"><span class="text-body">Harga Beli (Modal)</span><input id="purchaseCost" type="number" min="0" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3" /></label>
+          <label class="block"><span class="text-body">Jumlah Beli</span><input id="purchaseQty" type="number" min="1" value="1" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3" /></label>
+        </div>
+        <button id="addPurchaseItem" class="rounded-lg bg-ink px-5 py-3 text-white hover:bg-primary-active transition">Tambah Item Pembelian</button>
+        <div class="rounded-xl bg-surface-soft p-4 border border-hairline" id="purchaseItemsList">
+          <p class="text-muted">Belum ada item pembelian.</p>
+        </div>
+        <div class="flex items-center justify-between text-body">
+          <span class="font-semibold">Total Pembelian</span>
+          <span id="purchaseTotal">Rp0</span>
+        </div>
+        <div class="flex gap-3">
+          <button id="savePurchase" class="flex-1 rounded-lg bg-primary px-5 py-3 text-white hover:bg-primary-active transition">Simpan Pembelian</button>
+          <button id="cancelPurchase" class="flex-1 rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">Batal</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="receiptModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
+      <div class="flex items-center justify-between border-b border-hairline p-5 no-print">
+        <div>
+          <h3 class="text-xl font-semibold btn-icon"><svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>Struk Transaksi</h3>
+          <p class="text-muted text-sm">Preview sebelum cetak ke printer thermal.</p>
+        </div>
+        <button id="closeReceipt" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft text-xl leading-none">×</button>
+      </div>
+      <!-- Preview struk thermal -->
+      <div class="p-6 overflow-y-auto max-h-[65vh]">
+        <div id="receiptContent" class="mx-auto font-mono text-xs leading-relaxed bg-white p-4 border border-dashed border-hairline" style="width:220px">
+          <p class="text-center font-bold text-sm" id="receiptStoreName">KASIR UMKM</p>
+          <p class="text-center text-xs" id="receiptStoreAddress"></p>
+          <p class="text-center text-xs" id="receiptStorePhone"></p>
+          <div class="border-t border-dashed border-muted-soft my-2"></div>
+          <div class="flex justify-between text-xs"><span>No</span><span id="receiptId">-</span></div>
+          <div class="flex justify-between text-xs"><span>Tgl</span><span id="receiptDate">-</span></div>
+          <div class="flex justify-between text-xs"><span>Kasir</span><span id="receiptCashierName">-</span></div>
+          <div class="border-t border-dashed border-muted-soft my-2"></div>
+          <div id="receiptItems" class="space-y-1"></div>
+          <div class="border-t border-dashed border-muted-soft my-2"></div>
+          <div class="flex justify-between text-xs"><span>Subtotal</span><span id="receiptSubtotal">Rp0</span></div>
+          <div class="flex justify-between text-xs" id="receiptDiscountRow"><span>Diskon</span><span id="receiptDiscount">Rp0</span></div>
+          <div class="flex justify-between text-xs" id="receiptTaxRow"><span>Pajak 11%</span><span id="receiptTax">Rp0</span></div>
+          <div class="border-t border-muted-soft my-1"></div>
+          <div class="flex justify-between font-bold text-sm"><span>TOTAL</span><span id="receiptTotal">Rp0</span></div>
+          <div class="flex justify-between text-xs mt-1" id="receiptPaymentMethodRow"><span id="receiptPaymentMethodLabel">Tunai</span><span id="receiptCash">Rp0</span></div>
+          <div class="flex justify-between text-xs font-semibold"><span>Kembali</span><span id="receiptChange">Rp0</span></div>
+          <div class="border-t border-dashed border-muted-soft my-2"></div>
+          <p class="text-center text-xs" id="receiptStoreNote">Terima kasih!</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-3 border-t border-hairline p-4 no-print">
+        <button id="waReceiptBtn" class="btn-icon flex-1 rounded-lg bg-green-600 px-4 py-3 text-white font-semibold hover:bg-green-700 transition text-sm whitespace-nowrap"><svg class="icon" aria-hidden="true"><use href="#i-message"/></svg>Kirim via WA</button>
+        <button id="printBluetoothBtn" class="btn-icon hidden flex-1 rounded-lg bg-primary px-4 py-3 text-white font-semibold hover:bg-primary-active transition text-sm whitespace-nowrap"><svg class="icon" aria-hidden="true"><use href="#i-smartphone"/></svg>Cetak Bluetooth</button>
+        <button id="printThermalBtn" class="btn-icon flex-1 rounded-lg bg-ink px-4 py-3 text-white font-semibold hover:bg-primary-active transition text-sm"><svg class="icon" aria-hidden="true"><use href="#i-printer"/></svg>Cetak Thermal</button>
+        <button id="printReceipt" class="btn-icon flex-1 rounded-lg bg-white border border-hairline px-4 py-3 text-body hover:bg-surface-soft transition text-sm"><svg class="icon" aria-hidden="true"><use href="#i-printer"/></svg>Cetak Biasa</button>
+        <button id="closeReceiptBottom" class="rounded-lg border border-hairline bg-white px-4 py-3 text-body hover:bg-surface-soft transition text-sm">Tutup</button>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div id="inventoryModal" class="fixed inset-0 z-50 hidden motion-overlay items-center justify-center bg-black/40 px-4 py-6">
+    <div class="w-full max-w-xl rounded-xl bg-white shadow-sm overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-hairline p-5 flex-shrink-0">
+        <div>
+          <h3 class="text-xl font-semibold" id="inventoryModalTitle">Tambah Produk</h3>
+          <p class="text-body">Kelola data produk dan stok.</p>
+        </div>
+        <button id="closeInventoryModal" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft">×</button>
+      </div>
+      <form id="inventoryForm" class="space-y-4 p-6 overflow-y-auto flex-1">
+        <input type="hidden" id="productId" />
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block">
+            <span class="text-body font-medium text-sm">Kode Produk</span>
+            <input id="productCode" readonly
+              class="mt-2 w-full rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-muted cursor-not-allowed"
+              placeholder="Otomatis saat disimpan" />
+          </label>
+          <label class="block">
+            <span class="text-body font-medium text-sm">Nama Produk <span class="text-red-500">*</span></span>
+            <input id="productName" required maxlength="120" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" placeholder="contoh: Indomie Goreng" />
+          </label>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-3">
+          <label class="block">
+            <span class="text-body font-medium text-sm">Kategori <span class="text-red-500">*</span></span>
+            <input id="productCategory" required list="categoryList"
+              class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+              placeholder="Pilih atau ketik kategori" />
+            <datalist id="categoryList">
+              <option value="Makanan">
+              <option value="Minuman">
+              <option value="Sembako">
+              <option value="Snack">
+              <option value="ATK">
+              <option value="Kebersihan">
+              <option value="Kesehatan">
+              <option value="Elektronik">
+              <option value="Pakaian">
+              <option value="Lainnya">
+            </datalist>
+          </label>
+          <label class="block">
+            <span class="text-body font-medium text-sm">Harga Jual <span class="text-red-500">*</span></span>
+            <input id="productPrice" type="number" min="0" required class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" placeholder="0" />
+          </label>
+          <label class="block">
+            <span class="text-body font-medium text-sm">Harga Modal</span>
+            <input id="productCost" type="number" min="0" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" placeholder="0" />
+          </label>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-3">
+          <label class="block">
+            <span class="text-body font-medium text-sm">Stok <span class="text-red-500">*</span></span>
+            <input id="productStock" type="number" min="0" required class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" placeholder="0" />
+          </label>
+          <label class="block">
+            <span class="text-body font-medium text-sm">Stok Minimum</span>
+            <input id="productMinStock" type="number" min="0" value="5" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" placeholder="5" />
+          </label>
+          <div class="flex gap-2 items-end">
+            <label class="block flex-1">
+              <span class="text-body font-medium text-sm">Barcode Produk</span>
+              <input id="productBarcode" maxlength="50" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" placeholder="Scan atau ketik" />
+            </label>
+            <button type="button" id="inventoryScanButton" class="btn-icon mb-0.5 rounded-lg bg-primary px-4 py-3 text-white hover:bg-primary-active transition whitespace-nowrap" title="Scan barcode"><svg class="icon" aria-hidden="true"><use href="#i-camera"/></svg></button>
+          </div>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block">
+            <span class="text-body font-medium text-sm">Tanggal Kedaluwarsa (Opsional)</span>
+            <input id="productExpiry" type="date" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" />
+          </label>
+        </div>
+        <input type="hidden" id="productImage" value="https://via.placeholder.com/200" />
+        <div class="flex gap-3 pt-3">
+          <button type="submit" class="flex-1 rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-primary-active transition">Simpan Produk</button>
+          <button type="button" id="cancelInventory" class="flex-1 rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">Batal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Penyesuaian Stok (Manual Stock Adjustment) -->
+  <div id="adjustmentModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-xl bg-white shadow-sm p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-semibold" id="adjustmentModalTitle">Sesuaikan Stok</h3>
+        <button id="closeAdjustmentModal" class="rounded-full bg-surface-soft p-2 hover:bg-hairline-soft">×</button>
+      </div>
+      <form id="adjustmentForm" class="space-y-4">
+        <input type="hidden" id="adjProductId" />
+        <p class="text-sm text-muted">Stok Saat Ini: <span id="adjCurrentStock" class="font-bold text-ink">0</span></p>
+        <div class="grid grid-cols-2 gap-4">
+            <label class="block">
+                <span class="text-body font-medium text-sm">Arah Penyesuaian</span>
+                <select id="adjDirection" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 bg-white focus:border-ink focus:border-2 focus:ring-0 focus:outline-none">
+                    <option value="kurang">Kurangi (-)</option>
+                    <option value="tambah">Tambah (+)</option>
+                </select>
+            </label>
+            <label class="block">
+                <span class="text-body font-medium text-sm">Jumlah (Unit) <span class="text-red-500">*</span></span>
+                <input id="adjQty" type="number" min="1" required class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" placeholder="1" />
+            </label>
+        </div>
+        <label class="block">
+            <span class="text-body font-medium text-sm">Alasan <span class="text-red-500">*</span></span>
+            <select id="adjReason" required class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 bg-white focus:border-ink focus:border-2 focus:ring-0 focus:outline-none">
+                <option value="">Pilih Alasan</option>
+                <option value="Rusak / Cacat">Rusak / Cacat</option>
+                <option value="Kedaluwarsa">Kedaluwarsa</option>
+                <option value="Hilang / Dicuri">Hilang / Dicuri</option>
+                <option value="Koreksi Administratif">Koreksi Administratif</option>
+                <option value="Lainnya">Lainnya</option>
+            </select>
+        </label>
+        <label class="block">
+            <span class="text-body font-medium text-sm">Catatan / Memo</span>
+            <input id="adjNote" type="text" class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" placeholder="Tambahkan memo jika perlu" />
+        </label>
+        <button type="submit" class="w-full rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-primary-active transition">Simpan Penyesuaian</button>
+      </form>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal Kartu Stok (Stock Ledger) -->
+  <div id="ledgerModal" class="fixed inset-0 z-50 hidden motion-overlay items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-3xl rounded-xl bg-white shadow-sm p-6 flex flex-col max-h-[90vh]">
+      <div class="flex items-center justify-between mb-4 shrink-0">
+        <div>
+            <h3 class="text-xl font-semibold">Kartu Stok (Mutasi)</h3>
+            <p id="ledgerProductName" class="text-body font-medium"></p>
+        </div>
+        <button id="closeLedgerModal" class="rounded-full bg-surface-soft p-2 hover:bg-hairline-soft">×</button>
+      </div>
+      <div class="overflow-auto flex-1 border border-hairline rounded-xl">
+        <table class="w-full text-left text-sm whitespace-nowrap">
+          <thead class="bg-surface-soft border-b border-hairline text-muted sticky top-0">
+            <tr>
+              <th class="p-3">Waktu</th>
+              <th class="p-3">Kasir</th>
+              <th class="p-3">Jenis Mutasi</th>
+              <th class="p-3">Kuantitas</th>
+              <th class="p-3">Stok Akhir</th>
+            </tr>
+          </thead>
+          <tbody id="ledgerTableBody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Banner masa aktif (muncul hanya saat hampir habis) -->
+  <div id="subsBanner" class="hidden fixed top-0 left-0 right-0 z-[90] bg-amber-500 text-white text-center text-sm font-medium px-4 py-2">
+    <span id="subsBannerText"></span>
+    <button id="subsBannerBtn" class="ml-2 underline font-semibold">Perpanjang sekarang</button>
+  </div>
+
+  <!-- Halaman perpanjangan langganan (lock saat masa aktif habis) -->
+  <div id="subsOverlay" class="hidden fixed inset-0 z-[200] motion-overlay items-center justify-center bg-gradient-to-br from-ink via-body to-primary overflow-y-auto px-4 py-8">
+    <div class="w-full max-w-md mx-auto">
+      <div class="bg-white rounded-xl shadow-sm p-7 text-center">
+        <svg class="icon mx-auto mb-3 text-primary" style="width:2.75rem;height:2.75rem" aria-hidden="true"><use href="#i-crown"/></svg>
+        <h2 id="subsOverlayTitle" class="text-2xl font-bold text-ink">Upgrade ke Premium</h2>
+        <p id="subsOverlayDesc" class="text-muted mt-2 text-sm">Fitur dasar tetap gratis selamanya.
+          Premium membuka fitur tambahan untuk toko yang makin ramai.</p>
+
+        <div class="mt-5 rounded-lg bg-primary-light border border-hairline p-4">
+          <p id="subsOverlayPrice" class="text-3xl font-bold text-primary">Rp25.000<span class="text-base font-medium text-primary">/bulan</span></p>
+          <div id="subsOverlayFeatures" class="text-xs text-primary mt-2 text-left space-y-1">
+            <p class="btn-icon"><svg class="icon icon-sm text-emerald-600" aria-hidden="true"><use href="#i-check"/></svg>QRIS Dinamis — nominal otomatis tertanam di QR</p>
+            <p class="btn-icon"><svg class="icon icon-sm text-emerald-600" aria-hidden="true"><use href="#i-check"/></svg>Export laporan PDF</p>
+            <p class="btn-icon"><svg class="icon icon-sm text-emerald-600" aria-hidden="true"><use href="#i-check"/></svg>Operator kasir tanpa batas</p>
+            <p class="btn-icon"><svg class="icon icon-sm text-emerald-600" aria-hidden="true"><use href="#i-check"/></svg>Dukungan prioritas via Telegram</p>
+          </div>
+        </div>
+
+        <div class="mt-5 rounded-lg bg-surface-soft border border-hairline p-4 text-left text-sm text-body space-y-1">
+          <p class="font-semibold text-ink">Pembayaran otomatis & aman:</p>
+          <p>1. Klik <strong>Bayar Sekarang</strong> — diarahkan ke halaman aman Pakasir</p>
+          <p>2. Bayar via <strong>QRIS atau Virtual Account</strong> (semua bank & e-wallet)</p>
+          <p>3. Langganan <strong>aktif otomatis</strong> dalam hitungan detik.</p>
+        </div>
+
+        <a id="subsPayBtn" href="#"
+          class="mt-4 block w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition">
+          <svg class="icon" aria-hidden="true"><use href="#i-credit"/></svg>Bayar Sekarang via Pakasir
+        </a>
+        <p class="text-xs text-muted-soft mt-2">Pembayaran diproses oleh Pakasir — gateway resmi berlisensi QRIS</p>
+        <button id="subsRecheckBtn" class="mt-3 w-full rounded-lg border border-hairline px-5 py-3 text-body hover:bg-surface-soft transition text-sm flex items-center justify-center gap-2">
+          <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg> Sudah bayar — cek status
+        </button>
+        <button id="subsCloseBtn" class="mt-2 w-full rounded-lg px-5 py-3 text-muted hover:bg-surface-soft transition text-sm">Nanti dulu, lanjut pakai gratis</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal QRIS -->
+  <div id="qrisModal" class="fixed inset-0 z-[110] hidden motion-overlay overflow-y-auto bg-black/70">
+    <div class="flex min-h-full w-full items-center justify-center p-6">
+    <div class="w-full max-w-xs rounded-xl bg-white shadow-sm p-6 flex flex-col items-center gap-4">
+      <div class="flex items-center justify-between w-full">
+        <div>
+          <h3 class="text-lg font-bold">Bayar via QRIS</h3>
+          <p class="text-muted text-sm">Minta pembeli scan kode berikut</p>
+        </div>
+        <button id="closeQrisModal" class="rounded-full bg-surface-soft p-2 hover:bg-hairline-soft text-xl leading-none">×</button>
+      </div>
+      <div class="w-56 h-56 border-2 border-hairline rounded-lg flex items-center justify-center bg-surface-soft overflow-hidden">
+        <img id="qrisModalImg" src="" alt="QRIS" class="w-full h-full object-contain p-2" />
+        <div id="qrisModalQr" class="hidden p-3 bg-white"></div>
+      </div>
+      <span id="qrisDynamicBadge" class="hidden rounded-full bg-emerald-100 text-emerald-700 px-3 py-1 text-xs font-semibold btn-icon"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-crown"/></svg>QRIS Dinamis — nominal sudah tertanam, pembeli tinggal konfirmasi</span>
+      <div class="text-center">
+        <p class="text-body text-sm">Total yang harus dibayar:</p>
+        <p id="qrisModalTotal" class="text-2xl font-bold text-ink mt-1"></p>
+      </div>
+      <button id="qrisConfirmBtn" class="w-full rounded-lg bg-green-600 px-5 py-3 text-white font-semibold hover:bg-green-700 transition">
+        <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>Konfirmasi Sudah Bayar
+      </button>
+      <p class="text-xs text-muted-soft text-center">Pastikan notifikasi pembayaran masuk sebelum konfirmasi</p>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal Tutup Kasir / Laporan Shift -->
+  <div id="shiftModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
+      <div class="flex items-center justify-between border-b border-hairline p-5">
+        <div>
+          <h3 class="text-xl font-semibold">Laporan Shift</h3>
+          <p class="text-muted text-sm" id="shiftModalSubtitle">Ringkasan transaksi shift ini.</p>
+        </div>
+        <button id="closeShiftModal" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft text-xl leading-none">×</button>
+      </div>
+      <div class="p-6 space-y-4 overflow-y-auto max-h-[75vh]">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="rounded-lg bg-surface-soft border border-hairline p-4 text-center">
+            <p class="text-xs text-muted uppercase tracking-wide">Kasir</p>
+            <p class="text-lg font-bold mt-1 text-ink" id="shiftCashierName">-</p>
+          </div>
+          <div class="rounded-lg bg-surface-soft border border-hairline p-4 text-center">
+            <p class="text-xs text-muted uppercase tracking-wide">Transaksi</p>
+            <p class="text-lg font-bold mt-1 text-ink" id="shiftTxCount">0</p>
+          </div>
+          <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
+            <p class="text-xs text-emerald-600 uppercase tracking-wide">Total Penjualan</p>
+            <p class="text-lg font-bold mt-1 text-emerald-700" id="shiftTotalSales">Rp0</p>
+          </div>
+          <div class="rounded-lg bg-primary-light border border-hairline p-4 text-center">
+            <p class="text-xs text-primary uppercase tracking-wide">Item Terjual</p>
+            <p class="text-lg font-bold mt-1 text-primary" id="shiftItemsSold">0</p>
+          </div>
+        </div>
+
+        <div class="border-t border-hairline pt-4 mt-2 space-y-3">
+          <h4 class="text-sm font-semibold text-ink uppercase tracking-wider">Pencocokan Kas (Closing Count)</h4>
+          <div class="space-y-2">
+            <div class="flex justify-between text-sm">
+              <span class="text-body">Modal Awal:</span>
+              <span id="shiftModalFloat" class="font-semibold text-ink">Rp0</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-body">Penjualan Tunai (System):</span>
+              <span id="shiftModalCashSales" class="font-semibold text-ink">Rp0</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-body">Refund Tunai (System):</span>
+              <span id="shiftModalRefunds" class="font-semibold text-ink">Rp0</span>
+            </div>
+            <div class="flex justify-between text-base font-semibold border-t border-hairline-soft pt-2 text-ink">
+              <span>Total Uang Kas (System):</span>
+              <span id="shiftModalExpected">Rp0</span>
+            </div>
+          </div>
+          <div>
+            <label class="block text-body text-sm font-medium mb-1">Total Tunai Fisik di Laci</label>
+            <input id="shiftActualCashInput" type="number" min="0" value="0" class="w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0" />
+          </div>
+          <div class="flex justify-between text-base font-semibold text-ink">
+            <span>Selisih:</span>
+            <span id="shiftDiscrepancy" class="text-ink font-bold">Rp0</span>
+          </div>
+          <div>
+            <label class="block text-body text-sm font-medium mb-1">Catatan Selisih / Memo</label>
+            <textarea id="shiftNoteInput" rows="2" placeholder="Tulis alasan jika ada selisih kas..." class="w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 text-sm"></textarea>
+          </div>
+        </div>
+
+        <div class="flex gap-3 pt-2">
+          <button id="printShiftBtn" class="btn-icon flex-1 rounded-lg bg-ink px-4 py-3 text-white font-semibold hover:bg-primary-active transition text-sm"><svg class="icon" aria-hidden="true"><use href="#i-printer"/></svg>Cetak Struk</button>
+          <button id="resetShiftBtn" class="btn-icon flex-1 rounded-lg bg-amber-600 px-4 py-3 text-white font-semibold hover:bg-amber-700 transition text-sm"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>Tutup Shift & Selesai</button>
+        </div>
+        <button id="cancelShiftModal" class="w-full rounded-lg border border-hairline bg-white px-4 py-2.5 text-body hover:bg-surface-soft transition text-sm">Batal</button>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal Setup Toko Baru (onboarding pertama setelah daftar) -->
+  <div id="storeSetupModal" class="fixed inset-0 z-[80] hidden motion-overlay overflow-y-auto bg-black/60">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+      <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
+        <div class="p-6 space-y-5">
+          <div class="text-center">
+            <span class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-primary-light text-primary"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-store"/></svg></span>
+            <h3 class="text-xl font-bold text-ink">Selamat datang!</h3>
+            <p class="text-muted text-sm mt-1">Satu langkah lagi — isi data toko Anda untuk mulai berjualan.</p>
+          </div>
+          <form id="storeSetupForm" class="space-y-4">
+            <label class="block">
+              <span class="text-body text-sm font-medium">Nama Toko</span>
+              <input id="storeSetupName" type="text" required maxlength="60" placeholder="Contoh: Warung Bu Sari"
+                class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" />
+            </label>
+            <label class="block">
+              <span class="text-body text-sm font-medium">Nama Anda (Pemilik)</span>
+              <input id="storeSetupOwner" type="text" required maxlength="60" placeholder="Contoh: Sari"
+                class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" />
+            </label>
+            <label class="block">
+              <span class="text-body text-sm font-medium">PIN Kasir / Admin</span>
+              <input id="storeSetupPin" type="password" inputmode="numeric" maxlength="8" required placeholder="Contoh: 1234"
+                class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" />
+              <p class="text-xs text-muted-soft mt-1">PIN dipakai operator untuk ganti kasir di halaman Kasir.</p>
+            </label>
+            <button type="submit" class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition min-h-[44px]">
+              Buat Toko &amp; Mulai
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Buka Shift (Open Shift) -->
+  <div id="openShiftModalEl" class="fixed inset-0 z-[60] hidden overflow-y-auto bg-black/80">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden p-6 space-y-4">
+      <div class="text-center">
+        <svg class="icon text-primary" style="width:2rem;height:2rem" aria-hidden="true"><use href="#i-unlock"/></svg>
+        <h3 class="text-xl font-bold">Mulai Shift Baru</h3>
+        <p class="text-muted text-sm">Masukkan nominal uang modal awal di laci kasir.</p>
+      </div>
+      <form id="openShiftForm" class="space-y-4">
+        <div>
+          <label class="block text-body text-sm font-medium mb-2">Uang Modal Awal (Cash Float)</label>
+          <input id="openShiftCashFloat" type="number" min="0" value="100000" required class="w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0" />
+        </div>
+        <button type="submit" class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition">
+          Mulai Shift & Mulai Jualan
+        </button>
+      </form>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal Otorisasi PIN Admin -->
+  <div id="pinAuthModal" class="fixed inset-0 z-[70] hidden motion-overlay overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-sm rounded-xl bg-white shadow-sm overflow-hidden p-6 space-y-4">
+      <div class="text-center">
+        <svg class="icon text-primary" style="width:2rem;height:2rem" aria-hidden="true"><use href="#i-key"/></svg>
+        <h3 class="text-xl font-bold">Otorisasi Supervisor</h3>
+        <p class="text-muted text-sm">Masukkan PIN Admin/Supervisor untuk melanjutkan.</p>
+      </div>
+      <form id="pinAuthForm" class="space-y-4">
+        <div>
+          <input id="pinAuthInput" type="password" placeholder="Masukkan PIN" required class="w-full text-center text-2xl tracking-widest rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0" />
+        </div>
+        <div class="flex gap-3">
+          <button type="submit" class="flex-1 rounded-lg bg-primary px-4 py-3 text-white font-semibold hover:bg-primary-active transition text-sm">
+            Verifikasi
+          </button>
+          <button type="button" id="cancelPinAuth" class="flex-1 rounded-lg border border-hairline bg-white px-4 py-3 text-body hover:bg-surface-soft transition text-sm">
+            Batal
+          </button>
+        </div>
+        <div class="text-center mt-3">
+            <a href="#" onclick="alert('Jika Anda lupa PIN, Anda dapat mengubahnya di menu Manajemen Kasir (hanya bisa diakses oleh akun Admin/Pemilik).')" class="text-xs text-primary hover:underline">Lupa PIN?</a>
+        </div>
+      </form>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal Void Transaksi -->
+  <div id="voidModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-sm rounded-xl bg-white shadow-sm overflow-hidden p-6 space-y-4">
+      <div class="text-center">
+        <svg class="icon text-rose-500" style="width:2rem;height:2rem" aria-hidden="true"><use href="#i-ban"/></svg>
+        <h3 class="text-xl font-bold">Batalkan Transaksi</h3>
+        <p class="text-muted text-sm" id="voidModalSubtitle">Masukkan alasan pembatalan transaksi ini.</p>
+      </div>
+      <form id="voidForm" class="space-y-4">
+        <div>
+          <label class="block text-body text-sm font-medium mb-1">Alasan Void</label>
+          <input id="voidReasonInput" type="text" placeholder="Misal: Salah Input, Pelanggan Batal" required class="w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0" />
+        </div>
+        <div class="flex gap-3">
+          <button type="submit" class="flex-1 rounded-lg bg-rose-600 px-4 py-3 text-white font-semibold hover:bg-rose-700 transition text-sm">
+            Batalkan Transaksi
+          </button>
+          <button type="button" id="cancelVoidModal" class="flex-1 rounded-lg border border-hairline bg-white px-4 py-3 text-body hover:bg-surface-soft transition text-sm">
+            Batal
+          </button>
+        </div>
+      </form>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal Retur Barang -->
+  <div id="returnModal" class="fixed inset-0 z-50 hidden motion-overlay items-center justify-center bg-black/50 px-4 py-6">
+    <div class="w-full max-w-lg rounded-xl bg-white shadow-sm overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="flex items-center justify-between border-b border-hairline p-5">
+        <div>
+          <h3 class="text-xl font-semibold flex items-center gap-2"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg>Retur Barang</h3>
+          <p class="text-muted text-sm" id="returnModalSubtitle">Pilih item yang ingin diretur</p>
+        </div>
+        <button id="closeReturnModal" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft text-xl leading-none">×</button>
+      </div>
+      <div class="p-6 space-y-4 overflow-y-auto flex-1">
+        <div class="space-y-3" id="returnItemsList">
+          <!-- Dinamis di-render via JS -->
+        </div>
+        <div>
+          <label class="block text-body text-sm font-medium mb-1">Alasan Retur</label>
+          <select id="returnReasonSelect" class="w-full rounded-lg border border-hairline px-4 py-3 bg-white">
+            <option value="Barang Cacat">Barang Cacat / Rusak</option>
+            <option value="Salah Beli">Salah Beli</option>
+            <option value="Kedaluwarsa">Kedaluwarsa</option>
+            <option value="Lainnya">Lainnya</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-body text-sm font-medium mb-1">Metode Penyelesaian</label>
+          <select id="returnActionSelect" class="w-full rounded-lg border border-hairline px-4 py-3 bg-white">
+            <option value="refund">Kembali Dana (Refund Tunai)</option>
+            <option value="restock">Kembali Stok (Tanpa Refund Uang)</option>
+          </select>
+        </div>
+      </div>
+      <div class="border-t border-hairline p-5 bg-surface-soft flex gap-3">
+        <button id="submitReturnBtn" class="flex-1 rounded-lg bg-amber-600 px-5 py-3 text-white font-semibold hover:bg-amber-700 transition">
+          Proses Retur
+        </button>
+        <button id="cancelReturnModal" class="flex-1 rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">
+          Batal
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Onboarding Overlay -->
+  <div id="onboardingOverlay" class="fixed inset-0 z-[200] hidden motion-overlay items-center justify-center bg-ink/95">
+    <div class="w-full max-w-sm px-6 text-center text-white">
+      <div id="onboardingStep1" class="onboarding-step">
+        <svg class="icon mx-auto mb-4 text-primary" style="width:3.5rem;height:3.5rem" aria-hidden="true"><use href="#i-check"/></svg>
+        <h2 class="text-2xl font-bold mb-2">Selamat Datang!</h2>
+        <p class="text-muted-soft text-lg mb-6" id="onboardingWelcomeText">Toko siap digunakan.</p>
+        <button id="onboardingNext1" class="w-full rounded-lg bg-primary px-6 py-3 text-white font-semibold hover:bg-primary-active transition">Lanjut</button>
+      </div>
+      <div id="onboardingStep2" class="onboarding-step hidden">
+        <svg class="icon mx-auto mb-4 text-primary" style="width:3.5rem;height:3.5rem" aria-hidden="true"><use href="#i-package"/></svg>
+        <h2 class="text-2xl font-bold mb-2">Langkah 2</h2>
+        <p class="text-muted-soft text-lg mb-6">Tambah produk dulu di menu Inventory.</p>
+        <button id="onboardingNext2" class="w-full rounded-lg bg-primary px-6 py-3 text-white font-semibold hover:bg-primary-active transition">Lanjut</button>
+      </div>
+      <div id="onboardingStep3" class="onboarding-step hidden">
+        <svg class="icon mx-auto mb-4 text-primary" style="width:3.5rem;height:3.5rem" aria-hidden="true"><use href="#i-receipt"/></svg>
+        <h2 class="text-2xl font-bold mb-2">Langkah 3</h2>
+        <p class="text-muted-soft text-lg mb-6">Mulai transaksi di menu Kasir.</p>
+        <button id="onboardingFinish" class="w-full rounded-lg bg-emerald-600 px-6 py-3 text-white font-semibold hover:bg-emerald-700 transition">Mulai Sekarang</button>
+      </div>
+      <div class="flex justify-center gap-2 mt-6">
+        <div id="ob-dot1" class="w-2 h-2 rounded-full bg-primary"></div>
+        <div id="ob-dot2" class="w-2 h-2 rounded-full bg-muted"></div>
+        <div id="ob-dot3" class="w-2 h-2 rounded-full bg-muted"></div>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="backupFileInput" accept="application/json" class="hidden" />
+  <!-- Modal Kasbon -->
+  <div id="debtModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
+    <div class="flex min-h-full items-center justify-center p-4">
+      <form id="debtForm" class="relative w-full max-w-md bg-white rounded-xl shadow-sm flex flex-col">
+        <div class="flex shrink-0 items-center justify-between border-b border-hairline p-5">
+          <h3 class="text-lg font-bold">Catat Kasbon Baru</h3>
+          <button id="closeDebtModal" type="button" class="rounded-full bg-surface-soft p-2 hover:bg-hairline-soft text-xl leading-none">×</button>
+        </div>
+        <div class="p-6 space-y-3">
+          <p id="debtFormError" class="hidden rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-600"></p>
+          
+          <!-- Input Dinamis Produk -->
+          <div class="border rounded-lg p-3 bg-surface-soft">
+            <label class="block mb-2">
+              <span class="text-body font-semibold text-sm">Produk & Qty</span>
+            </label>
+            <div id="debtItemsContainer" class="space-y-2"></div>
+            <button type="button" onclick="addDebtItemRow()" class="mt-2 text-xs text-primary font-semibold hover:underline">+ Tambah Produk Lain</button>
+          </div>
+
+          <!-- Total -->
+          <div class="flex justify-between items-center bg-primary-light p-3 rounded-lg border border-hairline">
+            <span id="debtTotalDisplay" class="font-bold text-ink">Total Hutang: Rp 0</span>
+            <input type="hidden" id="debtFormAmount" value="0" />
+          </div>
+
+          <label class="block">
+            <span class="text-body font-medium text-sm">Nama Pelanggan</span>
+            <input id="debtFormName" required maxlength="80" class="mt-1 w-full rounded-lg border border-hairline px-4 py-2.5 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none bg-white" placeholder="contoh: Bu Siti" />
+          </label>
+          <label class="block">
+            <span class="text-body font-medium text-sm">No. WhatsApp <span class="text-muted-soft">(opsional, untuk tagih)</span></span>
+            <input 
+              id="debtFormPhone" 
+              type="tel"
+              pattern="[0-9]*" 
+              inputmode="numeric" 
+              maxlength="20" 
+              oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+              class="mt-1 w-full rounded-lg border border-hairline px-4 py-2.5 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none bg-white" 
+              placeholder="contoh: 08123456789" 
+            />
+          </label>
+          <label class="block">
+            <span class="text-body font-medium text-sm">Catatan <span class="text-muted-soft">(opsional)</span></span>
+            <input id="debtFormNote" maxlength="150" class="mt-1 w-full rounded-lg border border-hairline px-4 py-2.5 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none bg-white" placeholder="catatan tambahan" />
+          </label>
+        </div>
+        <div class="p-5 border-t border-hairline shrink-0">
+          <button type="submit" class="btn-icon w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition"><svg class="icon" aria-hidden="true"><use href="#i-save"/></svg>Simpan Kasbon</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Konfirmasi Hapus Kasbon -->
+  <div id="debtDeleteModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+      <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
+        <div class="flex items-center justify-between border-b border-hairline p-5">
+          <h3 class="text-lg font-bold text-ink">Hapus Catatan Kasbon</h3>
+          <button id="closeDebtDeleteModal" type="button" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft text-xl leading-none">×</button>
+        </div>
+        <div class="p-6 space-y-4">
+          <p id="debtDeleteText" class="text-sm text-body"></p>
+          <div class="flex gap-3 pt-2">
+            <button id="debtDeleteCancel" type="button" class="flex-1 rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-primary-active transition">Batal</button>
+            <button id="debtDeleteConfirm" type="button" class="flex-1 rounded-lg border border-rose-300 bg-white px-5 py-3 text-rose-600 font-semibold hover:bg-rose-50 transition disabled:opacity-50">Hapus</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Hapus Akun -->
+  <div id="deleteAccountModal" class="fixed inset-0 z-50 hidden motion-overlay overflow-y-auto bg-black/50">
+    <div class="flex min-h-full w-full items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-lg bg-white shadow-sm overflow-hidden">
+      <div class="flex items-center justify-between border-b border-hairline p-5">
+        <div>
+          <h3 class="text-xl font-semibold text-ink">Konfirmasi Penutupan Akun</h3>
+          <p class="text-muted text-sm">Tindakan ini tidak dapat dibatalkan.</p>
+        </div>
+        <button id="closeDeleteAccountModal" class="rounded-full bg-surface-soft p-3 hover:bg-hairline-soft text-xl leading-none">×</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          <p class="font-semibold mb-1 btn-icon"><svg class="icon icon-sm text-amber-600" aria-hidden="true"><use href="#i-alert"/></svg>Data berikut akan dihapus permanen:</p>
+          <ul class="list-disc list-inside space-y-0.5 text-amber-700">
+            <li>Toko, produk, dan transaksi</li>
+            <li>Kasir dan kasbon</li>
+            <li>Riwayat, langganan, dan semua data terkait</li>
+          </ul>
+        </div>
+        <label class="block">
+          <span class="text-body font-medium text-sm">Ketik ulang email Anda untuk konfirmasi</span>
+          <input id="deleteAccountEmailInput" type="email" autocomplete="off"
+            class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+            placeholder="email@contoh.com" />
+        </label>
+        <div id="deleteAccountError" class="hidden rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+        <button id="deleteAccountConfirmBtn" disabled
+          class="w-full rounded-lg bg-hairline-soft px-5 py-3 text-muted-soft font-semibold transition cursor-not-allowed">
+          Hapus Akun Saya
+        </button>
+        <button type="button" id="cancelDeleteAccountModal" class="w-full rounded-lg border border-hairline bg-white px-5 py-3 text-body hover:bg-surface-soft transition">Batal</button>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- Chat Bantuan -->
+  <button id="helpChatFab" class="hidden fixed right-4 z-[90] h-14 w-14 rounded-full bg-gradient-to-br from-primary-active to-primary shadow-sm hover:scale-110 transition-transform flex items-center justify-center no-print text-white" title="Tanya Aisyah"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-message"/></svg></button>
+  <div id="helpChatPanel" class="hidden fixed right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm h-[28rem] max-h-[calc(100vh-10rem)] rounded-xl bg-white border border-hairline shadow-sm flex flex-col overflow-hidden no-print">
+    <div class="bg-ink text-white px-5 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white"><svg class="icon" aria-hidden="true"><use href="#i-message"/></svg></span>
+        <div>
+          <p class="font-semibold text-sm">Aisyah — Asisten Kasir</p>
+          <p class="text-xs text-white/70 flex items-center gap-1"><span class="inline-block h-2 w-2 rounded-full bg-green-400"></span> Online — siap membantu</p>
+        </div>
+      </div>
+      <button id="helpChatClose" class="text-white/70 hover:text-white p-1" aria-label="Tutup"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </div>
+    <div id="helpChatMessages" class="flex-1 overflow-y-auto p-4 space-y-3 bg-surface-soft text-sm"></div>
+    <div id="helpChatQuick" class="px-4 pb-2 pt-1 bg-surface-soft flex flex-wrap gap-2"></div>
+    <form id="helpChatForm" class="flex gap-2 border-t border-hairline p-3 bg-white">
+      <input id="helpChatInput" type="text" placeholder="Ketik pertanyaan..." class="flex-1 rounded-lg border border-hairline px-4 py-2.5 text-sm focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" autocomplete="off" />
+      <button type="submit" class="rounded-lg bg-primary px-4 py-2.5 text-white text-sm font-semibold hover:bg-primary-active transition">Kirim</button>
+    </form>
+  </div>
+
+
+  <script src="app.js?v=18" defer></script>
+</body>
+</html>

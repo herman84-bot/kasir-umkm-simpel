@@ -3,7 +3,7 @@ const path = require('path');
 const { JSDOM } = require('jsdom');
 
 // Paths to index.html and app.js
-const htmlPath = path.resolve(__dirname, 'index.html');
+const htmlPath = path.resolve(__dirname, 'auth.html');
 const jsPath = path.resolve(__dirname, 'app.js');
 
 console.log('--- Verification Script Started ---');

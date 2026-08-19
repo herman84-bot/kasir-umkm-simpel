@@ -12,7 +12,7 @@ const path = require('path');
 const { JSDOM } = require('jsdom');
 
 const ROOT = __dirname;
-const htmlPath = path.join(ROOT, 'index.html');
+const htmlPath = path.join(ROOT, 'auth.html');
 const jsPath = path.join(ROOT, 'app.js');
 const efPath = path.join(ROOT, 'supabase/functions/admin-subscription/index.ts');
 const migPath = path.join(ROOT, 'supabase/17_super_admin_aktivitas_hapus.sql');
@@ -262,8 +262,9 @@ contains(mig, 'DROP FUNCTION IF EXISTS', 'Migrasi: DROP FUNCTION IF EXISTS (atas
 // ── 8. public/ sinkron dengan root ─────────────────────────────────────────
 const publicJs = fs.readFileSync(path.join(ROOT, 'public/app.js'), 'utf8');
 const publicHtml = fs.readFileSync(path.join(ROOT, 'public/index.html'), 'utf8');
+const rootIndexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 ok(publicJs === jsContent, 'public/app.js identik dengan app.js');
-ok(publicHtml === htmlContent, 'public/index.html identik dengan index.html');
+ok(publicHtml === rootIndexHtml, 'public/index.html identik dengan index.html');
 
 console.log(`\n${checks - failures}/${checks} pemeriksaan lulus`);
 if (failures > 0) {

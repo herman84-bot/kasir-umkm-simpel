@@ -47,7 +47,7 @@ const ALLOWED_COLORS = [
   'rose', 'red', 'amber', 'emerald', 'green', 'violet', 'purple', 'blue',
 ];
 // Nama yang cocok dengan pola regex tapi BUKAN warna (utility non-warna).
-const NON_COLORS = ['sm', 'xs', 'base', 'lg', 'xl', 'left', 'center', 'right', 'b', 't', 'l', 'r', 'collapse', 'dashed', 'solid', 'none'];
+const NON_COLORS = ['sm', 'xs', 'base', 'lg', 'xl', 'left', 'center', 'right', 'b', 't', 'l', 'r', 'collapse', 'dashed', 'solid', 'none', 'color'];
 
 const COLOR_UTIL = /(?:^|[\s"'])((?:hover:|focus:|disabled:)?(?:bg|text|border|from|to|via|ring|outline)-([a-z][a-z-]*?)(?:-[0-9]+)?(?:\/[0-9]+)?)(?=[\s"'])/g;
 for (const f of ['index.html', 'app.js', 'customer-display.html']) {
@@ -85,7 +85,8 @@ for (const f of ['index.html', 'app.js']) {
 }
 
 // ── 4. Ikon sprite harus ada ───────────────────────────────────────────────
-const sprite = read('index.html');
+// Ikon ada di auth.html (halaman app), bukan index.html (landing page)
+const sprite = read('auth.html');
 const spriteIds = new Set([...sprite.matchAll(/id="i-([a-z-]+)"/g)].map(m => m[1]));
 const missing = new Set();
 
@@ -95,15 +96,16 @@ const checkIconRef = (label, ref) => {
 for (const m of js.matchAll(/icon\(['"]([a-z-]+)['"]/g)) checkIconRef('app.js icon()', m[1]);
 for (const m of js.matchAll(/iconText\(['"]([a-z-]+)['"]/g)) checkIconRef('app.js iconText()', m[1]);
 for (const m of js.matchAll(/href="#i-([a-z-]+)"/g)) checkIconRef('app.js <use>', m[1]);
-for (const m of sprite.matchAll(/href="#i-([a-z-]+)"/g)) checkIconRef('index.html <use>', m[1]);
+for (const m of sprite.matchAll(/href="#i-([a-z-]+)"/g)) checkIconRef('auth.html <use>', m[1]);
 
 ok(spriteIds.size > 30, `sprite ikon terdefinisi (${spriteIds.size} symbol)`);
 ok(missing.size === 0, `semua referensi ikon ada di sprite (hilang: ${[...missing].join(', ') || 'tidak ada'})`);
 
 // ── 5. Badge versi tidak boleh hardcoded ───────────────────────────────────
-ok(!/Versi\s+\d+\.\d+/.test(sprite), 'index.html: tidak ada versi hardcoded ("Versi X.Y.Z")');
-ok(sprite.includes('id="aboutAppVersion"'), 'index.html: badge versi dinamis (aboutAppVersion) ada');
-ok(sprite.includes('id="appVersionDisplay"'), 'index.html: display versi (appVersionDisplay) ada');
+// Elemen versi ada di auth.html (halaman app)
+ok(!/Versi\s+\d+\.\d+/.test(sprite), 'auth.html: tidak ada versi hardcoded ("Versi X.Y.Z")');
+ok(sprite.includes('id="aboutAppVersion"'), 'auth.html: badge versi dinamis (aboutAppVersion) ada');
+ok(sprite.includes('id="appVersionDisplay"'), 'auth.html: display versi (appVersionDisplay) ada');
 ok(/getElementById\('aboutAppVersion'\)[\s\S]*?APP_VERSION/.test(js), 'app.js: aboutAppVersion diisi dari APP_VERSION');
 ok(/getElementById\('appVersionDisplay'\)[\s\S]*?APP_VERSION/.test(js), 'app.js: appVersionDisplay diisi dari APP_VERSION');
 
