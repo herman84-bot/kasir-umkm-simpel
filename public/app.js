@@ -1356,7 +1356,12 @@ const App = (() => {
     // Invalidate server-side subscription cache so the next requirePremium/requireBusiness
     // call always fetches fresh data from the Edge Function.
     invalidateSubscriptionCache();
-    const { data, error } = await db.from('stores').select('*').order('created_at', { ascending: true });
+    // Filter by owner_id: user hanya boleh melihat toko miliknya sendiri.
+    // Tanpa filter ini, user baru (Google atau email) akan melihat toko user lain
+    // dan terlewat guard 'promptStoreSetup' di enterAppAfterAuth().
+    const { data, error } = await db.from('stores').select('*')
+      .eq('owner_id', state.authUser?.id)
+      .order('created_at', { ascending: true });
     if (error) { console.warn('loadStore error:', error); return null; }
     state.stores = data || [];
 
@@ -5317,6 +5322,13 @@ ${txRows}
       return;
     }
     form.reset();
+    // Pre-fill nama pemilik dari metadata Google/Supabase auth (jika ada)
+    if (state.authUser?.user_metadata?.full_name) {
+      ownerEl.value = state.authUser.user_metadata.full_name;
+    } else if (state.authUser?.email) {
+      // Fallback: gunakan bagian sebelum @ sebagai nama
+      ownerEl.value = state.authUser.email.split('@')[0];
+    }
     nameEl.focus();
     modal.classList.remove('hidden');
     const cleanup = () => {
@@ -5365,9 +5377,14 @@ ${txRows}
     // Cek super admin SEBELUM guard toko agar super admin bisa bypass
     await checkSuperAdmin();
 
-    // Pengaman: user terautentikasi tapi belum punya toko (mis. lewat konfirmasi email)
-    // Super admin dibebaskan dari kewajiban memiliki toko
+    // Pengaman: user terautentikasi tapi belum punya toko.
+    // Ini terjadi untuk:
+    // - User baru Google OAuth (langsung login, belum pernah daftar toko)
+    // - User email yang sudah verifikasi tapi belum membuat toko
+    // - Edge case: store milik user terhapus
+    // Super admin dibebaskan dari kewajiban memiliki toko.
     if (db && state.authUser && !state.storeId && !_isSuperAdmin) {
+      // Pre-fill nama pemilik dari metadata Google (jika ada)
       const setup = await promptStoreSetup();
       if (!setup) return;
       const storeName = setup.name;
@@ -5384,6 +5401,8 @@ ${txRows}
         });
         if (initCashierErr) logError('cashier insert gagal', { storeId: state.storeId }, initCashierErr);
         await loadData();
+        // Tampilkan onboarding untuk semua user baru (Google & email)
+        showOnboarding(storeName);
       } else if (error) {
         alert('Gagal membuat toko: ' + friendlyError(error));
       }
