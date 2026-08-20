@@ -2,6 +2,15 @@
   "cleanUrls": true,
   "rewrites": [
     { "source": "/auth", "destination": "/auth.html" },
+    { "source": "/about", "destination": "/about.html" },
+    { "source": "/features", "destination": "/features.html" },
+    { "source": "/privacy", "destination": "/privacy.html" },
+    { "source": "/blog", "destination": "/blog/index.html" },
+    { "source": "/blog/cara-memilih-aplikasi-kasir", "destination": "/blog/cara-memilih-aplikasi-kasir.html" },
+    { "source": "/blog/kasir-manual-vs-online", "destination": "/blog/kasir-manual-vs-online.html" },
+    { "source": "/blog/fitur-wajib-aplikasi-kasir", "destination": "/blog/fitur-wajib-aplikasi-kasir.html" },
+    { "source": "/blog/setup-kasir-online-tanpa-install", "destination": "/blog/setup-kasir-online-tanpa-install.html" },
+    { "source": "/blog/tips-kelola-stok-barang", "destination": "/blog/tips-kelola-stok-barang.html" },
     { "source": "/((?!.*\\.).+)", "destination": "/index.html" }
   ],
   "headers": [
