@@ -623,7 +623,7 @@ const App = (() => {
   const fromDbCashier = c => ({
     id: String(c.id),
     name: c.name,
-    password: c.password || '1234',
+    has_pin: !!c.has_pin,
     role: c.role || 'kasir'
   });
 
@@ -1448,7 +1448,7 @@ const App = (() => {
 
       setLoadingStatus('Memuat kasir...', 55);
       const { data: cashiers } = await db
-        .from('cashiers').select('*').eq('store_id', state.storeId).order('id', { ascending: true });
+        .from('cashiers').select('id, name, role, store_id, has_pin').eq('store_id', state.storeId).order('id', { ascending: true });
       state.cashiers = cashiers ? cashiers.map(fromDbCashier) : [];
       // Pengaman data lama: minimal harus ada satu admin agar pemilik tidak terkunci
       if (state.cashiers.length && !state.cashiers.some(c => c.role === 'admin')) {
@@ -1881,7 +1881,7 @@ const App = (() => {
         if (error) { showCashierError('Gagal simpan: ' + friendlyError(error)); return; }
         const idx = state.cashiers.findIndex(c => c.id === id);
         if (idx >= 0) {
-          state.cashiers[idx] = { ...state.cashiers[idx], name, role, ...(password ? { password } : {}) };
+          state.cashiers[idx] = { ...state.cashiers[idx], name, role, ...(password ? { has_pin: true } : {}) };
         }
       } else {
         // Insert
@@ -1894,9 +1894,9 @@ const App = (() => {
       // localStorage fallback
       if (id) {
         const idx = state.cashiers.findIndex(c => c.id === id);
-        if (idx >= 0) state.cashiers[idx] = { ...state.cashiers[idx], name, role, ...(password ? { password } : {}) };
+        if (idx >= 0) state.cashiers[idx] = { ...state.cashiers[idx], name, role, ...(password ? { has_pin: true } : {}) };
       } else {
-        state.cashiers.push({ id: `C${Date.now()}`, name, password, role });
+        state.cashiers.push({ id: `C${Date.now()}`, name, has_pin: true, role });
       }
     }
 
@@ -2135,8 +2135,16 @@ const App = (() => {
     dom.paymentConfirmModal.classList.add('hidden');
   };
 
-  const authenticateUser = async (name, password) => {
-    const user = state.cashiers.find(item => item.name.toLowerCase() === name.toLowerCase() && item.password === password);
+  const authenticateUser = async (name, pin) => {
+    // Verifikasi PIN via server-side RPC (bcrypt check)
+    const { data: verified, error } = await db.rpc('verify_cashier_pin', {
+      p_store_id: state.storeId,
+      p_pin: pin
+    });
+    if (error || !verified || !verified.length) return false;
+    const matched = verified[0];
+    // Pastikan nama cocok
+    const user = state.cashiers.find(item => item.name.toLowerCase() === name.toLowerCase() && String(item.id) === String(matched.id));
     if (!user) return false;
     state.activeUserId = user.id;
     state.selectedCashierId = user.id;
@@ -3893,10 +3901,11 @@ ${txRows}
         cancelBtn.removeEventListener('click', onCancel);
       };
 
-      const onSubmit = (e) => {
+      const onSubmit = async (e) => {
         e.preventDefault();
         const pin = input.value;
-        if (state.cashiers.some(c => c.role === 'admin' && c.password === pin)) {
+        const { data: adminOk } = await db.rpc('verify_admin_pin', { p_store_id: state.storeId, p_pin: pin });
+        if (adminOk) {
           cleanup();
           resolve(true);
         } else {
