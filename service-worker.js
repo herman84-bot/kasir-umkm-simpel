@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kasir-umkm-cache-v41';
+const CACHE_NAME = 'kasir-umkm-cache-v42';
 // CATATAN PENTING: jangan masukkan 'index.html' di sini. Vercel cleanUrls=true
 // me-redirect /index.html -> / (308); Cache API menolak menyimpan response
 // hasil redirect sehingga cache.addAll() reject dan install SW GAGAL TOTAL —
@@ -8,7 +8,7 @@ const CACHE_NAME = 'kasir-umkm-cache-v41';
 // app.js?v=N harus cocok dengan <script src> di index agar precache = runtime URL.
 const ASSETS = [
   './',
-  'app.js?v=18',
+  'app.js?v=19',
   'vendor/gsap.min.js',
   'customer-display.html',
   'manifest.json',
