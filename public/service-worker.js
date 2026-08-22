@@ -10,6 +10,7 @@ const CACHE_NAME = 'kasir-umkm-cache-v44';
 const ASSETS = [
   './',
   'app.js?v=21',
+  'vendor/supabase.min.js',
   'vendor/gsap.min.js',
   'customer-display.html',
   'manifest.json',

@@ -701,6 +701,7 @@ const App = (() => {
     if (initSupabase()) return true;
 
     const sources = [
+      'vendor/supabase.min.js',
       'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js',
       'https://unpkg.com/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js'
     ];
