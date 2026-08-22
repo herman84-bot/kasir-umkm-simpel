@@ -540,6 +540,14 @@ const App = (() => {
   // sebelum password baru dibuat — pemegang link tidak boleh dapat akses penuh.
   let passwordRecoveryMode = false;
 
+  // Abort helper: batasi waktu query Supabase supaya tidak hang selamanya
+  const QUERY_TIMEOUT_MS = 15000;
+  const timedAbort = () => {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), QUERY_TIMEOUT_MS);
+    return { signal: c.signal, done: () => clearTimeout(t) };
+  };
+
   const initSupabase = () => {
     if (window.supabase) {
       // detectSessionInUrl WAJIB tetap true (biar link recovery/PKCE tetap
@@ -1435,9 +1443,18 @@ const App = (() => {
     // Filter by owner_id: user hanya boleh melihat toko miliknya sendiri.
     // Tanpa filter ini, user baru (Google atau email) akan melihat toko user lain
     // dan terlewat guard 'promptStoreSetup' di enterAppAfterAuth().
-    const { data, error } = await db.from('stores').select('*')
-      .eq('owner_id', state.authUser?.id)
-      .order('created_at', { ascending: true });
+    let data = null, error = null;
+    const _ab = timedAbort();
+    try {
+      ({ data, error } = await db.from('stores').select('*')
+        .eq('owner_id', state.authUser?.id)
+        .order('created_at', { ascending: true })
+        .abortSignal(_ab.signal));
+    } catch (e) {
+      console.warn('loadStore timeout/abort:', e.message);
+    } finally {
+      _ab.done();
+    }
     if (error) { console.warn('loadStore error:', error); return null; }
     state.stores = data || [];
 
@@ -1512,19 +1529,26 @@ const App = (() => {
 
     // Kirim transaksi offline yang tertunda SEBELUM memuat data,
     // agar stok & riwayat yang dimuat sudah termasuk transaksi tersebut
-    await flushOfflineQueue();
-    await flushDebtQueue();
+    // Wrap dengan try-catch: jika flush gagal/hang, loadData tetap lanjut
+    try { await flushOfflineQueue(); } catch (e) { logError('loadData: flushOfflineQueue gagal', {}, e); }
+    try { await flushDebtQueue(); } catch (e) { logError('loadData: flushDebtQueue gagal', {}, e); }
 
     try {
       setLoadingStatus('Memuat produk...', 40);
+      let _ab2 = timedAbort();
       const { data: products, error: pErr } = await db
-        .from('products').select('*').eq('store_id', state.storeId).order('id', { ascending: true });
+        .from('products').select('*').eq('store_id', state.storeId).order('id', { ascending: true })
+        .abortSignal(_ab2.signal);
+      _ab2.done();
       if (pErr) throw pErr;
       state.products = products ? products.map(fromDbProduct) : [];
 
       setLoadingStatus('Memuat kasir...', 55);
+      let _ab3 = timedAbort();
       const { data: cashiers } = await db
-        .from('cashiers').select('id, name, role, store_id, has_pin').eq('store_id', state.storeId).order('id', { ascending: true });
+        .from('cashiers').select('id, name, role, store_id, has_pin').eq('store_id', state.storeId).order('id', { ascending: true })
+        .abortSignal(_ab3.signal);
+      _ab3.done();
       state.cashiers = cashiers ? cashiers.map(fromDbCashier) : [];
       // Pengaman data lama: minimal harus ada satu admin agar pemilik tidak terkunci
       if (state.cashiers.length && !state.cashiers.some(c => c.role === 'admin')) {
@@ -1536,24 +1560,33 @@ const App = (() => {
       state.activeUserId = state.selectedCashierId;
 
       setLoadingStatus('Memuat transaksi...', 70);
+      let _ab4 = timedAbort();
       const { data: transactions, error: tErr } = await db
         .from('transactions').select('*, transaction_items(*)')
         .eq('store_id', state.storeId)
-        .order('created_at', { ascending: false }).limit(500);
+        .order('created_at', { ascending: false }).limit(500)
+        .abortSignal(_ab4.signal);
+      _ab4.done();
       if (tErr) throw tErr;
       state.transactions = transactions ? transactions.map(fromDbTransaction) : [];
 
       setLoadingStatus('Memuat pembelian...', 85);
+      let _ab5 = timedAbort();
       const { data: purchases } = await db
         .from('purchases').select('*, purchase_items(*)')
         .eq('store_id', state.storeId)
-        .order('created_at', { ascending: false }).limit(200);
+        .order('created_at', { ascending: false }).limit(200)
+        .abortSignal(_ab5.signal);
+      _ab5.done();
       state.purchases = purchases ? purchases.map(fromDbPurchase) : [];
 
       // Kasbon (tabel bisa belum ada jika 05_kasbon.sql belum dijalankan)
+      let _ab6 = timedAbort();
       const { data: debts, error: dErr } = await db
         .from('debts').select('*').eq('store_id', state.storeId)
-        .order('created_at', { ascending: false }).limit(500);
+        .order('created_at', { ascending: false }).limit(500)
+        .abortSignal(_ab6.signal);
+      _ab6.done();
       if (dErr) {
         logError('loadData: gagal memuat kasbon', { storeId: state.storeId }, dErr);
         try { state.debts = JSON.parse(localStorage.getItem('pos_debts') || '[]'); } catch { state.debts = []; }
@@ -1564,13 +1597,14 @@ const App = (() => {
 
       setLoadingStatus('Siap!', 100);
     } catch (err) {
-      logError('loadData: gagal memuat data toko', { storeId: state.storeId }, err);
-      showAppToast('Gagal memuat data toko. Coba refresh halaman.', 'error');
-      state.products = [];
-      state.transactions = [];
-      state.cashiers = [];
-      state.purchases = [];
-      state.debts = [];
+      const isAbort = err?.name === 'AbortError' || /abort/i.test(err?.message || '');
+      const msg = isAbort
+        ? 'Koneksi lambat — gagal memuat data. Periksa jaringan lalu refresh.'
+        : 'Gagal memuat data toko. Coba refresh halaman.';
+      logError('loadData: gagal memuat data toko', { storeId: state.storeId, abort: isAbort }, err);
+      showAppToast(msg, 'error');
+      // Jangan kosongkan data jika hanya sebagian query yang gagal (abort)
+      // — data yang sudah berhasil dimuat tetap dipertahankan
     }
 
     syncStorage();
@@ -5468,7 +5502,17 @@ ${txRows}
       return;
     }
     showHelpChatFab();
-    await loadData();
+    // Hard timeout: kalau loadData() hang (flush offline/debt stuck),
+    // tetap tampilkan dashboard dengan data kosong setelah 30 detik
+    const loadDataWithTimeout = Promise.race([
+      loadData(),
+      new Promise(resolve => setTimeout(() => {
+        logError('loadData: timeout 30s — lanjut dengan data kosong', {});
+        showAppToast('Koneksi lambat. Beberapa data mungkin belum dimuat.', 'error');
+        resolve();
+      }, 30000))
+    ]);
+    await loadDataWithTimeout;
 
     // Cek super admin SEBELUM guard toko agar super admin bisa bypass
     await checkSuperAdmin();
@@ -6893,8 +6937,14 @@ ${txRows}
         // Sesi aktif langsung masuk dashboard: gate lampu dilucuti supaya
         // logout di sesi ini tidak tiba-tiba menampilkan layar gelap.
         lampGateChecked = true;
-        await enterAppAfterAuth();
-        hideLoadingOverlay();
+        // Hard timeout: jika enterAppAfterAuth hang, tetap sembunyikan loading
+        const _enterTimeout = new Promise(resolve => setTimeout(() => {
+          logError('enterAppAfterAuth: timeout 45s — force hide loading', {});
+          showAppToast('Koneksi lambat. Beberapa fitur mungkin belum siap.', 'error');
+          hideLoadingOverlay();
+          resolve();
+        }, 45000));
+        await Promise.race([enterAppAfterAuth(), _enterTimeout]).then(() => hideLoadingOverlay());
       }
     } else {
       if (linkExpired) {
