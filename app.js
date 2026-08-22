@@ -1063,8 +1063,16 @@ const App = (() => {
   const hideLoadingOverlay = () => {
     const el = document.getElementById('loadingOverlay');
     if (!el) return;
-    el.style.opacity = '0';
     el.style.pointerEvents = 'none';
+    // Gate lampu aktif: layar di baliknya sama-sama gelap, jadi crossfade 300ms
+    // tidak menyamarkan apa pun — justru judul + progress bar overlay terlihat
+    // menembus lampu yang sedang fade-in, dan itu yang terbaca sebagai kedipan
+    // "halaman login sempat muncul". Lepas seketika saja.
+    if (lampGateActive) {
+      el.remove();
+      return;
+    }
+    el.style.opacity = '0';
     setTimeout(() => el.remove(), 400);
   };
   // ─────────────────────────────────────────────────────────────────────────
@@ -6815,8 +6823,11 @@ ${txRows}
         lampGateChecked = true;
         endLampGate(false);
       }
-      hideLoadingOverlay();
+      // showLoginPage() DULU, baru overlay dilepas: showLoginPage yang memasang
+      // gate lampu, dan hideLoadingOverlay perlu tahu gate aktif supaya melepas
+      // overlay seketika, bukan crossfade di atas lampu.
       showLoginPage();
+      hideLoadingOverlay();
       if (linkExpired) {
         const authError2 = document.getElementById('authError');
         if (authError2) {
