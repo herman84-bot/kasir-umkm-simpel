@@ -2164,13 +2164,25 @@
             </label>
             <label class="block">
               <span class="text-body text-sm font-medium">PIN Kasir / Admin</span>
-              <input id="storeSetupPin" type="password" inputmode="numeric" maxlength="8" required placeholder="Contoh: 1234"
+              <input id="storeSetupPin" type="password" inputmode="numeric" maxlength="8" required placeholder="Contoh: 1234" value="1234"
                 class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none" />
-              <p class="text-xs text-muted-soft mt-1">PIN dipakai operator untuk ganti kasir di halaman Kasir.</p>
+              <p class="text-xs text-muted-soft mt-1">PIN dipakai operator untuk ganti kasir di halaman Kasir (default: 1234).</p>
             </label>
-            <button type="submit" class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition min-h-[44px]">
-              Buat Toko &amp; Mulai
-            </button>
+            <label class="flex items-start gap-3 p-3 rounded-lg bg-surface-soft border border-hairline cursor-pointer select-none">
+              <input id="storeSetupSeedProducts" type="checkbox" checked class="mt-1 h-4 w-4 rounded border-hairline text-primary focus:ring-primary" />
+              <div class="text-xs">
+                <span class="font-semibold text-body block">Tambahkan contoh produk warung</span>
+                <span class="text-muted-soft">Beras, Minyak, Mie, Kopi, dsb. agar bisa langsung coba transaksi.</span>
+              </div>
+            </label>
+            <div class="flex flex-col gap-2 pt-2">
+              <button type="submit" id="storeSetupSubmitBtn" class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition min-h-[44px]">
+                Buat Toko &amp; Mulai
+              </button>
+              <button type="button" id="storeSetupCancelBtn" class="w-full rounded-lg border border-hairline bg-white px-5 py-2.5 text-muted hover:text-body hover:bg-surface-soft transition text-sm">
+                Batal &amp; Keluar
+              </button>
+            </div>
           </form>
         </div>
       </div>

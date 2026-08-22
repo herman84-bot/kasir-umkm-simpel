@@ -1,6 +1,26 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
+  <script>
+    (function () {
+      try {
+        var hasSession = false;
+        for (var i = 0; i < localStorage.length; i++) {
+          var key = localStorage.key(i);
+          if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+            var raw = localStorage.getItem(key);
+            if (raw && raw !== 'null' && raw !== '{}') {
+              hasSession = true;
+              break;
+            }
+          }
+        }
+        if (hasSession) {
+          window.location.replace('/auth');
+        }
+      } catch (_) {}
+    })();
+  </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kasir UMKM Simpel — Aplikasi Kasir Gratis untuk Warung &amp; Toko</title>

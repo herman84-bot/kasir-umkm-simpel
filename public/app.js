@@ -1090,8 +1090,8 @@ const App = (() => {
     applySuperAdminVisibility();
   };
 
-  const logout = async () => {
-    if (!confirm('Yakin ingin keluar dari toko?')) return;
+  const logout = async (skipConfirm = false) => {
+    if (!skipConfirm && !confirm('Yakin ingin keluar dari toko?')) return;
     if (db) await db.auth.signOut();
     state.authUser = null;
     state.store = null;
@@ -1545,10 +1545,19 @@ const App = (() => {
 
       setLoadingStatus('Memuat kasir...', 55);
       let _ab3 = timedAbort();
-      const { data: cashiers } = await db
+      let { data: cashiers, error: cErr } = await db
         .from('cashiers').select('id, name, role, store_id, has_pin').eq('store_id', state.storeId).order('id', { ascending: true })
         .abortSignal(_ab3.signal);
       _ab3.done();
+      // Fallback: jika kolom has_pin belum ada di DB, query tanpa kolom itu
+      if (cErr && /has_pin/.test(cErr.message || '')) {
+        _ab3 = timedAbort();
+        const fallback = await db
+          .from('cashiers').select('id, name, role, store_id').eq('store_id', state.storeId).order('id', { ascending: true })
+          .abortSignal(_ab3.signal);
+        _ab3.done();
+        cashiers = fallback.data;
+      }
       state.cashiers = cashiers ? cashiers.map(fromDbCashier) : [];
       // Pengaman data lama: minimal harus ada satu admin agar pemilik tidak terkunci
       if (state.cashiers.length && !state.cashiers.some(c => c.role === 'admin')) {
@@ -5440,57 +5449,68 @@ ${txRows}
   };
 
   // Modal setup toko — pengganti prompt() browser saat onboarding pertama.
-  // Kembali: {name, owner, pin} bila disubmit, null bila dibatalkan.
+  // Kembali: {name, owner, pin, seedProducts} bila disubmit, null bila dibatalkan (logout).
   const promptStoreSetup = () => new Promise((resolve) => {
     const modal = document.getElementById('storeSetupModal');
     const form = document.getElementById('storeSetupForm');
     const nameEl = document.getElementById('storeSetupName');
     const ownerEl = document.getElementById('storeSetupOwner');
     const pinEl = document.getElementById('storeSetupPin');
+    const seedEl = document.getElementById('storeSetupSeedProducts');
+    const cancelBtn = document.getElementById('storeSetupCancelBtn');
     if (!modal || !form || !nameEl || !ownerEl || !pinEl) {
       resolve(null);
       return;
     }
     form.reset();
+    if (seedEl) seedEl.checked = true;
+    if (pinEl) pinEl.value = '1234';
+
     // Pre-fill nama pemilik dari metadata Google/Supabase auth (jika ada)
+    let defaultOwner = '';
     if (state.authUser?.user_metadata?.full_name) {
-      ownerEl.value = state.authUser.user_metadata.full_name;
+      defaultOwner = state.authUser.user_metadata.full_name;
     } else if (state.authUser?.email) {
-      // Fallback: gunakan bagian sebelum @ sebagai nama
-      ownerEl.value = state.authUser.email.split('@')[0];
+      defaultOwner = state.authUser.email.split('@')[0];
     }
-    nameEl.focus();
+    ownerEl.value = defaultOwner;
+
+    // Smart pre-fill nama toko agar user baru tidak perlu ketik dari nol
+    if (defaultOwner) {
+      nameEl.value = 'Toko ' + defaultOwner.charAt(0).toUpperCase() + defaultOwner.slice(1);
+    } else {
+      nameEl.value = 'Warung Berkah';
+    }
+
     modal.classList.remove('hidden');
+    nameEl.focus();
+
     const cleanup = () => {
       modal.classList.add('hidden');
       form.removeEventListener('submit', onSubmit);
-      document.removeEventListener('keydown', onKey);
-      modal.removeEventListener('click', onBackdrop);
+      cancelBtn?.removeEventListener('click', onCancel);
     };
+
     const onSubmit = (e) => {
       e.preventDefault();
       const name = nameEl.value.trim();
       const owner = ownerEl.value.trim();
       const pin = pinEl.value.trim();
+      const seedProducts = seedEl ? seedEl.checked : false;
       if (!name || !owner || !pin) return;
       cleanup();
-      resolve({ name, owner, pin });
+      resolve({ name, owner, pin, seedProducts });
     };
-    const onKey = (e) => {
-      if (e.key === 'Escape') {
-        cleanup();
-        resolve(null);
-      }
+
+    const onCancel = async () => {
+      if (!confirm('Batalkan pendaftaran toko dan keluar dari akun?')) return;
+      cleanup();
+      resolve(null);
+      await logout(true);
     };
-    const onBackdrop = (e) => {
-      if (e.target === modal) {
-        cleanup();
-        resolve(null);
-      }
-    };
+
     form.addEventListener('submit', onSubmit);
-    document.addEventListener('keydown', onKey);
-    modal.addEventListener('click', onBackdrop);
+    cancelBtn?.addEventListener('click', onCancel);
   });
 
   // Dipanggil setelah login/daftar berhasil ATAU saat sesi masih aktif
@@ -5524,13 +5544,14 @@ ${txRows}
     // - Edge case: store milik user terhapus
     // Super admin dibebaskan dari kewajiban memiliki toko.
     if (db && state.authUser && !state.storeId && !_isSuperAdmin) {
-      // Pre-fill nama pemilik dari metadata Google (jika ada)
+      // Pre-fill nama pemilik & nama toko dari metadata Google
       const setup = await promptStoreSetup();
       if (!setup) return;
       const storeName = setup.name;
       const ownerName = setup.owner;
       const pin = setup.pin;
-      
+      const shouldSeedProducts = setup.seedProducts;
+
       const { data: store, error } = await db.from('stores')
         .insert({ owner_id: state.authUser.id, name: storeName }).select().single();
       if (!error && store) {
@@ -5540,6 +5561,23 @@ ${txRows}
           store_id: store.id, name: ownerName.trim(), password: pin, role: 'admin'
         });
         if (initCashierErr) logError('cashier insert gagal', { storeId: state.storeId }, initCashierErr);
+
+        // Seeding contoh produk warung jika dipilih oleh user
+        if (shouldSeedProducts && sampleProducts.length > 0) {
+          const sampleRows = sampleProducts.map(p => ({
+            store_id: store.id,
+            name: p.name,
+            category: p.category,
+            price: p.price,
+            cost: p.cost,
+            stock: p.stock,
+            min_stock: 5,
+            barcode: p.barcode || null
+          }));
+          const { error: pErr } = await db.from('products').insert(sampleRows);
+          if (pErr) logError('sample products seed gagal', { storeId: store.id }, pErr);
+        }
+
         await loadData();
         // Tampilkan onboarding untuk semua user baru (Google & email)
         showOnboarding(storeName);
