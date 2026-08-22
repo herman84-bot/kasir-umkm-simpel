@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" style="background:#1B1815">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -573,7 +573,10 @@
     }
   </style>
 </head>
-<body class="bg-surface-soft text-ink">
+<!-- bg-ink (bukan bg-surface-soft): auth.html SELALU halaman gelap sampai
+     lampu ditarik. Body terang membuat frame pertama berkedip putih sebelum
+     overlay/veil sempat dilukis. -->
+<body class="bg-ink text-ink">
   <!-- Premium line-icon sprite (Lucide/Claude-style, monochrome stroke) -->
   <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none">
     <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
@@ -2456,6 +2459,6 @@
   </div>
 
 
-  <script src="app.js?v=19" defer></script>
+  <script src="app.js?v=20" defer></script>
 </body>
 </html>
