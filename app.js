@@ -832,6 +832,34 @@ const App = (() => {
       .fromTo(card, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power2.out' }, 0.55);
   };
 
+  // Kunci localStorage tempat SDK Supabase menyimpan sesi (format bawaan:
+  // sb-<project-ref>-auth-token). Dipakai HANYA untuk menebak secara sinkron
+  // apakah user kemungkinan sudah login, bukan untuk membaca isi sesinya.
+  const SUPABASE_SESSION_KEY = 'sb-pfmsblktxlnovtajnxvc-auth-token';
+  const hasStoredSupabaseSession = () => {
+    // Storage diblokir -> anggap ADA sesi. Salah tebak ke arah ini cuma bikin
+    // lampu tidak muncul; salah tebak ke arah sebaliknya bikin lampu sempat
+    // muncul lalu tersapu dashboard — jauh lebih mengganggu.
+    try { return !!localStorage.getItem(SUPABASE_SESSION_KEY); } catch (e) { return true; }
+  };
+
+  // Pasang gate lampu SEBELUM cek sesi ke server. Kalau menunggu getSession()
+  // selesai (round-trip jaringan, ratusan milidetik di seluler), overlay
+  // loading — yang isinya ikon keranjang + judul aplikasi, mirip header
+  // halaman login — terlihat lebih dulu, dan itu yang terbaca sebagai
+  // "halaman login sempat kelihatan padahal lampu belum diklik".
+  // Syaratnya harus bisa DIBUKTIKAN SINKRON bahwa tidak ada sesi tersimpan:
+  // kalau user sudah login, tujuan akhirnya dashboard dan lampu tidak boleh
+  // muncul sama sekali. startLampGate() sendiri masih menyaring link recovery,
+  // callback OAuth, reduced-motion, dan GSAP yang gagal dimuat.
+  const startLampGateEarly = () => {
+    if (lampGateChecked) return;
+    if (hasStoredSupabaseSession()) return;
+    lampGateChecked = true;
+    startLampGate();
+    if (lampGateActive) hideLoadingOverlay();
+  };
+
   const startLampGate = () => {
     try {
       const gate = document.getElementById('lampGate');
@@ -6677,6 +6705,7 @@ ${txRows}
   // ── End Super Admin Module ───────────────────────────────────────────────
 
   const init = async () => {
+    startLampGateEarly();
     setLoadingStatus('Menghubungkan ke database...', 10);
     // Snapshot hash & query string SEBELUM createClient dipanggil sama sekali.
     // Root cause bypass: link recovery PKCE dari Supabase membawa
