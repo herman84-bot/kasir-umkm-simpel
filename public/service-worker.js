@@ -4,8 +4,9 @@ const CACHE_NAME = 'kasir-umkm-cache-v44';
 // hasil redirect sehingga cache.addAll() reject dan install SW GAGAL TOTAL —
 // akibatnya SW lama tidak pernah tergantikan dan aset basi terus disajikan.
 // Root './' melayani index tanpa redirect. HTML tetap di-cache runtime (network-first).
-// CDN di bawah memakai Promise.allSettled sehingga redirect/404 tidak membatalkan install.
-// app.js?v=N harus cocok dengan <script src> di index agar precache = runtime URL.
+// HANYA precache aset lokal (same-origin). CDN eksternal TIDAK dimasukkan ke precache
+// untuk mencegah kegagalan install SW akibat redirect CDN (302) atau SRI mismatch.
+// app.js?v=N harus cocok dengan <script src> di index/auth agar precache = runtime URL.
 const ASSETS = [
   './',
   'app.js?v=21',
@@ -13,12 +14,7 @@ const ASSETS = [
   'customer-display.html',
   'manifest.json',
   'icons/icon-192.png',
-  'icons/icon-512.png',
-  'https://cdn.jsdelivr.net/npm/chart.js@4.5.1',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2',
-  'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js',
-  'https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js',
-  'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'
+  'icons/icon-512.png'
 ];
 
 self.addEventListener('install', event => {

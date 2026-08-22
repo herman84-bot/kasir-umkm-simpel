@@ -121,16 +121,28 @@ const App = (() => {
     'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js': 'sha384-hStSInNIZ8ljtOVrmrgf7zdHMapaLBWoSnPTtF0nzsybp4+LuhDz6sHuEVpWIX8o'
   };
 
-  // Muat script eksternal sekali (no-op jika sudah ada); dipakai untuk lazy-load CDN
-  const loadScript = url => new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${url}"]`)) { resolve(); return; }
-    const s = document.createElement('script');
-    s.src = url;
-    if (CDN_SRI[url]) { s.integrity = CDN_SRI[url]; s.crossOrigin = 'anonymous'; }
-    s.onload = resolve;
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
+  // Muat script eksternal sekali (mencegah race condition concurrent callers); dipakai untuk lazy-load CDN
+  const _scriptLoadPromises = new Map();
+  const loadScript = url => {
+    if (_scriptLoadPromises.has(url)) return _scriptLoadPromises.get(url);
+    const existing = document.querySelector(`script[src="${url}"]`);
+    if (existing && existing.dataset.loaded === 'true') return Promise.resolve();
+
+    const p = new Promise((resolve, reject) => {
+      const s = existing || document.createElement('script');
+      if (CDN_SRI[url]) { s.integrity = CDN_SRI[url]; s.crossOrigin = 'anonymous'; }
+      const onOk = () => { s.dataset.loaded = 'true'; resolve(); };
+      const onErr = (e) => { _scriptLoadPromises.delete(url); reject(e); };
+      s.addEventListener('load', onOk, { once: true });
+      s.addEventListener('error', onErr, { once: true });
+      if (!existing) {
+        s.src = url;
+        document.head.appendChild(s);
+      }
+    });
+    _scriptLoadPromises.set(url, p);
+    return p;
+  };
 
   const STORAGE = {
     products: 'pos_products',
@@ -683,9 +695,36 @@ const App = (() => {
     return data?.session || null;
   };
 
+  // ensureDb: pastikan koneksi db dan library Supabase siap dengan multi-CDN fallback
+  const ensureDb = async () => {
+    if (db) return true;
+    if (initSupabase()) return true;
+
+    const sources = [
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js',
+      'https://unpkg.com/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js'
+    ];
+
+    for (const src of sources) {
+      if (db) return true;
+      try {
+        await loadScript(src);
+        if (initSupabase()) return true;
+      } catch (_) {
+        /* coba sumber berikutnya jika gagal */
+      }
+    }
+
+    for (let i = 0; i < 3 && !db; i++) {
+      await new Promise(r => setTimeout(r, 600));
+      if (initSupabase()) return true;
+    }
+    return !!db;
+  };
+
   // Login toko via email + password
   const handleLogin = async (email, password) => {
-    if (!db) return { error: 'Database tidak tersedia.' };
+    if (!(await ensureDb())) return { error: 'Database tidak tersedia. Coba muat ulang halaman atau nonaktifkan pemblokir iklan.' };
     const { data, error } = await db.auth.signInWithPassword({ email, password });
     if (error) return { error: terjemahAuthError(error.message) };
     state.authUser = data.user;
@@ -698,7 +737,7 @@ const App = (() => {
   // oleh guard keamanan isRecoveryLink di init(). Flag dibaca & dihapus
   // di init() begitu callback tiba.
   const handleGoogleLogin = async () => {
-    if (!db) return { error: 'Database tidak tersedia.' };
+    if (!(await ensureDb())) return { error: 'Database tidak tersedia. Coba muat ulang halaman atau nonaktifkan pemblokir iklan.' };
     try { localStorage.setItem('pending_oauth', 'google'); } catch (e) { /* storage diblokir */ }
     const { error } = await db.auth.signInWithOAuth({
       provider: 'google',
@@ -713,7 +752,7 @@ const App = (() => {
 
   // Daftar toko baru: buat akun auth + store + admin cashier
   const handleRegister = async ({ storeName, ownerName, email, password, pin }) => {
-    if (!db) return { error: 'Database tidak tersedia.' };
+    if (!(await ensureDb())) return { error: 'Database tidak tersedia. Coba muat ulang halaman atau nonaktifkan pemblokir iklan.' };
     const { data, error } = await db.auth.signUp({ email, password });
     if (error) return { error: terjemahAuthError(error.message) };
     if (!data.user) return { error: 'Gagal membuat akun.' };
@@ -5069,7 +5108,7 @@ ${txRows}
     dom.sendResetBtn?.addEventListener('click', async () => {
       const email = dom.resetEmail?.value.trim();
       if (!email) { alert('Masukkan email terlebih dahulu.'); return; }
-      if (!db) { alert('Koneksi database tidak tersedia.'); return; }
+      if (!(await ensureDb())) { alert('Koneksi database tidak tersedia. Periksa jaringan Anda atau coba muat ulang halaman.'); return; }
       dom.sendResetBtn.textContent = 'Mengirim...'; dom.sendResetBtn.disabled = true;
       const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
       dom.sendResetBtn.textContent = 'Kirim Link Reset'; dom.sendResetBtn.disabled = false;
@@ -5101,9 +5140,20 @@ ${txRows}
       if (pass1 !== pass2) { showErr('Password dan konfirmasi tidak sama.'); return; }
       const btn = document.getElementById('newPassSubmitBtn');
       btn.textContent = 'Menyimpan...'; btn.disabled = true;
-      const { error } = await db.auth.updateUser({ password: pass1 });
-      btn.textContent = 'Simpan Password Baru'; btn.disabled = false;
-      if (error) { showErr(terjemahAuthError(error.message)); return; }
+      try {
+        if (!(await ensureDb())) {
+          showErr('Koneksi database tidak tersedia. Coba muat ulang halaman.');
+          btn.textContent = 'Simpan Password Baru'; btn.disabled = false;
+          return;
+        }
+        const { error } = await db.auth.updateUser({ password: pass1 });
+        btn.textContent = 'Simpan Password Baru'; btn.disabled = false;
+        if (error) { showErr(terjemahAuthError(error.message)); return; }
+      } catch (err) {
+        btn.textContent = 'Simpan Password Baru'; btn.disabled = false;
+        showErr(friendlyError(err));
+        return;
+      }
       // signOut dibungkus try/catch: apa pun hasilnya (sukses/gagal), flag
       // recovery TETAP dibersihkan di finally — jangan sampai user stuck di
       // form recovery hanya karena signOut gagal karena network error
@@ -6778,7 +6828,8 @@ ${txRows}
     if (linkExpired) {
       history.replaceState(null, '', location.pathname);
     }
-    initSupabase();
+    // Pastikan Supabase library & connection siap (dengan multi-CDN fallback jika perlu)
+    await ensureDb();
     window.onerror = (msg, src, line, col, err) => {
       logError(String(msg), { src, line, col }, err);
       return false;
