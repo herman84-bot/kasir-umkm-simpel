@@ -6307,12 +6307,17 @@ ${txRows}
   const initHelpChat = () => {
     const fab = document.getElementById('helpChatFab');
     const panel = document.getElementById('helpChatPanel');
+    const menu = document.getElementById('helpMenu');
+    const menuChat = document.getElementById('helpMenuChat');
     const closeBtn = document.getElementById('helpChatClose');
     const messages = document.getElementById('helpChatMessages');
     const form = document.getElementById('helpChatForm');
     const input = document.getElementById('helpChatInput');
     const quick = document.getElementById('helpChatQuick');
-    if (!fab || !panel) return;
+    if (!fab) return;
+    const closeMenu = () => menu?.classList.add('hidden');
+    const closePanel = () => panel?.classList.add('hidden');
+    const closeAll = () => { closeMenu(); closePanel(); };
 
     const addMsg = (text, who) => {
       const div = document.createElement('div');
@@ -6371,13 +6376,23 @@ ${txRows}
       quick.appendChild(b);
     });
 
-    fab.addEventListener('click', () => {
-      panel.classList.toggle('hidden');
-      if (!panel.classList.contains('hidden') && !messages.childElementCount) {
+    fab.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const menuHidden = menu?.classList.contains('hidden');
+      closeAll();
+      if (menuHidden) menu?.classList.remove('hidden');
+    });
+    menuChat?.addEventListener('click', () => {
+      closeMenu();
+      panel?.classList.remove('hidden');
+      if (messages && !messages.childElementCount) {
         addMsg('Assalamualaikum! 🧕 Saya Aisyah, asisten Kasir UMKM. Tanya apa saja ya: cara pakai fitur, printer, QRIS, langganan, dan lainnya. Insya Allah saya bantu! 😊', 'bot');
       }
     });
-    closeBtn.addEventListener('click', () => panel.classList.add('hidden'));
+    closeBtn?.addEventListener('click', closePanel);
+    document.addEventListener('click', (e) => {
+      if (!menu?.contains(e.target) && !fab?.contains(e.target) && !panel?.contains(e.target)) closeAll();
+    });
     form.addEventListener('submit', e => {
       e.preventDefault();
       const q = input.value.trim();

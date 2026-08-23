@@ -187,7 +187,7 @@
     #helpChatFab {
       bottom: calc(72px + env(safe-area-inset-bottom, 0px));
     }
-    #helpChatPanel {
+    #helpMenu, #helpChatPanel {
       bottom: calc(136px + env(safe-area-inset-bottom, 0px));
     }
     @media (min-width: 768px) {
@@ -197,8 +197,8 @@
       #helpChatFab {
         bottom: 1.5rem;
       }
-      #helpChatPanel {
-        bottom: 6rem;
+      #helpMenu, #helpChatPanel {
+        bottom: 5rem;
       }
     }
 
@@ -2481,8 +2481,28 @@
   </div>
 
   <!-- Chat Bantuan -->
-  <button id="helpChatFab" class="hidden fixed right-4 z-[90] h-14 w-14 rounded-full bg-gradient-to-br from-primary-active to-primary shadow-sm hover:scale-110 transition-transform flex items-center justify-center no-print text-white" title="Tanya Aisyah"><svg class="icon icon-lg" aria-hidden="true"><use href="#i-message"/></svg></button>
-  <div id="helpChatPanel" class="hidden fixed right-4 z-[95] w-[calc(100vw-2rem)] max-w-sm h-[28rem] max-h-[calc(100vh-10rem)] rounded-xl bg-white border border-hairline shadow-sm flex flex-col overflow-hidden no-print">
+  <!-- Help FAB + Menu -->
+  <button id="helpChatFab" class="hidden fixed left-4 bottom-20 md:bottom-6 z-[90] h-12 w-12 rounded-full bg-ink shadow-sm hover:bg-body transition flex items-center justify-center no-print text-white" title="Bantuan & Umpan Balik" aria-label="Bantuan & Umpan Balik">
+    <svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>
+  </button>
+  <div id="helpMenu" class="hidden fixed left-4 bottom-34 md:bottom-20 z-[95] w-56 rounded-xl bg-white border border-hairline shadow-sm overflow-hidden no-print">
+    <button id="helpMenuChat" class="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-ink hover:bg-surface-soft transition">
+      <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-light text-primary shrink-0"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-message"/></svg></span>
+      <span><span class="font-medium block">Tanya Aisyah</span><span class="text-xs text-muted-soft">Asisten kasir AI</span></span>
+    </button>
+    <div class="border-t border-hairline"></div>
+    <a id="helpMenuBug" href="mailto:tokocuandigital@gmail.com?subject=Lapor%20Bug%20%E2%80%94%20Kasir%20UMKM%20Simpel" class="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-ink hover:bg-surface-soft transition">
+      <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 shrink-0"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-info"/></svg></span>
+      <span><span class="font-medium block">Lapor Bug</span><span class="text-xs text-muted-soft">Kirim laporan ke email</span></span>
+    </a>
+    <a id="helpMenuFeature" href="mailto:tokocuandigital@gmail.com?subject=Saran%20Fitur%20%E2%80%94%20Kasir%20UMKM%20Simpel" class="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-ink hover:bg-surface-soft transition">
+      <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 shrink-0"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-upload"/></svg></span>
+      <span><span class="font-medium block">Saran / Tambah Fitur</span><span class="text-xs text-muted-soft">Ide fitur baru untuk aplikasi</span></span>
+    </a>
+  </div>
+
+  <!-- Chat Panel (Aisyah) -->
+  <div id="helpChatPanel" class="hidden fixed left-4 bottom-34 md:bottom-20 z-[95] w-[calc(100vw-2rem)] max-w-sm h-[28rem] max-h-[calc(100vh-10rem)] rounded-xl bg-white border border-hairline shadow-sm flex flex-col overflow-hidden no-print">
     <div class="bg-ink text-white px-5 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <span class="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white"><svg class="icon" aria-hidden="true"><use href="#i-message"/></svg></span>
