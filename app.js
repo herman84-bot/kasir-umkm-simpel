@@ -9,6 +9,15 @@ const App = (() => {
     `<svg class="${cls}" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
   const iconText = (name, label, cls = 'icon') =>
     `${icon(name, cls)} ${label}`;
+  // Professional empty state: icon + title + description + optional CTA.
+  // No gradients, no oversized illustrations — follows existing design tokens.
+  const emptyState = (iconName, title, desc, ctaHtml = '') =>
+    `<div class="col-span-full flex flex-col items-center justify-center py-12 px-4 text-center">
+      <span class="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-surface-soft text-muted-soft">${icon(iconName, 'icon')}</span>
+      <p class="text-sm font-semibold text-ink">${title}</p>
+      <p class="mt-1 text-xs text-muted-soft max-w-xs">${desc}</p>
+      ${ctaHtml ? `<div class="mt-4">${ctaHtml}</div>` : ''}
+    </div>`;
 
   const APP_VERSION = '1.2.0';
 
@@ -2218,7 +2227,7 @@ const App = (() => {
 
   const renderPurchaseHistory = () => {
     if (!state?.purchases) {
-      dom.purchaseTable.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-muted">Belum ada data pembelian.</td></tr>';
+      dom.purchaseTable.innerHTML = `<tr><td colspan="6" class="p-8"><div class="flex flex-col items-center justify-center py-4 text-center"><span class="mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-surface-soft text-muted-soft"><svg class="icon" aria-hidden="true"><use href="#i-package"></use></svg></span><p class="text-sm font-semibold text-ink">Belum ada pembelian</p><p class="mt-1 text-xs text-muted-soft">Catat pembelian stok dari supplier di sini.</p></div></td></tr>`;
       return;
     }
     dom.purchaseTable.innerHTML = state.purchases.slice().reverse().map(order => {
@@ -2233,7 +2242,7 @@ const App = (() => {
           <td class="p-3">${esc(order.status)}</td>
         </tr>
       `;
-    }).join('') || '<tr><td colspan="6" class="p-8 text-center text-muted">Belum ada data pembelian.</td></tr>';
+    }).join('') || `<tr><td colspan="6" class="p-8"><div class="flex flex-col items-center justify-center py-4 text-center"><span class="mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-surface-soft text-muted-soft"><svg class="icon" aria-hidden="true"><use href="#i-package"></use></svg></span><p class="text-sm font-semibold text-ink">Belum ada pembelian</p><p class="mt-1 text-xs text-muted-soft">Catat pembelian stok dari supplier di sini.</p></div></td></tr>`;
   };
 
   const getActiveUser = () => {
@@ -2990,7 +2999,7 @@ const App = (() => {
           </td>
         </tr>
       `;
-    }).join('') || '<tr><td colspan="9" class="p-8 text-center text-muted">Belum ada transaksi.</td></tr>';
+    }).join('') || `<tr><td colspan="9" class="p-8"><div class="flex flex-col items-center justify-center py-4 text-center"><span class="mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-surface-soft text-muted-soft"><svg class="icon" aria-hidden="true"><use href="#i-receipt"></use></svg></span><p class="text-sm font-semibold text-ink">Belum ada transaksi</p><p class="mt-1 text-xs text-muted-soft">Transaksi pertama akan muncul di sini setelah Anda melakukan penjualan pertama.</p></div></td></tr>`;
 
     // Cetak ulang struk dari riwayat
     dom.historyTable.querySelectorAll('[data-reprint]').forEach(btn => {
@@ -4509,7 +4518,7 @@ ${txRows}
       if (error) {
         tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500">Gagal memuat data</td></tr>';
       } else if (!data || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center">Belum ada riwayat mutasi</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="5" class="p-6"><div class="flex flex-col items-center justify-center py-2 text-center"><span class="mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-surface-soft text-muted-soft"><svg class="icon" aria-hidden="true"><use href="#i-history"></use></svg></span><p class="text-sm font-semibold text-ink">Belum ada riwayat mutasi</p><p class="mt-1 text-xs text-muted-soft">Pergerakan stok produk akan tercatat di sini.</p></div></td></tr>`;
       } else {
         tbody.innerHTML = data.map(row => {
           const time = new Date(row.created_at).toLocaleString('id-ID');
@@ -5751,7 +5760,7 @@ ${txRows}
             <button data-debt-delete="${esc(d.id)}" class="btn-icon rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 hover:bg-rose-100 transition" title="Hapus">${icon('trash', 'icon icon-sm')}</button>
           </div>
         </div>`;
-    }).join('') || '<div class="col-span-full rounded-xl border border-dashed border-hairline bg-surface-soft p-8 text-center text-muted">Belum ada catatan kasbon. Klik "+ Catat Kasbon" untuk mulai.</div>';
+    }).join('') || emptyState('receipt', 'Belum ada kasbon', 'Catat hutang pelanggan di sini. Tandai lunas saat sudah dibayar.');
 
     list.querySelectorAll('[data-debt-paid]').forEach(btn =>
       btn.addEventListener('click', () => markDebtPaid(btn.dataset.debtPaid, btn)));
