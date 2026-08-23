@@ -6391,7 +6391,61 @@ ${txRows}
     });
     closeBtn?.addEventListener('click', closePanel);
     document.addEventListener('click', (e) => {
-      if (!menu?.contains(e.target) && !fab?.contains(e.target) && !panel?.contains(e.target)) closeAll();
+      if (!menu?.contains(e.target) && !fab?.contains(e.target) && !panel?.contains(e.target) && !feedbackModal?.contains(e.target)) closeAll();
+    });
+    // ── Feedback Modal ──
+    const feedbackModal = document.getElementById('feedbackModal');
+    const feedbackForm = document.getElementById('feedbackForm');
+    const feedbackTitle = document.getElementById('feedbackModalTitle');
+    const feedbackError = document.getElementById('feedbackError');
+    const feedbackSuccess = document.getElementById('feedbackSuccess');
+    const feedbackSubject = document.getElementById('feedbackSubject');
+    const feedbackMessage = document.getElementById('feedbackMessage');
+    const feedbackSubmitBtn = document.getElementById('feedbackSubmitBtn');
+    const openFeedback = (type) => {
+      closeAll();
+      if (!feedbackModal) return;
+      feedbackForm?.reset();
+      feedbackError?.classList.add('hidden');
+      feedbackSuccess?.classList.add('hidden');
+      if (feedbackTitle) feedbackTitle.textContent = type === 'bug' ? 'Lapor Bug' : 'Saran / Tambah Fitur';
+      if (feedbackSubject) feedbackSubject.placeholder = type === 'bug' ? 'Ringkasan bug...' : 'Ide fitur baru...';
+      feedbackModal.dataset.type = type;
+      feedbackModal.classList.remove('hidden');
+      feedbackSubject?.focus();
+    };
+    document.getElementById('helpMenuBug')?.addEventListener('click', () => openFeedback('bug'));
+    document.getElementById('helpMenuFeature')?.addEventListener('click', () => openFeedback('feature'));
+    document.getElementById('feedbackModalClose')?.addEventListener('click', () => feedbackModal?.classList.add('hidden'));
+    feedbackModal?.addEventListener('click', (e) => { if (e.target === feedbackModal) feedbackModal.classList.add('hidden'); });
+    feedbackForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      feedbackError?.classList.add('hidden');
+      feedbackSuccess?.classList.add('hidden');
+      const btn = feedbackSubmitBtn;
+      if (btn) { btn.textContent = 'Mengirim...'; btn.disabled = true; }
+      try {
+        const res = await db.functions.invoke('send-feedback', {
+          body: {
+            type: feedbackModal.dataset.type,
+            subject: feedbackSubject.value.trim(),
+            message: feedbackMessage.value.trim(),
+          },
+        });
+        if (res.error) throw new Error(res.error.message || 'Gagal mengirim');
+        if (feedbackSuccess) feedbackSuccess.textContent = 'Feedback terkirim! Terima kasih. Kami akan segera merespons.';
+        feedbackSuccess?.classList.remove('hidden');
+        feedbackForm?.reset();
+        setTimeout(() => feedbackModal?.classList.add('hidden'), 2000);
+      } catch (err) {
+        const msg = err?.message?.includes('Failed to fetch') || err?.message?.includes('network')
+          ? 'Koneksi bermasalah. Coba lagi.'
+          : 'Gagal mengirim feedback. Coba lagi.';
+        if (feedbackError) feedbackError.textContent = msg;
+        feedbackError?.classList.remove('hidden');
+      } finally {
+        if (btn) { btn.textContent = 'Kirim Feedback'; btn.disabled = false; }
+      }
     });
     form.addEventListener('submit', e => {
       e.preventDefault();

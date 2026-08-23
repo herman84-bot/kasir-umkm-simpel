@@ -2491,14 +2491,14 @@
       <span><span class="font-medium block">Tanya Aisyah</span><span class="text-xs text-muted-soft">Asisten kasir AI</span></span>
     </button>
     <div class="border-t border-hairline"></div>
-    <a id="helpMenuBug" href="mailto:tokocuandigital@gmail.com?subject=Lapor%20Bug%20%E2%80%94%20Kasir%20UMKM%20Simpel" class="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-ink hover:bg-surface-soft transition">
+    <button id="helpMenuBug" class="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-ink hover:bg-surface-soft transition">
       <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 shrink-0"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-info"/></svg></span>
       <span><span class="font-medium block">Lapor Bug</span><span class="text-xs text-muted-soft">Kirim laporan ke email</span></span>
-    </a>
-    <a id="helpMenuFeature" href="mailto:tokocuandigital@gmail.com?subject=Saran%20Fitur%20%E2%80%94%20Kasir%20UMKM%20Simpel" class="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-ink hover:bg-surface-soft transition">
+    </button>
+    <button id="helpMenuFeature" class="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-ink hover:bg-surface-soft transition">
       <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 shrink-0"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-upload"/></svg></span>
       <span><span class="font-medium block">Saran / Tambah Fitur</span><span class="text-xs text-muted-soft">Ide fitur baru untuk aplikasi</span></span>
-    </a>
+    </button>
   </div>
 
   <!-- Chat Panel (Aisyah) -->
@@ -2521,6 +2521,37 @@
     </form>
   </div>
 
+  <!-- Feedback Modal (Lapor Bug / Saran Fitur) -->
+  <div id="feedbackModal" class="hidden fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 no-print">
+    <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
+      <div class="px-6 pt-6 pb-4">
+        <div class="flex items-center justify-between mb-4">
+          <h3 id="feedbackModalTitle" class="text-lg font-bold text-ink">Lapor Bug</h3>
+          <button id="feedbackModalClose" class="text-muted-soft hover:text-ink p-1" aria-label="Tutup"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg></button>
+        </div>
+        <form id="feedbackForm" class="space-y-4">
+          <label class="block">
+            <span class="text-body text-sm font-medium">Subjek</span>
+            <input id="feedbackSubject" type="text" required maxlength="100"
+              class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 text-sm focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+              placeholder="Ringkasan singkat..." />
+          </label>
+          <label class="block">
+            <span class="text-body text-sm font-medium">Pesan</span>
+            <textarea id="feedbackMessage" required maxlength="2000" rows="4"
+              class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 text-sm focus:border-ink focus:border-2 focus:ring-0 focus:outline-none resize-none"
+              placeholder="Jelaskan secara detail..."></textarea>
+          </label>
+          <div id="feedbackError" class="hidden rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
+          <div id="feedbackSuccess" class="hidden rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700"></div>
+          <button type="submit" id="feedbackSubmitBtn"
+            class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition min-h-[44px]">
+            Kirim Feedback
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js?v=21" defer></script>
 </body>
