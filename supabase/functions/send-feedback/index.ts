@@ -99,7 +99,7 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             from: "Kasir UMKM Simpel <onboarding@resend.dev>",
-            to: "tokocuandigital@gmail.com",
+            to: "sppgcurugsukabakti@gmail.com",  // Ganti ke tokocuandigital@gmail.com setelah verifikasi domain di Resend
             subject: `${emoji} ${typeLabel}: ${subject}`,
             html: `
               <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
