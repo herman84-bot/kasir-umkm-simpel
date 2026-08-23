@@ -4925,7 +4925,39 @@ ${txRows}
     };
     tabLogin?.addEventListener('click', () => activateTab('login'));
     tabRegister?.addEventListener('click', () => activateTab('register'));
-    document.getElementById('ctaRegister')?.addEventListener('click', () => activateTab('register'));
+    // ── 2-step register wizard ──
+    const regStep1 = document.getElementById('regStep1');
+    const regStep2 = document.getElementById('regStep2');
+    const regStep1Dot = document.getElementById('regStep1Dot');
+    const regStep2Dot = document.getElementById('regStep2Dot');
+    const regStep1Line = document.getElementById('regStep1Line');
+    const regStepLabel = document.getElementById('regStepLabel');
+    const showRegStep = (step) => {
+      const isStep1 = step === 1;
+      if (regStep1) regStep1.classList.toggle('hidden', !isStep1);
+      if (regStep2) regStep2.classList.toggle('hidden', isStep1);
+      if (regStep1Dot) regStep1Dot.className = 'w-2.5 h-2.5 rounded-full ' + (isStep1 ? 'bg-primary' : 'bg-primary');
+      if (regStep2Dot) regStep2Dot.className = 'w-2.5 h-2.5 rounded-full ' + (isStep1 ? 'bg-hairline' : 'bg-primary');
+      if (regStep1Line) regStep1Line.className = 'w-8 h-0.5 ' + (isStep1 ? 'bg-hairline' : 'bg-primary');
+      if (regStepLabel) regStepLabel.textContent = isStep1 ? 'Langkah 1 dari 2 — Buat Akun' : 'Langkah 2 dari 2 — Data Toko';
+    };
+    const goToRegisterTab = () => {
+      activateTab('register');
+      setTimeout(() => showRegStep(1), 0);
+    };
+    document.getElementById('ctaRegister')?.addEventListener('click', goToRegisterTab);
+    tabRegister?.addEventListener('click', () => setTimeout(() => showRegStep(1), 0));
+    document.getElementById('regNextBtn')?.addEventListener('click', () => {
+      clearAuthMsg();
+      const email = document.getElementById('regEmail');
+      const pass = document.getElementById('regPass');
+      const store = document.getElementById('regStoreName');
+      if (!email?.value?.trim()) { showAuthError('Email wajib diisi.'); return; }
+      if (!pass?.value || pass.value.length < 6) { showAuthError('Password minimal 6 karakter.'); return; }
+      if (!store?.value?.trim()) { showAuthError('Nama toko wajib diisi.'); return; }
+      showRegStep(2);
+    });
+    document.getElementById('regBackBtn')?.addEventListener('click', () => showRegStep(1));
 
     // Toggle lihat password (semua tombol .toggle-pw)
     document.querySelectorAll('.toggle-pw').forEach(btn => {

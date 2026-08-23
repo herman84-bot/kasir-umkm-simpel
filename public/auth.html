@@ -779,50 +779,75 @@
           </button>
         </form>
 
-        <!-- FORM DAFTAR -->
+        <!-- FORM DAFTAR (2-step wizard) -->
         <form id="registerForm" class="space-y-4 hidden">
-          <label class="block">
-            <span class="text-body text-sm font-medium">Nama Toko</span>
-            <input id="regStoreName" required
-              class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
-              placeholder="contoh: Warung Barokah" />
-          </label>
-          <label class="block">
-            <span class="text-body text-sm font-medium">Nama Anda (Pemilik)</span>
-            <input id="regOwnerName" required
-              class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
-              placeholder="contoh: Budi Santoso" />
-          </label>
-          <label class="block">
-            <span class="text-body text-sm font-medium">Email</span>
-            <input id="regEmail" type="email" required autocomplete="email"
-              class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
-              placeholder="email@toko.com" />
-          </label>
-          <label class="block">
-            <span class="text-body text-sm font-medium">Password (min. 6 karakter)</span>
-            <div class="relative mt-2">
-              <input id="regPass" type="password" required minlength="6" autocomplete="new-password"
-                class="w-full rounded-lg border border-hairline px-4 py-3 pr-12 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
-                placeholder="Buat password" />
-              <button type="button" data-toggle="regPass"
-                class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-muted-soft hover:text-body text-sm"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
-            </div>
-          </label>
-          <label class="block mt-4">
-            <span class="text-body text-sm font-medium">PIN Otorisasi Kasir Utama (Angka)</span>
-            <div class="relative mt-2">
-              <input id="regPin" type="password" required minlength="4" maxlength="6" inputmode="numeric"
-                class="w-full rounded-lg border border-hairline px-4 py-3 pr-12 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
-                placeholder="Contoh: 123456" />
-              <button type="button" data-toggle="regPin"
-                class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-muted-soft hover:text-body text-sm"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
-            </div>
-          </label>
-          <button type="submit" id="registerSubmitBtn"
-            class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition mt-2">
-            Daftar & Buat Toko
-          </button>
+          <!-- Step indicator -->
+          <div class="flex items-center justify-center gap-2 mb-2">
+            <span id="regStep1Dot" class="w-2.5 h-2.5 rounded-full bg-primary"></span>
+            <span id="regStep1Line" class="w-8 h-0.5 bg-hairline"></span>
+            <span id="regStep2Dot" class="w-2.5 h-2.5 rounded-full bg-hairline"></span>
+          </div>
+          <p id="regStepLabel" class="text-center text-xs text-muted-soft font-medium">Langkah 1 dari 2 — Buat Akun</p>
+
+          <!-- STEP 1: Akun -->
+          <div id="regStep1">
+            <label class="block">
+              <span class="text-body text-sm font-medium">Email</span>
+              <input id="regEmail" type="email" required autocomplete="email"
+                class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+                placeholder="email@toko.com" />
+            </label>
+            <label class="block">
+              <span class="text-body text-sm font-medium">Password (min. 6 karakter)</span>
+              <div class="relative mt-2">
+                <input id="regPass" type="password" required minlength="6" autocomplete="new-password"
+                  class="w-full rounded-lg border border-hairline px-4 py-3 pr-12 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+                  placeholder="Buat password" />
+                <button type="button" data-toggle="regPass"
+                  class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-muted-soft hover:text-body text-sm"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
+              </div>
+            </label>
+            <label class="block">
+              <span class="text-body text-sm font-medium">Nama Toko</span>
+              <input id="regStoreName" required
+                class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+                placeholder="contoh: Warung Barokah" />
+            </label>
+            <button type="button" id="regNextBtn"
+              class="w-full rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-body transition mt-2">
+              Selanjutnya
+            </button>
+          </div>
+
+          <!-- STEP 2: Data Toko -->
+          <div id="regStep2" class="hidden">
+            <label class="block">
+              <span class="text-body text-sm font-medium">Nama Anda (Pemilik)</span>
+              <input id="regOwnerName" required
+                class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+                placeholder="contoh: Budi Santoso" />
+            </label>
+            <label class="block">
+              <span class="text-body text-sm font-medium">PIN Otorisasi Kasir Utama (Angka)</span>
+              <div class="relative mt-2">
+                <input id="regPin" type="password" required minlength="4" maxlength="6" inputmode="numeric"
+                  class="w-full rounded-lg border border-hairline px-4 py-3 pr-12 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+                  placeholder="Contoh: 123456" />
+                <button type="button" data-toggle="regPin"
+                  class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-muted-soft hover:text-body text-sm"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
+              </div>
+              <p class="text-xs text-muted-soft mt-1">PIN untuk ganti kasir di halaman Kasir.</p>
+            </label>
+            <button type="submit" id="registerSubmitBtn"
+              class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition mt-2">
+              Daftar & Buat Toko
+            </button>
+            <button type="button" id="regBackBtn"
+              class="w-full rounded-lg border border-hairline px-5 py-2.5 text-muted hover:text-body hover:bg-surface-soft transition text-sm">
+              Kembali
+            </button>
+          </div>
+
           <p class="text-xs text-muted-soft text-center">Dengan mendaftar, Anda otomatis menjadi Admin toko.</p>
           <p class="text-xs text-center font-semibold text-primary">Gratis selamanya untuk fitur dasar + bonus Premium 30 hari pertama.</p>
         </form>
