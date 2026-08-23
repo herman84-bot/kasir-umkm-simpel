@@ -5569,7 +5569,6 @@ ${txRows}
       showNewPasswordForm();
       return;
     }
-    showHelpChatFab();
     // loadData: per-query abort 15s sudah cukup handle hang.
     // Flush sudah fire-and-forget, tidak perlu hard timeout global.
     await loadData();
@@ -6382,16 +6381,18 @@ ${txRows}
       closeAll();
       if (menuHidden) menu?.classList.remove('hidden');
     });
-    menuChat?.addEventListener('click', () => {
-      closeMenu();
+    const openChatPanel = () => {
       panel?.classList.remove('hidden');
       if (messages && !messages.childElementCount) {
         addMsg('Assalamualaikum! 🧕 Saya Aisyah, asisten Kasir UMKM. Tanya apa saja ya: cara pakai fitur, printer, QRIS, langganan, dan lainnya. Insya Allah saya bantu! 😊', 'bot');
       }
-    });
+    };
+    menuChat?.addEventListener('click', () => { closeMenu(); openChatPanel(); });
+    document.getElementById('tentangChatBtn')?.addEventListener('click', openChatPanel);
     closeBtn?.addEventListener('click', closePanel);
+    const tentangChatBtn = document.getElementById('tentangChatBtn');
     document.addEventListener('click', (e) => {
-      if (!menu?.contains(e.target) && !fab?.contains(e.target) && !panel?.contains(e.target) && !feedbackModal?.contains(e.target)) closeAll();
+      if (!menu?.contains(e.target) && !fab?.contains(e.target) && !panel?.contains(e.target) && !feedbackModal?.contains(e.target) && e.target !== tentangChatBtn && !tentangChatBtn?.contains(e.target)) closeAll();
     });
     // ── Feedback Modal ──
     const feedbackModal = document.getElementById('feedbackModal');
@@ -6416,6 +6417,8 @@ ${txRows}
     };
     document.getElementById('helpMenuBug')?.addEventListener('click', () => openFeedback('bug'));
     document.getElementById('helpMenuFeature')?.addEventListener('click', () => openFeedback('feature'));
+    document.getElementById('tentangBugBtn')?.addEventListener('click', () => openFeedback('bug'));
+    document.getElementById('tentangFeatureBtn')?.addEventListener('click', () => openFeedback('feature'));
     document.getElementById('feedbackModalClose')?.addEventListener('click', () => feedbackModal?.classList.add('hidden'));
     feedbackModal?.addEventListener('click', (e) => { if (e.target === feedbackModal) feedbackModal.classList.add('hidden'); });
     feedbackForm?.addEventListener('submit', async (e) => {
@@ -6454,9 +6457,7 @@ ${txRows}
       input.value = '';
       ask(q);
     });
-  };
-
-  const showHelpChatFab = () => document.getElementById('helpChatFab')?.classList.remove('hidden');
+  };    const showHelpChatFab = () => {}; // FAB dihapus dari main screen — chat diakses dari menu Tentang
 
   // ── Super Admin Module ───────────────────────────────────────────────────
   // isSuperAdmin: true setelah berhasil terverifikasi lewat admin_users di Supabase.
