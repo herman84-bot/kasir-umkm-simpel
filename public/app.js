@@ -6398,23 +6398,63 @@ ${txRows}
     const feedbackModal = document.getElementById('feedbackModal');
     const feedbackForm = document.getElementById('feedbackForm');
     const feedbackTitle = document.getElementById('feedbackModalTitle');
+    const feedbackSubtitleEl = document.getElementById('feedbackModalSubtitle');
+    const feedbackIconEl = document.getElementById('feedbackModalIcon');
     const feedbackError = document.getElementById('feedbackError');
     const feedbackSuccess = document.getElementById('feedbackSuccess');
     const feedbackSubject = document.getElementById('feedbackSubject');
     const feedbackMessage = document.getElementById('feedbackMessage');
     const feedbackSubmitBtn = document.getElementById('feedbackSubmitBtn');
+    const feedbackCharCount = document.getElementById('feedbackCharCount');
+    const feedbackTypeBugBtn = document.getElementById('feedbackTypeBug');
+    const feedbackTypeFeatureBtn = document.getElementById('feedbackTypeFeature');
+
+    const setFeedbackType = (type) => {
+      feedbackModal.dataset.type = type;
+      const isBug = type === 'bug';
+      if (feedbackTitle) feedbackTitle.textContent = isBug ? 'Lapor Bug' : 'Saran / Tambah Fitur';
+      if (feedbackSubtitleEl) feedbackSubtitleEl.textContent = isBug ? 'Langsung masuk ke tim kami' : 'Ide kamu bisa jadi fitur berikutnya';
+      if (feedbackIconEl) feedbackIconEl.querySelector('use')?.setAttribute('href', isBug ? '#i-alert' : '#i-bulb');
+      if (feedbackSubject) feedbackSubject.placeholder = isBug ? 'Ringkasan bug...' : 'Ide fitur baru...';
+      // Toggle pill active state
+      const activeClass = ['bg-white', 'shadow-sm', 'text-ink', 'font-semibold'];
+      const inactiveClass = ['text-muted', 'hover:text-body', 'font-medium'];
+      if (feedbackTypeBugBtn && feedbackTypeFeatureBtn) {
+        if (isBug) {
+          activeClass.forEach(c => feedbackTypeBugBtn.classList.add(c));
+          inactiveClass.forEach(c => feedbackTypeBugBtn.classList.remove(c));
+          activeClass.forEach(c => feedbackTypeFeatureBtn.classList.remove(c));
+          inactiveClass.forEach(c => feedbackTypeFeatureBtn.classList.add(c));
+        } else {
+          activeClass.forEach(c => feedbackTypeFeatureBtn.classList.add(c));
+          inactiveClass.forEach(c => feedbackTypeFeatureBtn.classList.remove(c));
+          activeClass.forEach(c => feedbackTypeBugBtn.classList.remove(c));
+          inactiveClass.forEach(c => feedbackTypeBugBtn.classList.add(c));
+        }
+      }
+    };
+
     const openFeedback = (type) => {
       closeAll();
       if (!feedbackModal) return;
       feedbackForm?.reset();
+      if (feedbackCharCount) feedbackCharCount.textContent = '0 / 2000';
       feedbackError?.classList.add('hidden');
       feedbackSuccess?.classList.add('hidden');
-      if (feedbackTitle) feedbackTitle.textContent = type === 'bug' ? 'Lapor Bug' : 'Saran / Tambah Fitur';
-      if (feedbackSubject) feedbackSubject.placeholder = type === 'bug' ? 'Ringkasan bug...' : 'Ide fitur baru...';
-      feedbackModal.dataset.type = type;
+      setFeedbackType(type);
       feedbackModal.classList.remove('hidden');
       feedbackSubject?.focus();
     };
+
+    // Character counter
+    feedbackMessage?.addEventListener('input', () => {
+      if (feedbackCharCount) feedbackCharCount.textContent = `${feedbackMessage.value.length} / 2000`;
+    });
+
+    // In-modal type toggle
+    feedbackTypeBugBtn?.addEventListener('click', () => setFeedbackType('bug'));
+    feedbackTypeFeatureBtn?.addEventListener('click', () => setFeedbackType('feature'));
+
     document.getElementById('helpMenuBug')?.addEventListener('click', () => openFeedback('bug'));
     document.getElementById('helpMenuFeature')?.addEventListener('click', () => openFeedback('feature'));
     document.getElementById('tentangBugBtn')?.addEventListener('click', () => openFeedback('bug'));
@@ -6426,7 +6466,7 @@ ${txRows}
       feedbackError?.classList.add('hidden');
       feedbackSuccess?.classList.add('hidden');
       const btn = feedbackSubmitBtn;
-      if (btn) { btn.textContent = 'Mengirim...'; btn.disabled = true; }
+      if (btn) { btn.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg> Mengirim...'; btn.disabled = true; }
       try {
         const res = await db.functions.invoke('send-feedback', {
           body: {
@@ -6436,9 +6476,10 @@ ${txRows}
           },
         });
         if (res.error) throw new Error(res.error.message || 'Gagal mengirim');
-        if (feedbackSuccess) feedbackSuccess.textContent = 'Feedback terkirim! Terima kasih. Kami akan segera merespons.';
+        if (feedbackSuccess) feedbackSuccess.textContent = 'Terkirim! Terima kasih — kami akan segera merespons.';
         feedbackSuccess?.classList.remove('hidden');
         feedbackForm?.reset();
+        if (feedbackCharCount) feedbackCharCount.textContent = '0 / 2000';
         setTimeout(() => feedbackModal?.classList.add('hidden'), 2000);
       } catch (err) {
         const msg = err?.message?.includes('Failed to fetch') || err?.message?.includes('network')
@@ -6447,7 +6488,7 @@ ${txRows}
         if (feedbackError) feedbackError.textContent = msg;
         feedbackError?.classList.remove('hidden');
       } finally {
-        if (btn) { btn.textContent = 'Kirim Feedback'; btn.disabled = false; }
+        if (btn) { btn.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-message"/></svg> Kirim'; btn.disabled = false; }
       }
     });
     form.addEventListener('submit', e => {
