@@ -2532,9 +2532,9 @@
   </div>
 
   <!-- Feedback Modal (Lapor Bug / Saran Fitur) -->
-  <div id="feedbackModal" class="hidden fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 no-print">
-    <div class="w-full max-w-md rounded-xl bg-white shadow-sm overflow-hidden">
-      <div class="px-6 pt-6 pb-4">
+  <div id="feedbackModal" class="hidden fixed inset-0 z-[100] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 no-print">
+    <div class="w-full max-w-md rounded-t-xl sm:rounded-xl bg-white shadow-sm flex flex-col max-h-[90vh]">
+      <div class="px-6 pt-6 pb-4 overflow-y-auto flex-1">
         <div class="flex items-center justify-between mb-4">
           <h3 id="feedbackModalTitle" class="text-lg font-bold text-ink">Lapor Bug</h3>
           <button id="feedbackModalClose" class="text-muted-soft hover:text-ink p-1" aria-label="Tutup"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg></button>
@@ -2554,11 +2554,13 @@
           </label>
           <div id="feedbackError" class="hidden rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
           <div id="feedbackSuccess" class="hidden rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700"></div>
-          <button type="submit" id="feedbackSubmitBtn"
-            class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition min-h-[44px]">
-            Kirim Feedback
-          </button>
         </form>
+      </div>
+      <div class="px-6 pb-6 pt-3 border-t border-hairline shrink-0">
+        <button type="submit" id="feedbackSubmitBtn" form="feedbackForm"
+          class="w-full rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-active transition min-h-[44px]">
+          Kirim Feedback
+        </button>
       </div>
     </div>
   </div>
