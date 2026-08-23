@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kasir-umkm-cache-v44';
+const CACHE_NAME = 'kasir-umkm-cache-v45';
 // CATATAN PENTING: jangan masukkan 'index.html' di sini. Vercel cleanUrls=true
 // me-redirect /index.html -> / (308); Cache API menolak menyimpan response
 // hasil redirect sehingga cache.addAll() reject dan install SW GAGAL TOTAL —
@@ -60,7 +60,12 @@ self.addEventListener('fetch', event => {
       }).catch(() => caches.match(req).then(r => r || caches.match('./')))
     );
   } else {
-    // Aset eksternal (CDN): cache-first
+    // Skip caching untuk Supabase API — data dinamis, cache-first bikin stale data
+    if (url.hostname.endsWith('.supabase.co')) {
+      event.respondWith(fetch(req));
+      return;
+    }
+    // Aset eksternal lain (CDN fonts, chart.js, dll): cache-first
     event.respondWith(
       caches.match(req).then(r => r || fetch(req).then(res => {
         if (res && res.ok) {

@@ -1527,11 +1527,17 @@ const App = (() => {
       return;
     }
 
-    // Kirim transaksi offline yang tertunda SEBELUM memuat data,
-    // agar stok & riwayat yang dimuat sudah termasuk transaksi tersebut
-    // Wrap dengan try-catch: jika flush gagal/hang, loadData tetap lanjut
-    try { await flushOfflineQueue(); } catch (e) { logError('loadData: flushOfflineQueue gagal', {}, e); }
-    try { await flushDebtQueue(); } catch (e) { logError('loadData: flushDebtQueue gagal', {}, e); }
+    // Kirim transaksi offline yang tertunda — jangan block data loading.
+    // Flush dijalankan fire-and-forget dengan timeout 8s per fungsi.
+    const flushWithTimeout = (fn, name) => Promise.race([
+      fn().catch(e => logError('loadData: ' + name + ' gagal', {}, e)),
+      new Promise(resolve => setTimeout(() => {
+        logError('loadData: ' + name + ' timeout 8s — skip', {});
+        resolve();
+      }, 8000))
+    ]);
+    flushWithTimeout(flushOfflineQueue, 'flushOfflineQueue');
+    flushWithTimeout(flushDebtQueue, 'flushDebtQueue');
 
     try {
       setLoadingStatus('Memuat produk...', 40);
@@ -5522,17 +5528,9 @@ ${txRows}
       return;
     }
     showHelpChatFab();
-    // Hard timeout: kalau loadData() hang (flush offline/debt stuck),
-    // tetap tampilkan dashboard dengan data kosong setelah 30 detik
-    const loadDataWithTimeout = Promise.race([
-      loadData(),
-      new Promise(resolve => setTimeout(() => {
-        logError('loadData: timeout 30s — lanjut dengan data kosong', {});
-        showAppToast('Koneksi lambat. Beberapa data mungkin belum dimuat.', 'error');
-        resolve();
-      }, 30000))
-    ]);
-    await loadDataWithTimeout;
+    // loadData: per-query abort 15s sudah cukup handle hang.
+    // Flush sudah fire-and-forget, tidak perlu hard timeout global.
+    await loadData();
 
     // Cek super admin SEBELUM guard toko agar super admin bisa bypass
     await checkSuperAdmin();
@@ -6975,14 +6973,7 @@ ${txRows}
         // Sesi aktif langsung masuk dashboard: gate lampu dilucuti supaya
         // logout di sesi ini tidak tiba-tiba menampilkan layar gelap.
         lampGateChecked = true;
-        // Hard timeout: jika enterAppAfterAuth hang, tetap sembunyikan loading
-        const _enterTimeout = new Promise(resolve => setTimeout(() => {
-          logError('enterAppAfterAuth: timeout 45s — force hide loading', {});
-          showAppToast('Koneksi lambat. Beberapa fitur mungkin belum siap.', 'error');
-          hideLoadingOverlay();
-          resolve();
-        }, 45000));
-        await Promise.race([enterAppAfterAuth(), _enterTimeout]).then(() => hideLoadingOverlay());
+        try { await enterAppAfterAuth(); } finally { hideLoadingOverlay(); }
       }
     } else {
       if (linkExpired) {
