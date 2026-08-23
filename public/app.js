@@ -4925,6 +4925,7 @@ ${txRows}
     };
     tabLogin?.addEventListener('click', () => activateTab('login'));
     tabRegister?.addEventListener('click', () => activateTab('register'));
+    document.getElementById('ctaRegister')?.addEventListener('click', () => activateTab('register'));
 
     // Toggle lihat password (semua tombol .toggle-pw)
     document.querySelectorAll('.toggle-pw').forEach(btn => {
