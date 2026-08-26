@@ -997,91 +997,101 @@
       </header>
 
       <section id="dashboard" class="screen">
-        <div id="dashboardPusat" class="hidden rounded-xl bg-white p-6 shadow-sm border border-hairline mb-6">
+        <!-- Dashboard Pusat (Super Admin) -->
+        <div id="dashboardPusat" class="hidden rounded-xl bg-white p-6 shadow-sm border border-hairline mb-5">
           <div class="flex items-center gap-2 mb-4">
-            <h3 class="text-xl font-semibold btn-icon"><svg class="icon" aria-hidden="true"><use href="#i-building"/></svg>Dashboard Pusat</h3>
+            <h3 class="text-lg font-semibold btn-icon"><svg class="icon" aria-hidden="true"><use href="#i-building"/></svg>Dashboard Pusat</h3>
             <span class="text-xs px-2 py-0.5 rounded-full bg-primary-light text-primary">Semua Cabang</span>
           </div>
           <div class="overflow-x-auto" id="dashboardPusatBody"></div>
         </div>
-        <div class="grid gap-4 xl:grid-cols-3 mb-6">
-          <article class="rounded-xl bg-gradient-to-br from-primary to-primary-active text-white p-6 shadow-sm">
-            <h3 class="text-sm uppercase tracking-[0.2em] opacity-90 flex items-center gap-2"><svg class="icon" aria-hidden="true"><use href="#i-banknote"/></svg>Penjualan Hari Ini</h3>
-            <p class="mt-4 text-4xl font-semibold" id="statSalesToday">Rp0</p>
-            <p class="mt-2 text-white/70">Total penjualan berhasil hari ini.</p>
-          </article>
-          <article class="rounded-xl bg-white p-6 shadow-sm border border-hairline">
-            <h3 class="text-sm uppercase tracking-[0.2em] text-muted flex items-center gap-2"><svg class="icon" aria-hidden="true"><use href="#i-package"/></svg>Produk Terjual</h3>
-            <p class="mt-4 text-4xl font-semibold text-ink" id="statProductsSold">0</p>
-            <p class="mt-2 text-body">Unit produk terjual hari ini.</p>
-          </article>
-          <article class="rounded-xl bg-white p-6 shadow-sm border border-hairline">
-            <h3 class="text-sm uppercase tracking-[0.2em] text-muted flex items-center gap-2"><svg class="icon" aria-hidden="true"><use href="#i-trending-up"/></svg>Estimasi Keuntungan Bersih</h3>
-            <p class="mt-4 text-4xl font-semibold text-ink" id="statProfit">Rp0</p>
-            <p class="mt-2 text-body">Laba hari ini (harga jual − modal − diskon).</p>
-          </article>
-        </div>
-        <div class="rounded-xl bg-white p-6 shadow-sm border border-hairline mb-6">
-          <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h3 class="text-xl font-semibold">Status Persediaan</h3>
-              <p class="text-body">Awas produk dengan stok rendah.</p>
-            </div>
-            <div class="rounded-xl bg-rose-50 px-4 py-3 text-rose-700 shadow-sm" id="lowStockAlert">Tidak ada stok kritis.</div>
+
+        <!-- Ringkasan Hari Ini -->
+        <div class="rounded-xl bg-white border border-hairline shadow-sm mb-5">
+          <div class="px-5 pt-4 pb-3 border-b border-hairline-soft">
+            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Hari ini</p>
           </div>
-        </div>
-        <div class="rounded-xl bg-white p-6 shadow-sm border border-hairline mb-6">
-          <div class="grid gap-4 lg:grid-cols-3">
-            <div class="rounded-xl bg-surface-soft p-5 shadow-sm border border-hairline">
-              <p class="text-sm uppercase tracking-[0.2em] text-muted">Produk Terlaris</p>
-              <p class="mt-4 text-3xl font-semibold" id="topProduct">-</p>
+          <div class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-hairline-soft">
+            <div class="px-5 py-4">
+              <p class="text-xs font-medium text-muted mb-1">Penjualan</p>
+              <p class="text-2xl font-bold text-ink leading-tight" id="statSalesToday">Rp0</p>
             </div>
-            <div class="rounded-xl bg-surface-soft p-5 shadow-sm border border-hairline">
-              <p class="text-sm uppercase tracking-[0.2em] text-muted">Kategori Terbaik</p>
-              <p class="mt-4 text-3xl font-semibold" id="topCategory">-</p>
+            <div class="px-5 py-4">
+              <p class="text-xs font-medium text-muted mb-1">Produk Terjual</p>
+              <p class="text-2xl font-bold text-ink leading-tight" id="statProductsSold">0</p>
+              <p class="text-xs text-muted-soft mt-0.5">unit</p>
             </div>
-            <div class="rounded-xl bg-surface-soft p-5 shadow-sm border border-hairline">
-              <p class="text-sm uppercase tracking-[0.2em] text-muted">Persentase Laba</p>
-              <p class="mt-4 text-3xl font-semibold" id="profitMargin">-</p>
+            <div class="px-5 py-4">
+              <p class="text-xs font-medium text-muted mb-1">Estimasi Laba</p>
+              <p class="text-2xl font-bold text-ink leading-tight" id="statProfit">Rp0</p>
             </div>
           </div>
         </div>
-        <div class="rounded-xl bg-white p-6 shadow-sm border border-hairline">
-          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
-            <div>
-              <h3 class="text-xl font-semibold">Tren Penjualan 7 Hari Terakhir</h3>
-              <p class="text-body">Ringkasan transaksi harian dari data yang tersimpan.</p>
+
+        <!-- Status Persediaan -->
+        <div class="flex items-center gap-3 rounded-xl bg-white border border-hairline shadow-sm px-5 py-3.5 mb-5">
+          <svg class="icon text-muted shrink-0" aria-hidden="true"><use href="#i-package"/></svg>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-ink">Persediaan</p>
+            <p class="text-xs text-muted">Stok rendah perlu perhatian.</p>
+          </div>
+          <div id="lowStockAlert" class="text-sm font-medium text-muted">Tidak ada stok kritis.</div>
+        </div>
+
+        <!-- Insight Bisnis -->
+        <div class="rounded-xl bg-white border border-hairline shadow-sm mb-5">
+          <div class="px-5 pt-4 pb-3 border-b border-hairline-soft">
+            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Insight</p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-hairline-soft">
+            <div class="px-5 py-4">
+              <p class="text-xs font-medium text-muted mb-1">Produk Terlaris</p>
+              <p class="text-lg font-semibold text-ink truncate" id="topProduct">-</p>
+            </div>
+            <div class="px-5 py-4">
+              <p class="text-xs font-medium text-muted mb-1">Kategori Terbaik</p>
+              <p class="text-lg font-semibold text-ink" id="topCategory">-</p>
+            </div>
+            <div class="px-5 py-4">
+              <p class="text-xs font-medium text-muted mb-1">Persentase Laba</p>
+              <p class="text-lg font-semibold text-ink" id="profitMargin">-</p>
             </div>
           </div>
-          <div class="relative w-full h-56 md:h-64"><canvas id="salesChart"></canvas></div>
         </div>
-        <div class="mt-6 rounded-xl bg-white p-6 shadow-sm border border-hairline">
-          <div class="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center mb-4">
-            <div>
-              <h3 class="text-xl font-semibold">Laporan Cepat</h3>
-              <p class="text-body">Pilih rentang harian atau mingguan untuk ringkasan penjualan.</p>
-            </div>
-            <div class="flex gap-2 items-center">
-              <select id="reportRangeSelect" class="rounded-lg border border-hairline bg-white px-4 py-3">
+
+        <!-- Tren Penjualan 7 Hari -->
+        <div class="rounded-xl bg-white border border-hairline shadow-sm mb-5">
+          <div class="px-5 pt-4 pb-3 border-b border-hairline-soft">
+            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Penjualan 7 Hari</p>
+          </div>
+          <div class="px-4 py-3"><div class="relative w-full h-48 md:h-56"><canvas id="salesChart"></canvas></div></div>
+        </div>
+
+        <!-- Laporan Cepat -->
+        <div class="rounded-xl bg-white border border-hairline shadow-sm">
+          <div class="flex items-center justify-between px-5 pt-4 pb-3 border-b border-hairline-soft">
+            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Laporan Cepat</p>
+            <div class="flex items-center gap-2">
+              <select id="reportRangeSelect" class="rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-body">
                 <option value="1">Hari Ini</option>
                 <option value="7" selected>7 Hari</option>
                 <option value="30">30 Hari</option>
               </select>
-              <button id="exportPdfBtn" class="rounded-lg bg-rose-600 px-4 py-3 text-white font-semibold hover:bg-rose-700 transition text-sm whitespace-nowrap"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg> Export PDF</button>
+              <button id="exportPdfBtn" class="btn-icon rounded-lg bg-white border border-rose-200 px-3 py-2 text-rose-700 text-sm font-medium hover:bg-rose-50 transition"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg><span class="hidden sm:inline">Export PDF</span></button>
             </div>
           </div>
-          <div class="grid gap-4 md:grid-cols-3">
-            <div class="rounded-xl bg-surface-soft p-5 shadow-sm border border-hairline">
-              <p class="text-sm uppercase tracking-[0.2em] text-muted">Total Penjualan</p>
-              <p class="mt-4 text-3xl font-semibold" id="reportSales">Rp0</p>
+          <div class="px-5 py-4 grid grid-cols-3 gap-4">
+            <div>
+              <p class="text-xs font-medium text-muted mb-1">Total Penjualan</p>
+              <p class="text-lg font-bold text-ink" id="reportSales">Rp0</p>
             </div>
-            <div class="rounded-xl bg-surface-soft p-5 shadow-sm border border-hairline">
-              <p class="text-sm uppercase tracking-[0.2em] text-muted">Transaksi</p>
-              <p class="mt-4 text-3xl font-semibold" id="reportTransactions">0</p>
+            <div>
+              <p class="text-xs font-medium text-muted mb-1">Transaksi</p>
+              <p class="text-lg font-bold text-ink" id="reportTransactions">0</p>
             </div>
-            <div class="rounded-xl bg-surface-soft p-5 shadow-sm border border-hairline">
-              <p class="text-sm uppercase tracking-[0.2em] text-muted">Produk Terjual</p>
-              <p class="mt-4 text-3xl font-semibold" id="reportItemsSold">0</p>
+            <div>
+              <p class="text-xs font-medium text-muted mb-1">Produk Terjual</p>
+              <p class="text-lg font-bold text-ink" id="reportItemsSold">0</p>
             </div>
           </div>
         </div>

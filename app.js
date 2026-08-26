@@ -2197,6 +2197,7 @@ const App = (() => {
 
     const lowStockProducts = state.products.filter(product => product.stock >= 0 && product.stock <= (product.minStock || 5));
     dom.lowStockAlert.textContent = lowStockProducts.length ? `${lowStockProducts.length} produk stok rendah, segera kulakan lagi.` : 'Tidak ada stok kritis.';
+    dom.lowStockAlert.className = lowStockProducts.length ? 'text-sm font-medium text-rose-600' : 'text-sm font-medium text-muted';
 
     const productQtyMap = {};
     state.transactions.forEach(tx => {
@@ -2749,25 +2750,23 @@ const App = (() => {
     }
 
     chartInstance = new Chart(dom.salesChart.getContext('2d'), {
-      type: 'line',
+      type: 'bar',
       data: {
         labels: dates,
         datasets: [{
           label: 'Pendapatan',
           data: amounts,
-          borderColor: '#22d3ee',
-          backgroundColor: 'rgba(34,211,238,0.15)',
-          fill: true,
-          tension: 0.3,
-          pointRadius: 4,
-          pointBackgroundColor: '#0284c7'
+          backgroundColor: '#CC6B49',
+          borderRadius: 4,
+          maxBarThickness: 40
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
-          y: { beginAtZero: true, ticks: { callback: value => formatCurrency(value) } }
+          y: { beginAtZero: true, ticks: { callback: value => formatCurrency(value), color: '#78716C', font: { size: 11 } }, grid: { color: '#EFEBE4' } },
+          x: { ticks: { color: '#78716C', font: { size: 11 } }, grid: { display: false } }
         },
         plugins: { legend: { display: false } }
       }
