@@ -5064,7 +5064,7 @@ ${txRows}
     // ── Cetak Bluetooth (RawBT) — hanya tampil di Android ──
     const printBluetoothBtn = document.getElementById('printBluetoothBtn');
     if (printBluetoothBtn && /android/i.test(navigator.userAgent)) {
-      printBluetoothBtn.classList.remove('hidden');
+      printBluetoothBtn.style.display = '';
       printBluetoothBtn.addEventListener('click', () => {
         const data = dom.printThermalBtn?._receiptData;
         if (data) printViaRawBT(data);
