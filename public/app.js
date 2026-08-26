@@ -2778,21 +2778,21 @@ const App = (() => {
     const filtered = getFilteredProducts();
     dom.productGrid.innerHTML = filtered.map(product => {
       const isCritical = product.stock <= (product.minStock || 5);
+      // Kartu POS padat: nama → harga → stok. Gambar kecil; kalau gagal/ kosong,
+      // fallback blok surface-soft + icon package (tanpa broken image browser).
       return `
-        <article data-id="${esc(product.id)}" class="group cursor-pointer overflow-hidden rounded-xl border border-hairline bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-          <img src="${esc(product.image)}" alt="${esc(product.name)}" class="h-44 w-full object-cover" />
-          <div class="p-5">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <h4 class="text-lg font-semibold">${esc(product.name)}</h4>
-                <p class="text-muted text-sm">${esc(product.category)}</p>
-              </div>
-              <span class="rounded-lg bg-surface-soft px-3 py-1 text-xs text-body">Stok: ${esc(product.stock)}${isCritical ? ' · rendah' : ''}</span>
+        <article data-id="${esc(product.id)}" class="cursor-pointer overflow-hidden rounded-xl border border-hairline bg-white shadow-sm transition hover:border-primary">
+          <div class="pos-product-thumb">
+            <svg class="icon" aria-hidden="true"><use href="#i-package"/></svg>
+            ${product.image ? `<img src="${esc(product.image)}" alt="${esc(product.name)}" loading="lazy" onerror="this.style.display='none'" />` : ''}
+          </div>
+          <div class="p-2.5">
+            <h4 class="truncate text-sm font-semibold text-ink" title="${esc(product.name)}">${esc(product.name)}</h4>
+            <div class="mt-1 flex items-center justify-between gap-2">
+              <span class="text-base font-bold text-ink">${formatCurrency(product.price)}</span>
+              <span class="whitespace-nowrap text-xs ${isCritical ? 'font-semibold text-rose-600' : 'text-muted'}">Stok ${esc(product.stock)}</span>
             </div>
-            <div class="mt-4 flex items-center justify-between">
-              <span class="text-xl font-semibold text-ink">${formatCurrency(product.price)}</span>
-              <span class="rounded-full px-3 py-1 text-xs font-semibold ${isCritical ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}">${isCritical ? 'Kritis' : 'Tersedia'}</span>
-            </div>
+            <p class="mt-0.5 truncate text-xs text-muted">${esc(product.category)}</p>
           </div>
         </article>
       `;
@@ -2865,19 +2865,19 @@ const App = (() => {
     const enterId = _cartEnterId;
     _cartEnterId = null;
     dom.cartList.innerHTML = items.length ? items.map(item => `
-      <div class="rounded-xl border border-hairline bg-surface-soft p-4${String(item.id) === String(enterId) ? ' cart-item-enter' : ''}">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <h4 class="font-semibold text-ink">${esc(item.name)}</h4>
-            <p class="text-muted text-sm">${formatCurrency(item.price)} x ${esc(item.qty)}</p>
-          </div>
-          <button data-remove="${esc(item.id)}" class="inline-flex items-center rounded-full bg-rose-100 px-3 py-2 text-rose-700 min-h-[44px]">Hapus</button>
+      <div class="rounded-lg border border-hairline bg-surface-soft p-2.5${String(item.id) === String(enterId) ? ' cart-item-enter' : ''}">
+        <div class="flex items-start justify-between gap-2">
+          <h4 class="text-sm font-semibold leading-snug text-ink">${esc(item.name)}</h4>
+          <span class="whitespace-nowrap text-sm font-semibold text-ink">${formatCurrency(item.price * item.qty)}</span>
         </div>
-        <div class="mt-3 flex items-center gap-2 text-sm text-body">
-          <button data-decrease="${esc(item.id)}" class="inline-flex items-center justify-center rounded-lg border border-hairline bg-white px-3 py-2 min-h-[44px] min-w-[44px]">−</button>
-          <span class="font-semibold">${esc(item.qty)}</span>
-          <button data-increase="${esc(item.id)}" class="inline-flex items-center justify-center rounded-lg border border-hairline bg-white px-3 py-2 min-h-[44px] min-w-[44px]">+</button>
-          <span class="ml-auto font-semibold text-ink">${formatCurrency(item.price * item.qty)}</span>
+        <div class="mt-1.5 flex items-center gap-1.5">
+          <span class="text-xs text-muted">${formatCurrency(item.price)} × ${esc(item.qty)}</span>
+          <div class="ml-auto flex items-center gap-1.5">
+            <button data-decrease="${esc(item.id)}" aria-label="Kurangi ${esc(item.name)}" class="inline-flex items-center justify-center rounded-lg border border-hairline bg-white px-2.5 py-1.5 min-h-[44px] min-w-[44px] text-body">−</button>
+            <span class="min-w-[1.5rem] text-center text-sm font-semibold text-ink">${esc(item.qty)}</span>
+            <button data-increase="${esc(item.id)}" aria-label="Tambah ${esc(item.name)}" class="inline-flex items-center justify-center rounded-lg border border-hairline bg-white px-2.5 py-1.5 min-h-[44px] min-w-[44px] text-body">+</button>
+            <button data-remove="${esc(item.id)}" aria-label="Hapus ${esc(item.name)}" class="inline-flex items-center justify-center rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 min-h-[44px] hover:bg-rose-100 transition">Hapus</button>
+          </div>
         </div>
       </div>
     `).join('') : '<div class="rounded-xl border border-dashed border-hairline bg-surface-soft p-8 text-center text-muted">Keranjang kosong. Tambahkan produk untuk memulai transaksi.</div>';
@@ -4359,7 +4359,7 @@ ${txRows}
     state.paymentMethod = method;
     document.querySelectorAll('.paymethod-btn').forEach(btn => {
       const active = btn.dataset.paymethod === method;
-      btn.className = `paymethod-btn ${btn.querySelector('svg') ? 'btn-icon' : ''} rounded-lg border-2 px-2 py-2 text-xs font-semibold transition min-h-[44px] ${active ? 'border-primary bg-primary-light text-primary' : 'border-hairline bg-white text-body hover:border-hairline'}`;
+      btn.className = `paymethod-btn ${btn.querySelector('svg') ? 'btn-icon' : ''} rounded-lg border px-2 py-2 text-xs font-semibold transition min-h-[44px] ${active ? 'border-primary bg-primary-light text-primary' : 'border-hairline bg-white text-body hover:border-muted-soft'}`;
     });
     const splitWrapper = document.getElementById('splitInputWrapper');
     if (dom.cashInputWrapper) {
