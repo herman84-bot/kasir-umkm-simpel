@@ -6412,6 +6412,9 @@ ${txRows}
     const setFeedbackType = (type) => {
       feedbackModal.dataset.type = type;
       const isBug = type === 'bug';
+      // A11y: state segmented control ikut tercermin ke atribut
+      if (feedbackTypeBugBtn) feedbackTypeBugBtn.setAttribute('aria-pressed', String(isBug));
+      if (feedbackTypeFeatureBtn) feedbackTypeFeatureBtn.setAttribute('aria-pressed', String(!isBug));
       if (feedbackTitle) feedbackTitle.textContent = isBug ? 'Lapor Bug' : 'Saran / Tambah Fitur';
       if (feedbackSubtitleEl) feedbackSubtitleEl.textContent = isBug ? 'Langsung masuk ke tim kami' : 'Ide kamu bisa jadi fitur berikutnya';
       if (feedbackIconEl) feedbackIconEl.querySelector('use')?.setAttribute('href', isBug ? '#i-alert' : '#i-bulb');

@@ -96,6 +96,16 @@
       justify-content: center;
       gap: 0.4rem;
     }
+    /* Feedback modal — segmented control. Icon tab aktif memakai warna primary;
+       marker .bg-white di-toggle oleh setFeedbackType() di app.js. */
+    #feedbackTypeBug .icon,
+    #feedbackTypeFeature .icon {
+      transition: color var(--motion-fast, 140ms) ease;
+    }
+    #feedbackTypeBug.bg-white .icon,
+    #feedbackTypeFeature.bg-white .icon {
+      color: #cc6b49;
+    }
 
     /* Soft Paper Motion — tenang & mewah (CSS-first) */
     :root {
@@ -2535,7 +2545,7 @@
   <div id="feedbackModal" class="hidden fixed inset-0 z-[100] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 pb-[60px] sm:pb-4 motion-overlay no-print">
     <div id="feedbackModalCard" class="w-full max-w-md bg-white sm:rounded-2xl rounded-t-2xl shadow-lg flex flex-col" style="max-height: calc(100dvh - 120px);">
       <!-- Header -->
-      <div class="px-5 pt-5 pb-4 shrink-0">
+      <div class="px-5 pt-5 pb-3 shrink-0">
         <div class="flex items-start justify-between gap-3">
           <div class="flex items-center gap-3">
             <div id="feedbackModalIconWrap" class="w-10 h-10 rounded-xl bg-primary-light flex items-center justify-center shrink-0 text-primary">
@@ -2550,21 +2560,21 @@
             <svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>
           </button>
         </div>
-        <!-- Type toggle -->
-        <div class="mt-4 flex gap-2 p-1 bg-surface-soft rounded-xl">
-          <button type="button" id="feedbackTypeBug"
-            class="flex-1 btn-icon gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition bg-white shadow-sm text-ink">
+        <!-- Type toggle — segmented control: surface-soft + hairline, active tab white inset 4px -->
+        <div class="mt-5 flex gap-1 p-1 bg-surface-soft border border-hairline rounded-xl">
+          <button type="button" id="feedbackTypeBug" aria-pressed="true"
+            class="flex-1 btn-icon gap-1.5 rounded-lg px-3 min-h-[44px] text-sm font-semibold transition bg-white shadow-sm text-ink">
             <svg class="icon icon-sm" aria-hidden="true"><use href="#i-alert"/></svg>Lapor Bug
           </button>
-          <button type="button" id="feedbackTypeFeature"
-            class="flex-1 btn-icon gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition text-muted hover:text-body">
+          <button type="button" id="feedbackTypeFeature" aria-pressed="false"
+            class="flex-1 btn-icon gap-1.5 rounded-lg px-3 min-h-[44px] text-sm font-medium transition text-muted hover:text-body">
             <svg class="icon icon-sm" aria-hidden="true"><use href="#i-bulb"/></svg>Saran Fitur
           </button>
         </div>
       </div>
       <div class="h-px bg-hairline shrink-0"></div>
       <!-- Scrollable form -->
-      <div class="px-5 py-4 overflow-y-auto flex-1 min-h-0">
+      <div class="px-5 pt-3 pb-4 overflow-y-auto flex-1 min-h-0">
         <form id="feedbackForm" class="space-y-4">
           <label class="block">
             <span class="text-body text-sm font-semibold">Subjek</span>
