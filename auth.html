@@ -594,6 +594,16 @@
         will-change: auto;
       }
     }
+    /* Mobile: scale down lamp elements supaya tidak overflow di 360–414px */
+    @media (max-width: 480px) {
+      #lampGate { padding-bottom: 4vh; }
+      #lampPull svg { width: 96px; height: 56px; }
+      .lamp-cone { width: 158px; height: 143px; }
+      .lamp-glow { width: 210px; height: 210px; }
+      .lamp-pull-line { height: 40px; }
+      .lamp-hint { font-size: 0.75rem; }
+      .lamp-hanger { height: 52px; }
+    }
   </style>
   <script type="application/ld+json">
   {
