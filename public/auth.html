@@ -410,17 +410,17 @@
        tetap jalan walau vendor/gsap.min.js gagal dimuat. */
     .cart-loader {
       position: relative;
-      width: 104px;
-      height: 116px;
-      margin: 0 auto 0.75rem;
+      width: 88px;
+      height: 100px;
+      margin: 0 auto 0.5rem;
     }
     .cart-loader .cart-icon {
       position: absolute;
       left: 50%;
       bottom: 0;
-      width: 88px;
-      height: 68px;
-      margin-left: -44px;
+      width: 74px;
+      height: 58px;
+      margin-left: -37px;
       background-repeat: no-repeat;
       background-position: center;
       background-size: contain;
@@ -435,9 +435,9 @@
       position: absolute;
       left: 50%;
       top: 0;
-      width: 26px;
-      height: 26px;
-      margin-left: -13px;
+      width: 22px;
+      height: 22px;
+      margin-left: -11px;
       background-repeat: no-repeat;
       background-position: center;
       background-size: contain;
@@ -594,7 +594,7 @@
         will-change: auto;
       }
     }
-    /* Mobile: scale down lamp elements supaya tidak overflow di 360–414px */
+    /* Mobile: scale down lamp + login elements supaya muat 1 viewport */
     @media (max-width: 480px) {
       #lampGate { padding-bottom: 4vh; }
       #lampPull svg { width: 96px; height: 56px; }
@@ -603,6 +603,35 @@
       .lamp-pull-line { height: 40px; }
       .lamp-hint { font-size: 0.75rem; }
       .lamp-hanger { height: 52px; }
+      /* Login page: tighter padding */
+      #loginPage { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+      /* Cart loader: smaller */
+      .cart-loader { width: 80px; height: 90px; margin-bottom: 0.5rem; }
+      .cart-loader .cart-icon { width: 68px; height: 52px; margin-left: -34px; }
+      .cart-loader .drop-item { width: 20px; height: 20px; margin-left: -10px; }
+      /* Brand header: compact */
+      #loginCard > .text-center { margin-bottom: 0.5rem; }
+      /* White card: tighter padding */
+      #loginCard > .bg-white { padding: 0.75rem; }
+      /* Tab: tighter */
+      #loginCard > .bg-white > .flex:first-child { margin-bottom: 0.75rem; }
+      /* Form: tighter gaps — override space-y-3 margin */
+      #loginForm2 > * + * { margin-top: 0.5rem !important; }
+      #loginForm2 label { margin-bottom: 0; }
+      #loginForm2 .relative.mt-2 { margin-top: 0.25rem; }
+      #loginForm2 .mt-2 { margin-top: 0.375rem; }
+      /* Input fields: slightly shorter */
+      #loginForm2 input[type='email'],
+      #loginForm2 input[type='password'] { padding-top: 0.625rem; padding-bottom: 0.625rem; }
+      /* Divider + Google: tighter */
+      #loginForm2 .my-3 { margin-top: 0.375rem; margin-bottom: 0.375rem; }
+      #loginForm2 #googleLoginBtn { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+      /* Forgot + CTA: tighter */
+      #loginForm2 .mt-2:last-of-type { margin-top: 0.25rem; }
+      #loginForm2 .mt-4 { margin-top: 0.5rem; }
+      #loginForm2 .pt-4 { padding-top: 0.5rem; }
+      /* Footer: tighter */
+      #loginCard > p.mt-3 { margin-top: 0.5rem; }
     }
   </style>
   <script type="application/ld+json">
@@ -719,7 +748,7 @@
        style inline menimpa kelas. JS menghapusnya (style.background = '') saat
        lampu ditarik (lightUp) atau saat gate dilewati (endLampGate) — baru saat
        itu gradient/login terang muncul, bertahap di balik veil yang memudar. -->
-  <div id="loginPage" class="fixed inset-0 z-[99] flex flex-col justify-center items-center bg-gradient-to-br from-accent-gold via-primary to-primary-active overflow-y-auto px-4 py-4 sm:py-6" style="background:#1B1815">
+  <div id="loginPage" class="fixed inset-0 z-[99] flex flex-col justify-center items-center bg-gradient-to-br from-accent-gold via-primary to-primary-active overflow-y-auto px-4 py-3 sm:py-4" style="background:#1B1815">
     <!-- lampVeil default TERLIHAT (bukan hidden): layar login sejak awal sudah gelap
          sejak PAINT PERTAMA (di-raster saat halaman load, di balik loading overlay),
          jadi tidak ada satu frame pun yang memperlihatkan gradient/card login sebelum
@@ -744,7 +773,7 @@
       <p class="lamp-hint">Ketuk lampunya untuk mulai</p>
     </div>
     <div id="loginCard" class="w-full max-w-md" style="opacity:0">
-      <div class="text-center mb-3">
+      <div class="text-center mb-2 sm:mb-3">
         <div class="cart-loader" aria-hidden="true">
           <span class="drop-item item-beras"></span>
           <span class="drop-item item-minyak"></span>
@@ -756,45 +785,45 @@
         <h1 class="text-xl sm:text-2xl font-bold text-white drop-shadow-md">Kasir UMKM Simpel</h1>
         <p class="text-white/90 mt-1 text-xs sm:text-sm font-medium drop-shadow-sm">Kasir, stok & laporan untuk warung Anda</p>
       </div>
-      <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+      <div class="bg-white rounded-xl shadow-sm px-3 py-2.5 sm:p-5">
         <!-- Tab switch -->
-        <div class="flex rounded-lg bg-surface-soft p-1 mb-4">
-          <button id="tabLogin" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-ink shadow-sm transition min-h-[44px]">Masuk</button>
-          <button id="tabRegister" class="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-muted hover:text-body transition min-h-[44px]">Daftar Toko</button>
+        <div class="flex rounded-lg bg-surface-soft p-1 mb-3">
+          <button id="tabLogin" class="flex-1 rounded-xl px-4 py-2 text-sm font-semibold bg-white text-ink shadow-sm transition min-h-[44px]">Masuk</button>
+          <button id="tabRegister" class="flex-1 rounded-xl px-4 py-2 text-sm font-semibold text-muted hover:text-body transition min-h-[44px]">Daftar Toko</button>
         </div>
 
         <div id="authError" class="hidden mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"></div>
         <div id="authSuccess" class="hidden mb-4 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700"></div>
 
         <!-- FORM MASUK -->
-        <form id="loginForm2" class="space-y-3">
+        <form id="loginForm2" class="space-y-2.5">
           <label class="block">
             <span class="text-body text-sm font-medium">Email</span>
             <input id="loginEmail" type="email" required autocomplete="email"
-              class="mt-2 w-full rounded-lg border border-hairline px-4 py-3 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+              class="mt-1.5 w-full rounded-lg border border-hairline px-4 py-2.5 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
               placeholder="email@toko.com" />
           </label>
           <label class="block">
             <span class="text-body text-sm font-medium">Password</span>
             <div class="relative mt-2">
               <input id="loginPass" type="password" required autocomplete="current-password"
-                class="w-full rounded-lg border border-hairline px-4 py-3 pr-12 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
+                class="w-full rounded-lg border border-hairline px-4 py-2.5 pr-12 focus:border-ink focus:border-2 focus:ring-0 focus:outline-none"
                 placeholder="Masukkan password" />
               <button type="button" data-toggle="loginPass"
                 class="toggle-pw absolute right-4 top-1/2 -translate-y-1/2 text-muted-soft hover:text-body text-sm"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
             </div>
           </label>
           <button type="submit" id="loginSubmitBtn"
-            class="w-full rounded-lg bg-ink px-5 py-3 text-white font-semibold hover:bg-body transition mt-2">
+            class="w-full rounded-lg bg-ink px-5 py-2 text-white font-semibold hover:bg-body transition mt-1">
             Masuk
           </button>
 
-          <div class="relative my-3" role="separator">
+          <div class="relative my-1.5" role="separator">
             <div class="absolute inset-0 flex items-center" aria-hidden="true"><div class="w-full border-t border-hairline"></div></div>
             <div class="relative flex justify-center"><span class="bg-white px-4 text-sm text-muted">atau masuk dengan</span></div>
           </div>
           <button type="button" id="googleLoginBtn"
-            class="w-full flex items-center justify-center gap-3 rounded-lg border border-hairline bg-white px-5 py-3 font-semibold text-ink hover:bg-surface-soft transition min-h-[44px]">
+            class="w-full flex items-center justify-center gap-3 rounded-lg border border-hairline bg-white px-5 py-2 font-semibold text-ink hover:bg-surface-soft transition min-h-[44px]">
             <svg class="h-5 w-5 shrink-0" viewBox="0 0 48 48" aria-hidden="true">
               <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
               <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -804,7 +833,7 @@
             <span id="googleLoginLabel">Masuk dengan Google</span>
           </button>
 
-          <div class="text-center mt-2">
+          <div class="text-center mt-1">
             <button type="button" id="forgotPasswordBtn" class="text-sm text-primary hover:underline">Lupa Password?</button>
           </div>
           <div id="forgotPasswordForm" class="hidden mt-3 space-y-3 rounded-lg bg-primary-light border border-hairline p-4">
@@ -817,7 +846,7 @@
           </div>
 
           <!-- CTA untuk user baru -->
-          <div class="text-center mt-4 pt-4 border-t border-hairline">
+          <div class="text-center mt-2 pt-2 border-t border-hairline">
             <p class="text-sm text-muted">Belum punya toko? <button type="button" id="ctaRegister" class="text-primary font-semibold hover:underline">Daftar gratis</button></p>
           </div>
         </form>
@@ -930,7 +959,7 @@
           <p class="text-xs text-center font-semibold text-primary">Gratis selamanya untuk fitur dasar + bonus Premium 30 hari pertama.</p>
         </form>
       </div>
-      <p class="text-center text-xs text-white/80 mt-3 drop-shadow-sm">Data toko Anda terisolasi &amp; aman.</p>
+      <p class="text-center text-xs text-white/80 mt-2 drop-shadow-sm">Data toko Anda terisolasi &amp; aman.</p>
     </div>
   </div>
 
