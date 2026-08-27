@@ -267,27 +267,40 @@
     }
     @media (min-width: 1024px) {
       .kasir-layout {
-        grid-template-columns: minmax(0, 1.4fr) minmax(340px, 0.9fr);
-        align-items: start;
+        grid-template-columns: minmax(0, 1.35fr) minmax(350px, 0.95fr);
+        align-items: stretch;
         gap: 1rem;
+        height: calc(100dvh - 5.25rem);
+        max-height: calc(100dvh - 5.25rem);
+      }
+      .kasir-products-panel {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        max-height: 100%;
+        overflow: hidden;
       }
       .kasir-cart-panel {
-        position: sticky;
-        top: 0.75rem;
-        max-height: calc(100dvh - 5.5rem);
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        max-height: 100%;
         overflow: hidden;
+        position: relative;
+        top: 0;
       }
       /* Cart list: satu-satunya area scrollable di panel kanan */
       #cartList {
-        flex: 1;
-        min-height: 0;
+        flex: 1 1 auto;
+        min-height: 52px;
+        max-height: none;
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
-        padding-right: 0.125rem;
+        padding-right: 0.25rem;
       }
       /* Payment section: selalu terlihat, tidak ikut scroll */
       .kasir-pay-fields {
-        margin-top: 0.75rem;
+        margin-top: 0.5rem;
         flex-shrink: 0;
       }
       .kasir-pay-actions {
@@ -305,7 +318,7 @@
       }
       #printButton {
         flex-shrink: 0;
-        margin-top: 0.5rem;
+        margin-top: 0.375rem;
       }
       #kasir.screen {
         padding-bottom: 0;
@@ -326,7 +339,9 @@
     }
     @media (min-width: 1024px) {
       .kasir-product-grid {
-        max-height: min(58vh, 560px);
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
     }
