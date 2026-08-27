@@ -275,7 +275,7 @@
         position: sticky;
         top: 0.75rem;
         max-height: calc(100dvh - 5.5rem);
-        overflow: hidden;
+        overflow: hidden auto;
       }
       /* Cart list: satu-satunya area scrollable di panel kanan */
       #cartList {
@@ -287,8 +287,12 @@
       }
       /* Payment section: selalu terlihat, tidak ikut scroll */
       .kasir-pay-fields {
-        margin-top: 0.75rem;
+        margin-top: 0.5rem;
         flex-shrink: 0;
+        padding-bottom: 0.25rem;
+      }
+      .kasir-pay-fields > * + * {
+        margin-top: 0.375rem;
       }
       .kasir-pay-actions {
         position: static;
@@ -299,13 +303,13 @@
         box-shadow: none;
         border-top: none;
         padding: 0;
-        margin-top: 0.5rem;
+        margin-top: 0.375rem;
         background: transparent;
         flex-shrink: 0;
       }
       #printButton {
         flex-shrink: 0;
-        margin-top: 0.5rem;
+        margin-top: 0.375rem;
       }
       #kasir.screen {
         padding-bottom: 0;
@@ -1225,16 +1229,16 @@
             <div id="productGrid" class="kasir-product-grid"></div>
           </div>
           <div class="kasir-cart-panel rounded-xl bg-white p-4 md:p-5 shadow-sm border border-hairline flex flex-col min-w-0">
-            <div class="flex items-baseline justify-between mb-3">
+            <div class="flex items-baseline justify-between mb-2">
               <h3 class="text-lg font-semibold leading-tight">Keranjang</h3>
               <span id="cartCount" class="text-muted text-xs">0 item</span>
             </div>
             <div class="space-y-2 mb-3 flex-1 min-h-0 overflow-y-auto" id="cartList"></div>
-            <div class="rounded-xl bg-surface-soft p-3 space-y-3 mt-auto flex-shrink-0">
+            <div class="rounded-xl bg-surface-soft p-2 space-y-1.5 mt-auto flex-shrink-0">
               <div class="flex items-center justify-between text-sm text-body">
                 <span>Subtotal</span><span id="cartSubtotal">Rp0</span>
               </div>
-              <div class="grid gap-2 grid-cols-2">
+              <div class="grid gap-1.5 grid-cols-2">
                 <label class="block">
                   <span class="text-muted text-xs">Diskon (%)</span>
                   <input id="discountPercent" type="number" min="0" max="100" value="0" class="mt-1 w-full rounded-lg border border-hairline bg-white px-2.5 py-1.5 text-sm" />
@@ -1252,7 +1256,7 @@
                 <span id="cartTotal" class="text-2xl font-bold text-ink leading-none">Rp0</span>
               </div>
             </div>
-            <div class="kasir-pay-fields space-y-2.5">
+            <div class="kasir-pay-fields space-y-1.5">
               <div>
                 <span class="text-muted text-xs font-semibold uppercase tracking-wide block mb-2">Metode Pembayaran</span>
                 <div class="pay-methods">
@@ -1267,14 +1271,14 @@
                   <span class="text-muted text-xs">Tunai Dibayarkan</span>
                   <input id="cashInput" type="number" min="0" value="0" inputmode="numeric" class="mt-1 w-full rounded-lg border border-hairline bg-white px-3 py-2.5 text-base font-semibold min-h-[44px]" />
                 </label>
-                <div id="quickCashRow" class="mt-2">
+                <div id="quickCashRow" class="mt-1.5">
                   <button type="button" data-quickcash="20000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-sm font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp20.000</button>
                   <button type="button" data-quickcash="50000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-sm font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp50.000</button>
                   <button type="button" data-quickcash="100000" class="quickcash-btn rounded-lg border border-hairline bg-white px-1 py-2 text-sm font-semibold text-body hover:bg-surface-soft transition min-h-[44px]">Rp100.000</button>
                   <button type="button" data-quickcash="exact" class="quickcash-btn quickcash-exact rounded-lg border border-primary bg-primary-light px-1 py-2 text-sm font-semibold text-primary transition min-h-[44px] disabled:opacity-50">Uang Pas</button>
                   <button type="button" data-quickcash="reset" class="quickcash-btn rounded-lg border border-transparent bg-transparent px-1 py-2 text-sm font-medium text-muted hover:text-body hover:bg-surface-soft transition min-h-[44px]">Reset Uang</button>
                 </div>
-                <div class="flex items-center justify-between mt-2 pt-2 border-t border-hairline-soft">
+                <div class="flex items-center justify-between mt-1.5 pt-1.5 border-t border-hairline-soft">
                   <span id="cashChangeLabel" class="text-body text-sm">Kembalian</span>
                   <span id="cashChange" class="text-lg font-bold text-ink leading-none">Rp0</span>
                 </div>
@@ -1304,7 +1308,7 @@
                   <span id="payBarTotal" class="text-lg font-bold text-ink">Rp0</span>
                 </span>
               </div>
-              <button id="payButton" class="w-full rounded-lg bg-primary px-4 py-3 text-white font-semibold hover:bg-primary-active transition min-h-[48px]">Bayar &amp; Simpan Transaksi</button>
+              <button id="payButton" class="w-full rounded-lg bg-primary px-4 py-2.5 text-white font-semibold hover:bg-primary-active transition min-h-[44px]">Bayar &amp; Simpan Transaksi</button>
             </div>
             <button id="printButton" class="kasir-print-action w-full rounded-lg border border-hairline bg-white px-4 py-2.5 text-body font-semibold hover:bg-surface-soft transition min-h-[44px]">Cetak Struk</button>
           </div>
