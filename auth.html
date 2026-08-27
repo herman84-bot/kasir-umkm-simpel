@@ -479,6 +479,7 @@
       inset: 0;
       background-image: linear-gradient(160deg, #1B1815 0%, #26231F 100%);
       z-index: 1;
+      transition: opacity 0.5s ease;
     }
     #lampGate {
       position: absolute;
@@ -488,24 +489,27 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 1.25rem;
+      gap: 1rem;
       cursor: pointer;
-      /* Mulai tak terlihat; JS menaikkan ke opacity 1 pada frame berikutnya
-         sehingga lampu FADE-IN halus (bukan pop instan) saat gate dibuka. */
       opacity: 0;
       transition: opacity 0.4s ease;
+      /* Optical center: sedikit di atas mathematical center (43%)
+         karena grouping lampu (hanger+shade+pull) punya berat visual ke atas. */
+      padding-bottom: 8vh;
     }
     #lampGate.hidden { display: none; }
     #lampPull {
       background: none;
       border: 0;
-      padding: 12px 24px 24px;
+      padding: 8px 24px 20px;
       cursor: pointer;
       display: flex;
       flex-direction: column;
       align-items: center;
       min-width: 44px;
       min-height: 44px;
+      /* will-change: transform untuk smooth 60fps GSAP */
+      will-change: transform;
     }
     #lampPull:focus-visible {
       outline: 2px solid #E3A868;
@@ -515,13 +519,32 @@
     .lamp-hanger {
       width: 2px;
       height: 72px;
-      background: #8A7F72;
+      background: linear-gradient(180deg, #6B6358 0%, #8A7F72 100%);
+      /* Hanger stays rigid — only the pull cord below moves */
+      transform-origin: top center;
     }
     .lamp-head {
       position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
+      /* Shade subtle response: will be animated by GSAP */
+      will-change: transform;
+    }
+    .lamp-glow {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      width: 280px;
+      height: 280px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(227, 168, 104, 0.18) 0%, rgba(227, 168, 104, 0.06) 45%, transparent 70%);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+      /* Bloom: expands slightly as light activates */
+      will-change: opacity, transform;
     }
     .lamp-cone {
       width: 210px;
@@ -530,6 +553,7 @@
       background: radial-gradient(120% 100% at 50% 0%, rgba(227, 168, 104, 0.55) 0%, rgba(227, 168, 104, 0.18) 45%, rgba(227, 168, 104, 0) 78%);
       clip-path: polygon(34% 0%, 66% 0%, 100% 100%, 0% 100%);
       opacity: 0;
+      will-change: opacity;
     }
     .lamp-pull {
       position: absolute;
@@ -538,23 +562,37 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      will-change: transform;
     }
     .lamp-pull-line {
       width: 2px;
       height: 54px;
-      background: #8A7F72;
+      background: linear-gradient(180deg, #8A7F72 0%, #7A7068 100%);
+      /* Subtle stretch on pull */
+      transform-origin: top center;
     }
     .lamp-bead {
       width: 13px;
       height: 13px;
       border-radius: 9999px;
-      background: #8A7F72;
+      background: radial-gradient(circle at 40% 35%, #A8A29E 0%, #8A7F72 60%, #7A7068 100%);
       margin-top: -1px;
+      will-change: transform;
     }
     .lamp-inner { opacity: 0.25; }
     .lamp-hint {
       color: #A8A29E;
-      font-size: 0.875rem;
+      font-size: 0.8125rem;
+      letter-spacing: 0.02em;
+      user-select: none;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #lampGate { transition: opacity 0.2s ease; }
+      #lampVeil { transition: opacity 0.2s ease; }
+      .lamp-glow, .lamp-cone, .lamp-pull, .lamp-pull-line, .lamp-bead, .lamp-head {
+        transition: opacity 0.2s ease;
+        will-change: auto;
+      }
     }
   </style>
   <script type="application/ld+json">
@@ -681,6 +719,7 @@
       <button type="button" id="lampPull" aria-label="Nyalakan lampu untuk masuk">
         <span class="lamp-hanger"></span>
         <span class="lamp-head">
+          <span class="lamp-glow"></span>
           <svg width="128" height="74" viewBox="0 0 128 74" aria-hidden="true" focusable="false">
             <path d="M2 70 A62 62 0 0 1 126 70 Z" fill="#F5F2EB"></path>
             <ellipse class="lamp-inner" cx="64" cy="70" rx="62" ry="7" fill="#E3A868"></ellipse>

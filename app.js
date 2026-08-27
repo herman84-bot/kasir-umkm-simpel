@@ -867,6 +867,24 @@ const App = (() => {
       card.style.opacity = '';
       card.style.transform = '';
     }
+    // Cleanup GSAP elements from lamp animation
+    try {
+      const gsap = window.gsap;
+      if (gsap) {
+        gsap.killTweensOf('#lampGate .lamp-pull');
+        gsap.killTweensOf('#lampGate .lamp-bead');
+        gsap.killTweensOf('#lampGate .lamp-head');
+        gsap.killTweensOf('.lamp-hint');
+        gsap.killTweensOf('#lampGate .lamp-glow');
+        gsap.set('#lampGate .lamp-pull', { y: 0, rotation: 0, clearProps: 'all' });
+        gsap.set('#lampGate .lamp-bead', { y: 0, clearProps: 'all' });
+        gsap.set('#lampGate .lamp-head', { rotation: 0, clearProps: 'transform' });
+        gsap.set('#lampGate .lamp-inner', { opacity: 0.25 });
+        gsap.set('#lampGate .lamp-cone', { opacity: 0 });
+        const glowEl = document.querySelector('#lampGate .lamp-glow');
+        if (glowEl) { glowEl.style.opacity = '0'; glowEl.style.transform = ''; }
+      }
+    } catch (e) { /* cleanup best-effort */ }
     if (markLit) {
       try { localStorage.setItem(LAMP_FLAG, '1'); } catch (e) { /* storage penuh/diblokir */ }
     }
@@ -875,18 +893,98 @@ const App = (() => {
   const runLampAnimation = () => {
     const gsap = window.gsap;
     const card = document.getElementById('loginCard');
-    const timeline = gsap.timeline({ onComplete: () => endLampGate(true) });
+    const glow = document.querySelector('#lampGate .lamp-glow');
+    const timeline = gsap.timeline({
+      onComplete: () => {
+        // Cleanup: reset will-change after animation completes
+        try {
+          gsap.set(['#lampGate .lamp-pull', '#lampGate .lamp-head'], { willChange: 'auto' });
+          gsap.set('#lampGate .lamp-cone', { willChange: 'auto' });
+        } catch (e) { /* gate sudah selesai */ }
+        endLampGate(true);
+      }
+    });
+
+    // ─── PHASE 1: Physical pull (0–180ms) ───
+    // Cord moves down with slight overshoot, bead leads.
     timeline
-      .to('#lampGate .lamp-pull', { y: 10, duration: 0.18, ease: 'power2.out' }, 0)
-      .to('#lampGate .lamp-pull', { y: 0, duration: 0.6, ease: 'elastic.out(1, 0.35)' }, 0.18)
-      .set('#lampGate .lamp-inner', { opacity: 1 }, 0.18)
-      .set('#lampGate .lamp-inner', { opacity: 0.25 }, 0.24)
-      .set('#lampGate .lamp-inner', { opacity: 1 }, 0.29)
-      .set('#lampGate .lamp-inner', { opacity: 0.25 }, 0.35)
-      .to('#lampGate .lamp-inner', { opacity: 1, duration: 0.15 }, 0.4)
-      .to('#lampGate .lamp-cone', { opacity: 0.35, duration: 0.15 }, 0.4)
-      .to('#lampVeil', { opacity: 0, duration: 0.6, ease: 'power2.inOut' }, 0.4)
-      .fromTo(card, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power2.out' }, 0.55);
+      .to('#lampGate .lamp-pull', {
+        y: 12,
+        duration: 0.14,
+        ease: 'power3.out'
+      }, 0)
+      // Shade tilts slightly — physical response to cord pull
+      .to('#lampGate .lamp-head', {
+        rotation: 1.5,
+        transformOrigin: 'top center',
+        duration: 0.14,
+        ease: 'power2.out'
+      }, 0.02);
+
+    // ─── PHASE 2: Cord settles + shade rocks back (140–400ms) ───
+    // No elastic — just smooth deceleration with slight overshoot.
+    timeline
+      .to('#lampGate .lamp-pull', {
+        y: 0,
+        duration: 0.28,
+        ease: 'power2.inOut'
+      }, 0.14)
+      .to('#lampGate .lamp-head', {
+        rotation: -0.5,
+        duration: 0.25,
+        ease: 'power2.inOut'
+      }, 0.16)
+      .to('#lampGate .lamp-head', {
+        rotation: 0,
+        duration: 0.2,
+        ease: 'power2.out'
+      }, 0.41);
+
+    // ─── PHASE 3: Light activation (180–350ms) ───
+    // Inner glow warms up — no flicker, just a clean ramp.
+    timeline
+      .to('#lampGate .lamp-inner', {
+        opacity: 1,
+        duration: 0.25,
+        ease: 'power1.in'
+      }, 0.18);
+
+    // Glow appears — bloom from the shade, warm and soft.
+    if (glow) {
+      timeline
+        .to(glow, {
+          opacity: 1,
+          scale: 1.08,
+          duration: 0.35,
+          ease: 'power1.out'
+        }, 0.2);
+    }
+
+    // Light cone fades in — soft, not instant.
+    timeline
+      .to('#lampGate .lamp-cone', {
+        opacity: 0.4,
+        duration: 0.3,
+        ease: 'power1.out'
+      }, 0.22);
+
+    // ─── PHASE 4: Room brightens (300–700ms) ───
+    // Veil fades: dark → warm dark → transparent.
+    timeline
+      .to('#lampVeil', {
+        opacity: 0,
+        duration: 0.5,
+        ease: 'power2.inOut'
+      }, 0.3);
+
+    // ─── PHASE 5: Login reveal (350–700ms) ───
+    // Card emerges from below, gentle and deliberate.
+    timeline
+      .fromTo(card,
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.4, ease: 'power2.out' },
+        0.35
+      );
   };
 
   // Kunci localStorage tempat SDK Supabase menyimpan sesi (format bawaan:
@@ -953,7 +1051,11 @@ const App = (() => {
         if (loginPageEl) loginPageEl.style.background = '';
         try {
           window.gsap.killTweensOf('#lampGate .lamp-pull');
-          window.gsap.set('#lampGate .lamp-pull', { rotation: 0 });
+          window.gsap.killTweensOf('#lampGate .lamp-bead');
+          window.gsap.killTweensOf('.lamp-hint');
+          window.gsap.set('#lampGate .lamp-pull', { y: 0, rotation: 0 });
+          window.gsap.set('#lampGate .lamp-bead', { y: 0 });
+          window.gsap.set('.lamp-hint', { opacity: 1 });
         } catch (e) { /* lanjut ke animasi utama */ }
         // Watchdog: animasi yang macet tidak boleh mengunci form login.
         lampWatchdog = setTimeout(() => endLampGate(false), 2500);
@@ -961,17 +1063,34 @@ const App = (() => {
       };
       gate.addEventListener('click', lightUp);
       veil.addEventListener('click', lightUp);
-      // Afordansi diam: ayunan halus beberapa kali lalu berhenti sendiri.
-      // delay 0.35s: lampu muncul dulu (fade-in 0.4s), baru mulai berayun.
+      // Idle: lampu "bernapas" — pull cord bergerak turun naik sangat halus
+      // seolah ada angin ringan. Bukan rotasi (terlihat seperti mainan),
+      // melainkan translateY kecil yang organik.
       window.gsap.to('#lampGate .lamp-pull', {
-        rotation: 3,
-        transformOrigin: 'top center',
-        duration: 1.1,
+        y: 3,
+        duration: 1.8,
         ease: 'sine.inOut',
         yoyo: true,
-        repeat: 3,
-        delay: 0.35,
-        onComplete: () => { try { window.gsap.set('#lampGate .lamp-pull', { rotation: 0 }); } catch (e) { /* gate sudah selesai */ } }
+        repeat: -1,
+        delay: 0.5
+      });
+      // Bead bergerak sedikit lebih banyak dari cord — weight inertia.
+      window.gsap.to('#lampGate .lamp-bead', {
+        y: 2,
+        duration: 1.8,
+        ease: 'sine.inOut',
+        yoyo: true,
+        repeat: -1,
+        delay: 0.6
+      });
+      // Hint text opacity pulse — sangat subtle, menarik perhatian tanpa disturbing.
+      window.gsap.to('.lamp-hint', {
+        opacity: 0.6,
+        duration: 2,
+        ease: 'sine.inOut',
+        yoyo: true,
+        repeat: -1,
+        delay: 0.8
       });
     } catch (e) {
       endLampGate(false);
