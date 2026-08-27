@@ -964,6 +964,10 @@
   </div>
 
   <div id="appContainer" class="hidden min-h-screen flex flex-col md:flex-row overflow-x-hidden">
+    <!-- Offline indicator: tampil saat menggunakan data cache -->
+    <div id="offlineBanner" class="hidden fixed top-0 left-0 right-0 z-[200] bg-amber-100 border-b border-amber-300 px-4 py-2 text-center text-sm text-amber-800 font-medium">
+      Mode offline — menampilkan data terakhir yang tersimpan. Beberapa fitur mungkin terbatas.
+    </div>
     <!-- Sidebar: hidden on mobile, visible on md+ -->
     <aside id="mainSidebar" class="hidden md:flex md:w-72 bg-ink text-white px-5 py-6 shadow-lg flex-col transition-all duration-300 shrink-0">
       <div class="mb-8">

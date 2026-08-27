@@ -162,6 +162,92 @@ const App = (() => {
     storeSettings: 'pos_store_settings'
   };
 
+  // ── IndexedDB Offline Cache ──────────────────────────────────────────────
+  // Menyimpan data Supabase ke IndexedDB supaya app tetap bisa dibuka walau
+  // network down. Setiap berhasil load dari cloud, data di-cache. Saat offline,
+  // data terakhir di-cache ditampilkan + indikator offline ditampilkan.
+  const IDB_NAME = 'kasir-umkm-offline';
+  const IDB_VERSION = 1;
+  const IDB_STORES = ['products', 'transactions', 'cashiers', 'purchases', 'stores'];
+  let _idb = null; // singleton IndexedDB connection
+
+  /** Buka koneksi IndexedDB (singleton, lazy). Return null jika IDB tidak tersedia. */
+  const openIDB = () => {
+    if (_idb) return Promise.resolve(_idb);
+    if (typeof indexedDB === 'undefined') return Promise.resolve(null);
+    return new Promise(resolve => {
+      try {
+        const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          IDB_STORES.forEach(name => {
+            if (!db.objectStoreNames.contains(name)) {
+              db.createObjectStore(name, { keyPath: 'key' });
+            }
+          });
+        };
+        req.onsuccess = () => { _idb = req.result; resolve(_idb); };
+        req.onerror = () => { console.warn('IndexedDB open gagal:', req.error); resolve(null); };
+      } catch (e) { console.warn('IndexedDB tidak tersedia:', e); resolve(null); }
+    });
+  };
+
+  /** Simpan array data ke IndexedDB. key = storeId, ttl = waktu cache valid (ms). */
+  const cacheSave = async (storeName, storeId, data) => {
+    const db = await openIDB();
+    if (!db) return;
+    try {
+      const tx = db.transaction(storeName, 'readwrite');
+      tx.objectStore(storeName).put({
+        key: String(storeId),
+        data: data,
+        cachedAt: Date.now()
+      });
+    } catch (e) { console.warn(`cacheSave(${storeName}) gagal:`, e.message); }
+  };
+
+  /** Baca array data dari IndexedDB. Return data[] atau null jika tidak ada/expired. */
+  const cacheLoad = async (storeName, storeId, maxAgeMs) => {
+    const db = await openIDB();
+    if (!db) return null;
+    return new Promise(resolve => {
+      try {
+        const tx = db.transaction(storeName, 'readonly');
+        const req = tx.objectStore(storeName).get(String(storeId));
+        req.onsuccess = () => {
+          const rec = req.result;
+          if (!rec || !rec.data) return resolve(null);
+          if (maxAgeMs && (Date.now() - (rec.cachedAt || 0)) > maxAgeMs) return resolve(null);
+          resolve(rec.data);
+        };
+        req.onerror = () => resolve(null);
+      } catch (e) { resolve(null); }
+    });
+  };
+
+  /** Hapus semua cache untuk storeId tertentu (dipanggil saat logout). */
+  const cacheClear = async (storeId) => {
+    const db = await openIDB();
+    if (!db) return;
+    await Promise.allSettled(IDB_STORES.map(name => new Promise(resolve => {
+      try {
+        const tx = db.transaction(name, 'readwrite');
+        tx.objectStore(name).delete(String(storeId));
+        tx.oncomplete = resolve;
+        tx.onerror = resolve;
+      } catch (e) { resolve(); }
+    })));
+  };
+
+  /** Update offline indicator di UI. */
+  const setOfflineIndicator = (show) => {
+    const el = document.getElementById('offlineBanner');
+    if (el) el.style.display = show ? '' : 'none';
+  };
+
+  // Cache validity: products/transactions up to 24 jam, stores up to 1 jam
+  const CACHE_MAX_AGE = { products: 86400000, transactions: 86400000, cashiers: 86400000, purchases: 86400000, stores: 3600000 };
+
   const defaultStoreSettings = {
     name: 'Kasir UMKM Simpel',
     address: '',
@@ -1253,6 +1339,9 @@ const App = (() => {
         localStorage.removeItem(k);
       }
     });
+    // Bersihkan IndexedDB cache saat logout
+    try { cacheClear(state.storeId || ''); } catch (e) { /* ignore */ }
+    setOfflineIndicator(false);
     showLoginPage();
   };
   // ─────────────────────────────────────────────────────────────────────────
@@ -1572,6 +1661,7 @@ const App = (() => {
     // Tanpa filter ini, user baru (Google atau email) akan melihat toko user lain
     // dan terlewat guard 'promptStoreSetup' di enterAppAfterAuth().
     let data = null, error = null;
+    let _fromCache = false;
     const _ab = timedAbort();
     try {
       ({ data, error } = await db.from('stores').select('*')
@@ -1583,8 +1673,20 @@ const App = (() => {
     } finally {
       _ab.done();
     }
+    // Fallback: jika cloud gagal, coba load dari IndexedDB cache
+    if (error || !data) {
+      const cached = await cacheLoad('stores', state.authUser?.id, CACHE_MAX_AGE.stores);
+      if (cached && cached.length) {
+        data = cached; error = null; _fromCache = true;
+        console.log('loadStore: menggunakan cache offline', cached.length, 'toko');
+      }
+    }
     if (error) { console.warn('loadStore error:', error); return null; }
     state.stores = data || [];
+    // Simpan ke cache jika berhasil dari cloud
+    if (!_fromCache && data && data.length) {
+      cacheSave('stores', state.authUser?.id, data);
+    }
 
     // Force service worker update for new deployments
     if ('serviceWorker' in navigator) {
@@ -1667,6 +1769,7 @@ const App = (() => {
     flushWithTimeout(flushOfflineQueue, 'flushOfflineQueue');
     flushWithTimeout(flushDebtQueue, 'flushDebtQueue');
 
+    let _usedCache = false;
     try {
       setLoadingStatus('Memuat produk...', 40);
       let _ab2 = timedAbort();
@@ -1674,8 +1777,14 @@ const App = (() => {
         .from('products').select('*').eq('store_id', state.storeId).order('id', { ascending: true })
         .abortSignal(_ab2.signal);
       _ab2.done();
-      if (pErr) throw pErr;
-      state.products = products ? products.map(fromDbProduct) : [];
+      if (pErr) {
+        const cached = await cacheLoad('products', state.storeId, CACHE_MAX_AGE.products);
+        if (cached && cached.length) { state.products = cached.map(fromDbProduct); _usedCache = true; }
+        else throw pErr;
+      } else {
+        state.products = products ? products.map(fromDbProduct) : [];
+        cacheSave('products', state.storeId, state.products);
+      }
 
       setLoadingStatus('Memuat kasir...', 55);
       let _ab3 = timedAbort();
@@ -1692,7 +1801,12 @@ const App = (() => {
         _ab3.done();
         cashiers = fallback.data;
       }
+      if (cErr && !cashiers) {
+        const cached = await cacheLoad('cashiers', state.storeId, CACHE_MAX_AGE.cashiers);
+        if (cached && cached.length) { cashiers = cached; _usedCache = true; }
+      }
       state.cashiers = cashiers ? cashiers.map(fromDbCashier) : [];
+      if (state.cashiers.length) cacheSave('cashiers', state.storeId, state.cashiers);
       // Pengaman data lama: minimal harus ada satu admin agar pemilik tidak terkunci
       if (state.cashiers.length && !state.cashiers.some(c => c.role === 'admin')) {
         state.cashiers[0].role = 'admin';
@@ -1710,8 +1824,14 @@ const App = (() => {
         .order('created_at', { ascending: false }).limit(500)
         .abortSignal(_ab4.signal);
       _ab4.done();
-      if (tErr) throw tErr;
-      state.transactions = transactions ? transactions.map(fromDbTransaction) : [];
+      if (tErr) {
+        const cached = await cacheLoad('transactions', state.storeId, CACHE_MAX_AGE.transactions);
+        if (cached && cached.length) { state.transactions = cached.map(fromDbTransaction); _usedCache = true; }
+        else throw tErr;
+      } else {
+        state.transactions = transactions ? transactions.map(fromDbTransaction) : [];
+        cacheSave('transactions', state.storeId, state.transactions);
+      }
 
       setLoadingStatus('Memuat pembelian...', 85);
       let _ab5 = timedAbort();
@@ -1722,6 +1842,7 @@ const App = (() => {
         .abortSignal(_ab5.signal);
       _ab5.done();
       state.purchases = purchases ? purchases.map(fromDbPurchase) : [];
+      if (state.purchases.length) cacheSave('purchases', state.storeId, state.purchases);
 
       // Kasbon (tabel bisa belum ada jika 05_kasbon.sql belum dijalankan)
       let _ab6 = timedAbort();
@@ -1748,6 +1869,12 @@ const App = (() => {
       showAppToast(msg, 'error');
       // Jangan kosongkan data jika hanya sebagian query yang gagal (abort)
       // — data yang sudah berhasil dimuat tetap dipertahankan
+    }
+
+    // Tampilkan banner offline jika menggunakan data cache
+    if (_usedCache) {
+      console.log('loadData: menggunakan data cache offline');
+      setOfflineIndicator(true);
     }
 
     syncStorage();
@@ -5508,7 +5635,22 @@ ${txRows}
     });
 
     // ── Offline auto-sync ──
-    window.addEventListener('online', () => { flushOfflineQueue(); flushDebtQueue(); });
+    window.addEventListener('online', async () => {
+      flushOfflineQueue(); flushDebtQueue();
+      // Re-fetch data dari cloud setelah online
+      if (state.storeId && state.authUser) {
+        try {
+          await loadData();
+          setOfflineIndicator(false);
+          renderAll();
+          showAppToast('Kembali online — data sudah terbaru.', 'success');
+        } catch (e) { /* biarkan data cache tetap tampil */ }
+      }
+    });
+    window.addEventListener('offline', () => {
+      setOfflineIndicator(true);
+      showAppToast('Koneksi terputus — menggunakan data cache.', 'warning');
+    });
 
     // ── Multi-Cabang ──
     document.getElementById('storeSwitcher')?.addEventListener('change', e => switchStore(e.target.value));
@@ -7197,6 +7339,9 @@ ${txRows}
     initHelpChat();
     initHardwareScanner();
     registerServiceWorker();
+
+    // Tampilkan offline indicator jika sudah offline sejak awal
+    if (!navigator.onLine) setOfflineIndicator(true);
 
     // Cek sesi Supabase yang masih aktif
     setLoadingStatus('Memeriksa sesi...', 20);
