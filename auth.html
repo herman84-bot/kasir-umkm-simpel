@@ -275,7 +275,20 @@
         position: sticky;
         top: 0.75rem;
         max-height: calc(100dvh - 5.5rem);
+        overflow: hidden;
+      }
+      /* Cart list: satu-satunya area scrollable di panel kanan */
+      #cartList {
+        flex: 1;
+        min-height: 0;
         overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-right: 0.125rem;
+      }
+      /* Payment section: selalu terlihat, tidak ikut scroll */
+      .kasir-pay-fields {
+        margin-top: 0.75rem;
+        flex-shrink: 0;
       }
       .kasir-pay-actions {
         position: static;
@@ -288,9 +301,11 @@
         padding: 0;
         margin-top: 0.5rem;
         background: transparent;
+        flex-shrink: 0;
       }
-      .kasir-pay-fields {
-        margin-top: 1.25rem;
+      #printButton {
+        flex-shrink: 0;
+        margin-top: 0.5rem;
       }
       #kasir.screen {
         padding-bottom: 0;
@@ -1214,8 +1229,8 @@
               <h3 class="text-lg font-semibold leading-tight">Keranjang</h3>
               <span id="cartCount" class="text-muted text-xs">0 item</span>
             </div>
-            <div class="space-y-2 mb-3" id="cartList"></div>
-            <div class="rounded-xl bg-surface-soft p-3 space-y-3 mt-auto">
+            <div class="space-y-2 mb-3 flex-1 min-h-0 overflow-y-auto" id="cartList"></div>
+            <div class="rounded-xl bg-surface-soft p-3 space-y-3 mt-auto flex-shrink-0">
               <div class="flex items-center justify-between text-sm text-body">
                 <span>Subtotal</span><span id="cartSubtotal">Rp0</span>
               </div>
